@@ -13,6 +13,9 @@ import Infrastructure from "./pages/Infrastructure";
 import MSP from "./pages/MSP";
 import CellBoosting from "./pages/CellBoosting";
 import About from "./pages/About";
+import ServiceAreas from "./pages/ServiceAreas";
+import Portal from "./pages/Portal";
+import Auth from "./pages/Auth";
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -41,7 +44,9 @@ export default function App() {
             <Route path="/services/msp" element={<MSP />} />
             <Route path="/services/cell-boosting" element={<CellBoosting />} />
             <Route path="/about/mission" element={<About />} />
-            <Route path="/about/service-areas" element={<About />} />
+            <Route path="/about/service-areas" element={<ServiceAreas />} />
+            <Route path="/portal" element={<Portal />} />
+            <Route path="/auth" element={<Auth />} />
             {/* Fallback to Home */}
             <Route path="*" element={<Home />} />
           </Routes>
