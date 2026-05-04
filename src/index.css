@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Montserrat", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-slate-950: #121417;
+  --color-slate-900: #1E2227;
+  --color-cobalt: #007AFF;
+  --color-safety-orange: #FF8C00;
+  --color-off-white: #F8F9FA;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-off-white font-sans antialiased;
+  }
+}
+
+.blueprint-grid {
+  background-image: radial-gradient(rgba(0, 122, 255, 0.1) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+.technical-line {
+  @apply border-slate-800/50;
+}
+
+.glow-cobalt {
+  box-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
+}
+
+.glow-orange {
+  box-shadow: 0 0 20px rgba(255, 140, 0, 0.4);
+}
