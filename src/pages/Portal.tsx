@@ -1,28 +1,46 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Shield, Lock, ArrowRight, UserCheck } from 'lucide-react';
+import { 
+  Shield, 
+  Lock, 
+  ArrowRight, 
+  UserCheck, 
+  Antenna, 
+  Zap, 
+  Cpu, 
+  Network, 
+  Cloud, 
+  Radio, 
+  Share2, 
+  Microchip, 
+  Activity, 
+  Router, 
+  Settings, 
+  Camera, 
+  Barcode 
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 
 const vendors = [
-  { name: "AT&T", category: "Carrier" },
-  { name: "T-Mobile", category: "Carrier" },
-  { name: "Nextivity", category: "Infrastructure" },
-  { name: "Verizon", category: "Carrier" },
-  { name: "Wilson Connectivity", category: "Signal" },
-  { name: "SureCall", category: "Signal" },
-  { name: "Ericsson", category: "Infrastructure" },
-  { name: "Nokia", category: "Infrastructure" },
-  { name: "SOLiD", category: "Distributed Antenna" },
-  { name: "Highway 9 Networks", category: "Edge Computing" },
-  { name: "Moso Networks", category: "Private 5G" },
-  { name: "GXC", category: "Mesh" },
-  { name: "Semtech", category: "LoRaWAN" },
-  { name: "Optical Zonu", category: "Transport" },
-  { name: "Peplink", category: "SD-WAN" },
-  { name: "Simplifi", category: "Management" },
-  { name: "Verkada", category: "Security" },
-  { name: "Zebra", category: "Industrial IT" }
+  { name: "AT&T", category: "Carrier", icon: Antenna },
+  { name: "T-Mobile", category: "Carrier", icon: Antenna },
+  { name: "Nextivity", category: "Infrastructure", icon: Zap },
+  { name: "Verizon", category: "Carrier", icon: Antenna },
+  { name: "Wilson Connectivity", category: "Signal", icon: Radio },
+  { name: "SureCall", category: "Signal", icon: Radio },
+  { name: "Ericsson", category: "Infrastructure", icon: Cpu },
+  { name: "Nokia", category: "Infrastructure", icon: Cpu },
+  { name: "SOLiD", category: "Distributed Antenna", icon: Network },
+  { name: "Highway 9 Networks", category: "Edge Computing", icon: Cloud },
+  { name: "Moso Networks", category: "Private 5G", icon: Radio },
+  { name: "GXC", category: "Mesh", icon: Share2 },
+  { name: "Semtech", category: "LoRaWAN", icon: Microchip },
+  { name: "Optical Zonu", category: "Transport", icon: Activity },
+  { name: "Peplink", category: "SD-WAN", icon: Router },
+  { name: "Simplifi", category: "Management", icon: Settings },
+  { name: "Verkada", category: "Security", icon: Camera },
+  { name: "Zebra", category: "Industrial IT", icon: Barcode }
 ];
 
 const Portal = () => {
@@ -73,7 +91,11 @@ const Portal = () => {
                   <ArrowRight className="w-3 h-3 text-tech-green" />
                 </div>
                 
-                <span className="text-xs font-mono text-slate-600 uppercase tracking-[0.2em] mb-4 group-hover:text-tech-green transition-colors">
+                <div className="mb-4 text-slate-500 group-hover:text-tech-green transition-colors">
+                  <vendor.icon className="w-8 h-8" />
+                </div>
+                
+                <span className="text-[10px] font-mono text-slate-600 uppercase tracking-[0.2em] mb-2 group-hover:text-slate-400 transition-colors">
                   {vendor.category}
                 </span>
                 
