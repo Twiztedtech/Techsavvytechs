@@ -8,7 +8,7 @@ const CellBoosting = () => {
       subtitle="Total Coverage"
       description="Solving cellular dead zones in commercial and residential structures. We deploy high-gain antenna systems and bi-directional amplifiers to ensure consistent 5G connectivity everywhere."
       features={["Industrial DAS", "Bi-Directional Amps", "Signal Source Mapping", "Floor Plan Heatmaps", "Carrier Coordination", "Multi-band Passthrough"]}
-      imageSeed="cell1"
+      imageSeed="https://images.unsplash.com/photo-1563207153-f403bf289096?auto=format&fit=crop&q=80&w=1200"
     />
   );
 };
