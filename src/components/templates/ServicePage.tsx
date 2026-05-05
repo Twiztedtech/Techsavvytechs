@@ -38,7 +38,7 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
           
           <div className="glass-card p-1 rounded-sm relative group overflow-hidden aspect-video">
             <img 
-              src={`https://picsum.photos/seed/${imageSeed}/1200/800`} 
+              src={imageSeed.startsWith('http') ? imageSeed : `https://picsum.photos/seed/${imageSeed}/1200/800`} 
               alt={title} 
               className="w-full h-full object-cover desaturate brightness-75 hover:brightness-100 hover:desaturate-0 transition-all duration-700"
               referrerPolicy="no-referrer"
