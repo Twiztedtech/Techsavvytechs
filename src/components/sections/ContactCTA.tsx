@@ -1,6 +1,7 @@
 import React from 'react';
 import { Server, Phone } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Link } from 'react-router-dom';
 
 export const ContactCTA = () => {
   return (
@@ -21,9 +22,11 @@ export const ContactCTA = () => {
         </p>
         
         <div className="flex flex-col sm:flex-row items-center justify-center gap-10">
-          <Button variant="orange" size="lg" className="w-full sm:w-auto px-12 py-6 text-sm">
-            Book Site Audit
-          </Button>
+          <Link to="/contact">
+            <Button variant="orange" size="lg" className="w-full sm:w-auto px-12 py-6 text-sm">
+              Book Site Audit
+            </Button>
+          </Link>
           
           <div className="flex flex-col items-center sm:items-start gap-3">
             <div className="flex items-center gap-3 text-slate-300 font-mono text-sm uppercase tracking-widest font-bold">

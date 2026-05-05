@@ -62,11 +62,13 @@ export const Navbar = () => {
             />
           </NavItem>
 
-          <a href="#contact" className="hover:text-tech-green transition-colors py-2">Contact</a>
+          <Link to="/contact" className="hover:text-tech-green transition-colors py-2">Contact</Link>
           
-          <Button variant="orange" size="sm">
-            Get Quote
-          </Button>
+          <Link to="/contact">
+            <Button variant="orange" size="sm">
+              Get Quote
+            </Button>
+          </Link>
         </div>
 
         {/* Mobile menu trigger could go here */}

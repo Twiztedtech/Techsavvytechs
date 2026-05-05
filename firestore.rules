@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // helpers
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Contact Form Submissions
+    match /contacts/{contactId} {
+      allow create: if isValidContact(incoming()) && isValidId(contactId);
+      allow read, update, delete: if false;
+    }
+
+    // Email Triggers for Extension
+    match /mail/{mailId} {
+      allow create: if isSignedIn() || true; // Allow public submission for contact form notifications
+      allow read, update, delete: if false;
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) 
+        && data.keys().size() == 4
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 150
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 5000
+        && data.createdAt == request.time;
+    }
+  }
+}
