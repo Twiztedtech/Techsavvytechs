@@ -3,143 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghilotti Construction Site Survey Form</title>
+    <title>Ghilotti Construction — Cel-Fi Booster Upgrade Site Survey Form</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Custom print styling to ensure a beautiful multi-page PDF generation */
         @media print {
-            body {
-                background: white;
-                color: black;
-                font-size: 12px;
-            }
             .no-print {
                 display: none !important;
             }
             .print-break {
-                page-break-after: always;
+                page-break-before: always;
             }
-            .print-container {
-                width: 100% !important;
-                max-width: 100% !important;
+            body {
+                background-color: #fff !important;
+                color: #000 !important;
+            }
+            .shadow-xl, .shadow-md, .shadow-sm {
                 box-shadow: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
             }
-            input, select, textarea {
-                border: none !important;
-                border-bottom: 1px solid #ccc !important;
-                background: transparent !important;
-                padding: 2px !important;
-                appearance: none !important;
-                -webkit-appearance: none !important;
+            .border-slate-100, .border-slate-200 {
+                border-color: #cbd5e1 !important;
             }
-            .interactive-canvas-container {
-                border: 1px solid #000 !important;
-            }
+        }
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+<body class="bg-slate-900 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-amber-500 selection:text-white">
 
-    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50 no-print">
-        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-lg font-extrabold tracking-wider text-lg shadow-inner">
+    <!-- Brand Navigation Bar -->
+    <header class="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded text-sm tracking-wider uppercase">
                     GCC
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight">Ghilotti Construction</h1>
-                    <p class="text-xs text-slate-400">Cel-Fi Booster Upgrade & Mobile Expansion Survey Tool</p>
+                    <h1 class="text-white font-extrabold text-sm sm:text-base leading-tight">Ghilotti Construction</h1>
+                    <p class="text-slate-400 text-xxs sm:text-xs">Cel-Fi Booster Upgrade & Mobile Expansion Survey Tool</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="saveToLocalStorage()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 border border-slate-700">
-                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                    Save Progress
+            
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="saveToLocalStorage(true)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all">
+                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                    </svg>
+                    <span class="hidden sm:inline">Save Progress</span>
                 </button>
-                <button onclick="clearFormData()" class="bg-red-950 hover:bg-red-900 text-red-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+                <button type="button" onclick="clearFormData()" class="bg-red-950/40 hover:bg-red-900/60 text-red-400 px-3 py-2 rounded-lg text-xs font-semibold transition-all">
                     Reset
                 </button>
-                <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95 flex items-center gap-1.5 shadow">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                    Generate Report
+                <button type="button" onclick="window.print()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-amber-500/10 hover:shadow-amber-500/20 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                    </svg>
+                    <span>Generate Report</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <div class="bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden print-container">
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-2 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Tab Navigation Steps -->
+        <nav class="no-print mb-6 overflow-x-auto pb-2 flex space-x-2 border-b border-slate-800 scrollbar-thin">
+            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-amber-500 text-slate-950">
+                1. Overview & Info
+            </button>
+            <button onclick="switchTab('tab-audit')" id="btn-tab-audit" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                2. Component Audit
+            </button>
+            <button onclick="switchTab('tab-donor')" id="btn-tab-donor" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                3. Donor Signals
+            </button>
+            <button onclick="switchTab('tab-buildings')" id="btn-tab-buildings" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                4. Building Profiles
+            </button>
+            <button onclick="switchTab('tab-pathways')" id="btn-tab-pathways" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                5. Pathway Design
+            </button>
+            <button onclick="switchTab('tab-bom')" id="btn-tab-bom" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                6. BOM Planner
+            </button>
+            <button onclick="switchTab('tab-summary')" id="btn-tab-summary" class="tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200">
+                7. Summary & Send
+            </button>
+        </nav>
+
+        <!-- Form Wrapper -->
+        <form id="surveyForm" oninput="saveToLocalStorage(false)" class="bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-h-[600px] flex flex-col justify-between">
             
-            <!-- Navigation Tabs for Step-by-Step Experience (Hidden in Print) -->
-            <div class="bg-slate-100 border-b border-slate-200 p-2 flex flex-wrap gap-1 no-print">
-                <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-amber-500 text-slate-950 shadow-sm">
-                    1. Overview
-                </button>
-                <button onclick="switchTab('tab-audit')" id="btn-tab-audit" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    2. Infrastructure Audit
-                </button>
-                <button onclick="switchTab('tab-donor')" id="btn-tab-donor" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    3. Donor Signal
-                </button>
-                <button onclick="switchTab('tab-buildings')" id="btn-tab-buildings" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    4. Building Assessments
-                </button>
-                <button onclick="switchTab('tab-pathways')" id="btn-tab-pathways" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    5. Pathways & Map
-                </button>
-                <button onclick="switchTab('tab-bom')" id="btn-tab-bom" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    6. BOM Planner
-                </button>
-                <button onclick="switchTab('tab-summary')" id="btn-tab-summary" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
-                    7. Notes & Sign-off
-                </button>
-            </div>
+            <div class="p-6 sm:p-8 space-y-8 flex-grow">
 
-            <!-- Form Wrapper element -->
-            <form id="surveyForm" onsubmit="event.preventDefault();" class="p-6 sm:p-8 space-y-8">
-
+                <!-- STEP 1: Overview & Info -->
                 <section id="tab-overview" class="tab-section space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 1 of 7</span>
                         <h2 class="text-2xl font-extrabold text-slate-900 mt-1">General Project Info & Objectives</h2>
+                        <p class="text-xs text-slate-500 mt-1">Reference File: <span class="font-semibold text-slate-700 underline">Ghilotti Construction Notes for Will.pdf</span></p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Project Name</label>
-                            <input type="text" id="project_name" value="Ghilotti Construction — Cel-Fi Booster Upgrade" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Project Name</label>
+                            <input type="text" id="project_name" value="Ghilotti Construction — Cel-Fi Booster Upgrade" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Date of Survey</label>
-                            <input type="date" id="survey_date" value="2026-06-02" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date of Survey</label>
+                            <input type="date" id="survey_date" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Lead Surveyor</label>
-                            <input type="text" id="surveyor" value="Will" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Lead Surveyor</label>
+                            <input type="text" id="surveyor_name" value="Will" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Target Carrier</label>
-                            <input type="text" id="carrier" value="Verizon Wireless" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Target Carrier</label>
+                            <input type="text" id="target_carrier" value="Verizon Wireless" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                     </div>
 
-                    <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg space-y-2 mt-4">
-                        <h3 class="font-bold text-amber-900 flex items-center gap-1.5 text-sm">
-                            <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                            Critical Engineering Guideline
-                        </h3>
-                        <p class="text-xs text-amber-800 leading-relaxed">
-                            <strong>Transition Note:</strong> The G41 is a traditional RF-over-Coax booster splitting signal dynamically over thick LMR400. The new <strong>Cel-Fi QUATRA EVO</strong> functions differently. The Network Unit (NU) digitizes the signal and transmits it to remote Coverage Units (CUs) over <strong>Category Cables (Cat5e/Cat6)</strong>. You must identify dedicated network cable paths between buildings. Coax cannot carry the signal between NU and CUs.
-                        </p>
+                    <!-- Critical Transitions Alert Banner -->
+                    <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
+                        <div class="flex">
+                            <svg class="h-5 w-5 text-amber-500 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <h3 class="text-xs font-bold text-amber-800 uppercase tracking-wide">Critical Engineering Transition Guideline</h3>
+                                <p class="text-xs text-amber-700 mt-1 leading-relaxed">
+                                    <strong>Important:</strong> Unlike the legacy Cel-Fi GO G41 booster (which uses standard coaxial line runs to passive couplers), the newly specified <strong>Cel-Fi QUATRA EVO</strong> connects its main Network Unit (NU) directly to self-amplifying Coverage Units (CUs) using high-grade <strong>Category (Cat5e/Cat6) LAN lines</strong>. 
+                                </p>
+                                <p class="text-xs text-amber-700 mt-1.5 leading-relaxed">
+                                    Today's primary survey objective is determining continuous, direct Category routing pathways from the IT closet in Building 1 to all satellite modular structures.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
+                <!-- STEP 2: Component Audit -->
                 <section id="tab-audit" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 2 of 7</span>
@@ -147,92 +168,127 @@
                         <p class="text-xs text-slate-500 mt-1">Audit existing cellular booster system elements to identify reuse viability.</p>
                     </div>
 
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                    <!-- Responsive Component Table -->
+                    <div class="overflow-x-auto -mx-6 sm:mx-0">
+                        <table class="min-w-full divide-y divide-slate-200 border border-slate-100 sm:rounded-xl overflow-hidden">
                             <thead class="bg-slate-50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Component</th>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location / Spec</th>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Action Plan</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Inline Photo & Caption</th>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Condition & Field Notes</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200 text-sm">
-                                <!-- Row 1 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Donor Antenna</td>
-                                    <td class="px-4 py-3 text-xs text-slate-500">Roof of Building 1</td>
-                                    <td class="px-4 py-3">
-                                        <select id="action_donor" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                            <tbody class="bg-white divide-y divide-slate-100">
+                                <!-- Row 1: Donor Antenna -->
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Donor Antenna</td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500">Roof of Building 1</td>
+                                    <td class="px-4 py-3.5">
+                                        <select id="audit_donor" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
                                             <option value="reuse" selected>Reuse Existing</option>
                                             <option value="replace">Replace with New</option>
+                                            <option value="n_a">Not Applicable</option>
                                         </select>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="notes_donor" placeholder="Check corrosion, aiming direction, structural wear..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    <td class="px-4 py-3.5">
+                                        <div id="photo_ctrl_donor" class="flex flex-col space-y-1.5">
+                                            <!-- Dynamic Upload Trigger / Tiny Preview will inject here -->
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <input type="text" id="notes_donor" placeholder="Check corrosion, aiming direction, structural wear..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                     </td>
                                 </tr>
-                                <!-- Row 2 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Antenna Mount</td>
-                                    <td class="px-4 py-3 text-xs text-slate-500">Roof of Building 1</td>
-                                    <td class="px-4 py-3">
-                                        <select id="action_mount" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+
+                                <!-- Row 2: Antenna Mount -->
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Antenna Mount</td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500">Roof of Building 1</td>
+                                    <td class="px-4 py-3.5">
+                                        <select id="audit_mount" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
                                             <option value="reuse" selected>Reuse Existing</option>
                                             <option value="replace">Replace with New</option>
+                                            <option value="n_a">Not Applicable</option>
                                         </select>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="notes_mount" placeholder="Check ballast blocks, sled stability, J-Mount structural tightness..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    <td class="px-4 py-3.5">
+                                        <div id="photo_ctrl_mount" class="flex flex-col space-y-1.5"></div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <input type="text" id="notes_mount" placeholder="Check ballast blocks, sled stability, J-Mount structural tightness..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                     </td>
                                 </tr>
-                                <!-- Row 3 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Surge Arrestor</td>
-                                    <td class="px-4 py-3 text-xs text-slate-500">Inline on main donor run</td>
-                                    <td class="px-4 py-3">
-                                        <select id="action_surge" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+
+                                <!-- Row 3: Surge Arrestor -->
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Surge Arrestor</td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500">Inline on main donor run</td>
+                                    <td class="px-4 py-3.5">
+                                        <select id="audit_arrestor" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
                                             <option value="reuse" selected>Reuse Existing</option>
                                             <option value="replace">Replace with New</option>
+                                            <option value="n_a">Not Applicable</option>
                                         </select>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="notes_surge" placeholder="Inspect ground connection, look for burn/corrosion signs..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    <td class="px-4 py-3.5">
+                                        <div id="photo_ctrl_arrestor" class="flex flex-col space-y-1.5"></div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <input type="text" id="notes_arrestor" placeholder="Inspect ground connection, look for burn/corrosion..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                     </td>
                                 </tr>
-                                <!-- Row 4 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Donor Coax Run</td>
-                                    <td class="px-4 py-3 text-xs text-slate-500">Roof to B1 Closet</td>
-                                    <td class="px-4 py-3">
-                                        <select id="action_coax" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+
+                                <!-- Row 4: Donor Coax Run -->
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Donor Coax Run</td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500">Roof to B1 Closet</td>
+                                    <td class="px-4 py-3.5">
+                                        <select id="audit_coax" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
                                             <option value="reuse" selected>Reuse Existing</option>
                                             <option value="replace">Replace with New</option>
+                                            <option value="n_a">Not Applicable</option>
                                         </select>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="notes_coax" placeholder="Check outer jacket, LMR400 condition, run length..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    <td class="px-4 py-3.5">
+                                        <div id="photo_ctrl_coax" class="flex flex-col space-y-1.5"></div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <input type="text" id="notes_coax" placeholder="Check outer jacket, LMR400 condition, run length..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                     </td>
                                 </tr>
-                                <!-- Row 5 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Main IT Closet / IDF</td>
-                                    <td class="px-4 py-3 text-xs text-slate-500">Building 1</td>
-                                    <td class="px-4 py-3">
-                                        <select id="action_closet" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
-                                            <option value="available" selected>Ready / Dedicated Space</option>
-                                            <option value="needs_prep">Needs Prep / Relocation</option>
+
+                                <!-- Row 5: IT Closet -->
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Main IT Closet / IDF</td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500">Building 1</td>
+                                    <td class="px-4 py-3.5">
+                                        <select id="audit_closet" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
+                                            <option value="ready" selected>Ready / Dedicated Space</option>
+                                            <option value="needs_prep">Needs Prep Work</option>
                                         </select>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="notes_closet" placeholder="Verify 120V AC outlet availability, wall space for NU installation..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    <td class="px-4 py-3.5">
+                                        <div id="photo_ctrl_closet" class="flex flex-col space-y-1.5"></div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <input type="text" id="notes_closet" placeholder="Verify 120V AC outlet availability, wall space for NU..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Hidden global file inputs for components -->
+                    <input type="file" id="input_photo_donor" accept="image/*" capture="environment" class="hidden" onchange="compressAuditPhoto('donor')">
+                    <input type="file" id="input_photo_mount" accept="image/*" capture="environment" class="hidden" onchange="compressAuditPhoto('mount')">
+                    <input type="file" id="input_photo_arrestor" accept="image/*" capture="environment" class="hidden" onchange="compressAuditPhoto('arrestor')">
+                    <input type="file" id="input_photo_coax" accept="image/*" capture="environment" class="hidden" onchange="compressAuditPhoto('coax')">
+                    <input type="file" id="input_photo_closet" accept="image/*" capture="environment" class="hidden" onchange="compressAuditPhoto('closet')">
                 </section>
 
+                <!-- STEP 3: Donor Signals -->
                 <section id="tab-donor" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 3 of 7</span>
@@ -240,71 +296,75 @@
                         <p class="text-xs text-slate-500 mt-1">Collect cellular signal health statistics on the roof of Building 1 near the donor antenna position.</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-150">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Target Cell Tower Azimuth / Bearing (°)</label>
-                            <input type="number" id="tower_bearing" placeholder="e.g. 185" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Target Cell Tower Azimuth / Bearing (°)</label>
+                            <input type="text" id="tower_azimuth" placeholder="e.g. 185" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Nearest Major Intersection / Landmark</label>
-                            <input type="text" id="tower_landmark" placeholder="e.g. Hwy 101 Overpass & Bell Rd" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nearest Major Intersection / Landmark</label>
+                            <input type="text" id="tower_landmark" placeholder="e.g. Hwy 101 Overpass & Bell Rd" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrier / Band</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSSI (dBm)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSRP (dBm)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSRQ (dB)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">SINR (dB)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Signal Health</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200 text-sm">
-                                <!-- Verizon B13 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B13 (700 MHz)</td>
-                                    <td class="px-4 py-3"><input type="number" id="rssi_b13" placeholder="-70" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrp_b13" oninput="assessSignal('b13')" placeholder="-85" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrq_b13" placeholder="-12" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="sinr_b13" oninput="assessSignal('b13')" placeholder="10" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><span id="health_b13" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
-                                </tr>
-                                <!-- Verizon B5 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B5 (850 MHz)</td>
-                                    <td class="px-4 py-3"><input type="number" id="rssi_b5" placeholder="-72" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrp_b5" oninput="assessSignal('b5')" placeholder="-88" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrq_b5" placeholder="-11" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="sinr_b5" oninput="assessSignal('b5')" placeholder="8" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><span id="health_b5" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
-                                </tr>
-                                <!-- Verizon B4/B66 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B4/B66 (AWS)</td>
-                                    <td class="px-4 py-3"><input type="number" id="rssi_b66" placeholder="-75" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrp_b66" oninput="assessSignal('b66')" placeholder="-94" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrq_b66" placeholder="-14" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="sinr_b66" oninput="assessSignal('b66')" placeholder="4" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><span id="health_b66" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
-                                </tr>
-                                <!-- Verizon B2 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B2 (1900 MHz)</td>
-                                    <td class="px-4 py-3"><input type="number" id="rssi_b2" placeholder="-78" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrp_b2" oninput="assessSignal('b2')" placeholder="-96" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="rsrq_b2" placeholder="-15" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><input type="number" id="sinr_b2" oninput="assessSignal('b2')" placeholder="2" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
-                                    <td class="px-4 py-3"><span id="health_b2" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- Signal bands entries -->
+                    <div class="space-y-4">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-slate-200 border border-slate-100 rounded-lg overflow-hidden">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Carrier / Band</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">RSSI (dBm)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">RSRP (dBm)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">RSRQ (dB)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">SINR (dB)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Signal Health</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-slate-100">
+                                    <!-- Band 13 -->
+                                    <tr>
+                                        <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Verizon B13 (700 MHz)</td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rssi_b13" placeholder="-70" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrp_b13" oninput="assessSignal('b13')" placeholder="-85" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrq_b13" placeholder="-12" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b13" placeholder="10" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><span id="health_b13" class="px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500">No Data</span></td>
+                                    </tr>
+                                    <!-- Band 5 -->
+                                    <tr>
+                                        <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Verizon B5 (850 MHz)</td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rssi_b5" placeholder="-72" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrp_b5" oninput="assessSignal('b5')" placeholder="-88" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrq_b5" placeholder="-11" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b5" placeholder="8" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><span id="health_b5" class="px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500">No Data</span></td>
+                                    </tr>
+                                    <!-- Band 66 -->
+                                    <tr>
+                                        <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Verizon B4/B66 (AWS)</td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rssi_b66" placeholder="-75" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrp_b66" oninput="assessSignal('b66')" placeholder="-94" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrq_b66" placeholder="-14" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b66" placeholder="4" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><span id="health_b66" class="px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500">No Data</span></td>
+                                    </tr>
+                                    <!-- Band 2 -->
+                                    <tr>
+                                        <td class="px-4 py-3.5 text-sm font-bold text-slate-800">Verizon B2 (1900 MHz)</td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rssi_b2" placeholder="-78" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrp_b2" oninput="assessSignal('b2')" placeholder="-96" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="rsrq_b2" placeholder="-15" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b2" placeholder="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><span id="health_b2" class="px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500">No Data</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
+                <!-- STEP 4: Building Assessments -->
                 <section id="tab-buildings" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 4 of 7</span>
@@ -312,414 +372,404 @@
                         <p class="text-xs text-slate-500 mt-1">Audit individual properties to define localized coverage, pathing solutions, and physical construction properties.</p>
                     </div>
 
+                    <!-- Hidden Building Photo Uploaders -->
+                    <input type="file" id="input_photo_b1" accept="image/*" capture="environment" class="hidden" onchange="compressBuildingPhoto('b1')">
+                    <input type="file" id="input_photo_b2" accept="image/*" capture="environment" class="hidden" onchange="compressBuildingPhoto('b2')">
+                    <input type="file" id="input_photo_b3" accept="image/*" capture="environment" class="hidden" onchange="compressBuildingPhoto('b3')">
+                    <input type="file" id="input_photo_nb1" accept="image/*" capture="environment" class="hidden" onchange="compressBuildingPhoto('nb1')">
+                    <input type="file" id="input_photo_nb2" accept="image/*" capture="environment" class="hidden" onchange="compressBuildingPhoto('nb2')">
+
                     <div class="space-y-6">
-                        <!-- BUILDING 1 -->
-                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                        <!-- Building 1 (Anchor) -->
+                        <div class="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4">
                             <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                                <h3 class="text-lg font-bold text-slate-900">Building 1 (Main Office / HQ)</h3>
-                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Anchor</span>
+                                <h3 class="font-extrabold text-slate-800 flex items-center">
+                                    <span class="bg-amber-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs mr-2">1</span>
+                                    Building 1 (Main Office / HQ)
+                                </h3>
+                                <span class="text-xxs font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase">Existing Anchor</span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Wall / Ceiling Type</label>
-                                    <select id="b1_ceiling" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
-                                        <option value="drop">Drop Ceiling (Grid/Tile)</option>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Wall / Ceiling Type</label>
+                                    <select id="b1_ceiling" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <option value="drop_grid">Drop Ceiling (Grid/Tile)</option>
                                         <option value="drywall">Drywall / Sheetrock</option>
-                                        <option value="exposed">Exposed / Open Wood Joist</option>
-                                        <option value="hardlid">Concrete / Hard Lid</option>
+                                        <option value="wood_joist">Exposed / Open Wood Joist</option>
+                                        <option value="concrete">Concrete / Hard Lid</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Coax Runs Viability</label>
-                                    <select id="b1_coax_viable" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Existing Coax Runs Viability</label>
+                                    <select id="b1_coax" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="yes">Yes - Can reuse coax for local CU branch passive expansion</option>
                                         <option value="no">No - Coax needs complete retirement</option>
                                     </select>
                                 </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline RSRP (System OFF)</label>
+                                    <input type="number" id="b1_rsrp" placeholder="e.g. -110" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline SINR (System OFF)</label>
+                                    <input type="number" id="b1_sinr" placeholder="e.g. -3" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                </div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (System OFF)</label>
-                                    <input type="number" id="b1_rsrp_off" placeholder="-105" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline SINR (System OFF)</label>
-                                    <input type="number" id="b1_sinr_off" placeholder="-3" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU/Antenna Placement Notes</label>
-                                    <input type="text" id="b1_placement" placeholder="e.g. IT closet wall, server antenna on corridor ceiling..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                </div>
+                            <div>
+                                <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed CU/Antenna Placement Notes</label>
+                                <textarea id="b1_notes" rows="2" placeholder="e.g. Center wall mount inside main administrative suite..." class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none"></textarea>
+                            </div>
+                            
+                            <!-- B1 Photo Section -->
+                            <div id="building_photo_b1" class="pt-2 border-t border-dashed border-slate-200">
+                                <!-- Dynamic attachment container -->
                             </div>
                         </div>
 
-                        <!-- BUILDING 2 -->
-                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                        <!-- Building 2 -->
+                        <div class="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4">
                             <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                                <h3 class="text-lg font-bold text-slate-900">Building 2 (Existing Modular Office)</h3>
-                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Extension</span>
+                                <h3 class="font-extrabold text-slate-800 flex items-center">
+                                    <span class="bg-amber-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs mr-2">2</span>
+                                    Building 2 (Existing Modular Office)
+                                </h3>
+                                <span class="text-xxs font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase">Existing Extension</span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
-                                    <select id="b2_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Exterior Siding Type</label>
+                                    <select id="b2_siding" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="metal">Corrugated Steel / Metal Panel</option>
                                         <option value="wood">Wood Panel (T1-11)</option>
                                         <option value="vinyl">Vinyl Siding</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Cable Pathway from B1</label>
-                                    <select id="b2_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
-                                        <option value="underground_conduit">Underground Conduit / PVC Sleeve</option>
-                                        <option value="aerial_coax">Aerial Coax (Messenger Wire)</option>
-                                        <option value="direct_burial">Direct Burial</option>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Existing Cable Pathway from B1</label>
+                                    <select id="b2_path" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <option value="conduit">Underground Conduit / PVC Sleeve</option>
+                                        <option value="aerial">Aerial Coax (Messenger Wire)</option>
+                                        <option value="direct">Direct Burial</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Can we pull Plenum Cat6 through run?</label>
-                                    <select id="b2_cat6_pull" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Can we pull Plenum Cat6 through run?</label>
+                                    <select id="b2_cat6" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="yes">Yes - conduit has spare capacity</option>
                                         <option value="no">No - conduit blocked or too tight</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to Building 1 (ft)</label>
-                                    <input type="number" id="b2_dist_b1" placeholder="85" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Distance to Building 1 (ft)</label>
+                                    <input type="number" id="b2_distance" oninput="calculateBOM()" placeholder="e.g. 85" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
-                                    <input type="number" id="b2_rsrp_off" placeholder="-112" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="b2_rsrp" placeholder="e.g. -112" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU Location</label>
-                                    <input type="text" id="b2_placement" placeholder="e.g. Centered ceiling, utility wall mount..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed CU Location</label>
+                                    <input type="text" id="b2_cu_loc" placeholder="e.g. Centered ceiling utility wall..." class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                             </div>
+
+                            <!-- B2 Photo Section -->
+                            <div id="building_photo_b2" class="pt-2 border-t border-dashed border-slate-200"></div>
                         </div>
 
-                        <!-- BUILDING 3 -->
-                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                        <!-- Building 3 -->
+                        <div class="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4">
                             <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                                <h3 class="text-lg font-bold text-slate-900">Building 3 (Existing Modular Office)</h3>
-                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Extension</span>
+                                <h3 class="font-extrabold text-slate-800 flex items-center">
+                                    <span class="bg-amber-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs mr-2">3</span>
+                                    Building 3 (Existing Modular Office)
+                                </h3>
+                                <span class="text-xxs font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase">Existing Extension</span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
-                                    <select id="b3_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Exterior Siding Type</label>
+                                    <select id="b3_siding" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="metal">Corrugated Steel / Metal Panel</option>
                                         <option value="wood">Wood Panel (T1-11)</option>
                                         <option value="vinyl">Vinyl Siding</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Cable Pathway from B2</label>
-                                    <select id="b3_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                        <option value="underground_conduit">Underground Conduit / PVC Sleeve</option>
-                                        <option value="aerial_coax">Aerial Coax (Messenger Wire)</option>
-                                        <option value="direct_burial">Direct Burial</option>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Existing Cable Pathway from B2</label>
+                                    <select id="b3_path" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <option value="conduit">Underground Conduit / PVC Sleeve</option>
+                                        <option value="aerial">Aerial Coax (Messenger Wire)</option>
+                                        <option value="direct">Direct Burial</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Can we pull Plenum Cat6 through run?</label>
-                                    <select id="b3_cat6_pull" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Can we pull Plenum Cat6 through run?</label>
+                                    <select id="b3_cat6" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="yes">Yes - conduit has spare capacity</option>
                                         <option value="no">No - conduit blocked or too tight</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to Building 2 (ft)</label>
-                                    <input type="number" id="b3_dist_b2" placeholder="40" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Distance to Building 2 (ft)</label>
+                                    <input type="number" id="b3_distance" oninput="calculateBOM()" placeholder="e.g. 40" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
-                                    <input type="number" id="b3_rsrp_off" placeholder="-115" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="b3_rsrp" placeholder="e.g. -115" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU Location</label>
-                                    <input type="text" id="b3_placement" placeholder="e.g. Back wall, office open room ceiling..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed CU Location</label>
+                                    <input type="text" id="b3_cu_loc" placeholder="e.g. Breakroom wall panel..." class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                             </div>
+
+                            <!-- B3 Photo Section -->
+                            <div id="building_photo_b3" class="pt-2 border-t border-dashed border-slate-200"></div>
                         </div>
 
-                        <!-- NEW BUILDING 1 -->
-                        <div class="p-5 border border-amber-300 rounded-xl bg-amber-50/20 space-y-4">
-                            <div class="flex justify-between items-center border-b border-amber-300 pb-2">
-                                <h3 class="text-lg font-bold text-slate-900">NEW Building 1 (New Modular Trailer)</h3>
-                                <span class="bg-amber-500 text-slate-950 text-xs px-2.5 py-1 rounded font-extrabold tracking-wide">Scope Expansion</span>
+                        <!-- NEW Building 1 -->
+                        <div class="border-2 border-amber-500/50 rounded-xl p-5 bg-amber-50/10 space-y-4">
+                            <div class="flex justify-between items-center border-b border-amber-500/30 pb-2">
+                                <h3 class="font-extrabold text-slate-800 flex items-center">
+                                    <span class="bg-amber-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs mr-2">4</span>
+                                    NEW Building 1 (New Modular Trailer)
+                                </h3>
+                                <span class="text-xxs font-extrabold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase">Scope Expansion</span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
-                                    <select id="nb1_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                        <option value="metal" selected>Corrugated Steel / Metal Panel (Faraday risk)</option>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Exterior Siding Type</label>
+                                    <select id="nb1_siding" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <option value="metal">Corrugated Steel / Metal Panel (Faraday risk)</option>
                                         <option value="wood">Wood Panel (T1-11)</option>
                                         <option value="vinyl">Vinyl Siding</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed Cable Pathway Option</label>
-                                    <select id="nb1_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed Cable Pathway Option</label>
+                                    <select id="nb1_path" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="trench">Trench & Underground Conduit (Proposed)</option>
                                         <option value="aerial">Overhead / Aerial Span (Messenger Wire)</option>
-                                        <option value="chassis">Under-chassis crawls (from Building 2)</option>
+                                        <option value="under_chassis">Under-chassis crawls (from Building 2)</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nearest Signal Source Node</label>
-                                    <select id="nb1_source" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Nearest Signal Source Node</label>
+                                    <select id="nb1_src" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="b1">Building 1 (IT Closet / NU Base)</option>
                                         <option value="b2">Building 2 (Via extension branch)</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to closest Source Node (ft)</label>
-                                    <input type="number" id="nb1_dist" placeholder="120" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Distance to closest Source Node (ft)</label>
+                                    <input type="number" id="nb1_distance" oninput="calculateBOM()" placeholder="e.g. 120" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
-                                    <input type="number" id="nb1_rsrp_off" placeholder="-118" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="nb1_rsrp" placeholder="e.g. -118" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU / Server Antenna Notes</label>
-                                    <input type="text" id="nb1_placement" placeholder="Internal server antenna highly recommended due to metal siding..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed CU / Server Antenna Notes</label>
+                                    <input type="text" id="nb1_notes" placeholder="Internal server antenna highly recommended..." class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                             </div>
+
+                            <!-- NB1 Photo Section -->
+                            <div id="building_photo_nb1" class="pt-2 border-t border-dashed border-amber-500/30"></div>
                         </div>
 
-                        <!-- NEW BUILDING 2 -->
-                        <div class="p-5 border border-amber-300 rounded-xl bg-amber-50/20 space-y-4">
-                            <div class="flex justify-between items-center border-b border-amber-300 pb-2">
-                                <h3 class="text-lg font-bold text-slate-900">NEW Building 2 (New Modular Trailer)</h3>
-                                <span class="bg-amber-500 text-slate-950 text-xs px-2.5 py-1 rounded font-extrabold tracking-wide">Scope Expansion</span>
+                        <!-- NEW Building 2 -->
+                        <div class="border-2 border-amber-500/50 rounded-xl p-5 bg-amber-50/10 space-y-4">
+                            <div class="flex justify-between items-center border-b border-amber-500/30 pb-2">
+                                <h3 class="font-extrabold text-slate-800 flex items-center">
+                                    <span class="bg-amber-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs mr-2">5</span>
+                                    NEW Building 2 (New Modular Trailer)
+                                </h3>
+                                <span class="text-xxs font-extrabold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase">Scope Expansion</span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
-                                    <select id="nb2_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
-                                        <option value="metal" selected>Corrugated Steel / Metal Panel (Faraday risk)</option>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Exterior Siding Type</label>
+                                    <select id="nb2_siding" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <option value="metal">Corrugated Steel / Metal Panel (Faraday risk)</option>
                                         <option value="wood">Wood Panel (T1-11)</option>
                                         <option value="vinyl">Vinyl Siding</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed Cable Pathway Option</label>
-                                    <select id="nb2_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed Cable Pathway Option</label>
+                                    <select id="nb2_path" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="trench">Trench & Underground Conduit (Proposed)</option>
                                         <option value="aerial">Overhead / Aerial Span (Messenger Wire)</option>
                                         <option value="daisy_chain">Daisy-chain Category Run from Building 3</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nearest Signal Source Node</label>
-                                    <select id="nb2_source" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Nearest Signal Source Node</label>
+                                    <select id="nb2_src" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                         <option value="b3">Building 3 (Adjacent Office)</option>
                                         <option value="b1">Building 1 (Direct to NU Base)</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to closest Source Node (ft)</label>
-                                    <input type="number" id="nb2_dist" placeholder="50" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Distance to closest Source Node (ft)</label>
+                                    <input type="number" id="nb2_distance" oninput="calculateBOM()" placeholder="e.g. 50" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
-                                    <input type="number" id="nb2_rsrp_off" placeholder="-120" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="nb2_rsrp" placeholder="e.g. -120" class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU / Server Antenna Notes</label>
-                                    <input type="text" id="nb2_placement" placeholder="Internal server antenna mandatory. Route Category run under chassis..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed CU / Server Antenna Notes</label>
+                                    <input type="text" id="nb2_notes" placeholder="Internal server antenna mandatory. Route Category..." class="w-full bg-white border border-slate-200 rounded-md px-2.5 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
                                 </div>
                             </div>
+
+                            <!-- NB2 Photo Section -->
+                            <div id="building_photo_nb2" class="pt-2 border-t border-dashed border-amber-500/30"></div>
                         </div>
                     </div>
                 </section>
 
+                <!-- STEP 5: Pathway Map -->
                 <section id="tab-pathways" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 5 of 7</span>
-                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Inter-Building Pathway Design & Schematic</h2>
-                        <p class="text-xs text-slate-500 mt-1">Confirm physical pathways, infrastructure constraints, and trace connections on our campus layout map.</p>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Inter-Building Pathway Design</h2>
+                        <p class="text-xs text-slate-500 mt-1">Trace structural connection pathways. Use the sketch tool to plan direct Category cabling between structures.</p>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Questions/Notes Panel -->
-                        <div class="space-y-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Left Panel fields -->
+                        <div class="lg:col-span-1 space-y-4">
                             <div>
-                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Asphalt / Concrete Barriers & Open Pathways</label>
-                                <textarea id="asphalt_barriers" rows="3" placeholder="Are there physical paved sections between Building 1/2/3 and the New Buildings that will require trenching, directional boring, or aerial messenger wires? Describe details..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Asphalt / Concrete Barriers</label>
+                                <textarea id="path_asphalt" rows="3" placeholder="Are there physical paved sections between Building 1/2/3 and the New Buildings that will require trenching, directional boring, or aerial messenger wires?" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Conduit / Utility Trench Availability Verification</label>
-                                <textarea id="conduit_verification" rows="3" placeholder="Did you find any spare, empty, or pull-string equipped underground PVC conduits during your client facilities walk? Describe findings..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Conduit / Utility Trench Availability</label>
+                                <textarea id="path_conduits" rows="3" placeholder="Did you find any spare, empty, or pull-string equipped underground PVC conduits during your client facilities walk?" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
                             </div>
-                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">Distance Limitation Watchdogs</h3>
-                                <div class="space-y-2 text-xs text-slate-600 leading-relaxed">
-                                    <p class="flex items-center gap-1.5">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shrink-0"></span>
-                                        Category Cables cannot run past <strong>328 feet (100 meters)</strong> from NU to CU without a Range Extender.
-                                    </p>
-                                    <p class="flex items-center gap-1.5">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block shrink-0"></span>
-                                        If pathways are outside/exposed, you must specify <strong>Outdoor-Rated / Direct Burial Shielded Cat6</strong>.
-                                    </p>
+                            
+                            <!-- Drawing toolbar -->
+                            <div class="bg-slate-100 p-3 rounded-xl space-y-2">
+                                <span class="text-xxs font-extrabold text-slate-500 uppercase tracking-wider block">Drawing Tools</span>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" onclick="setDrawColor('#f59e0b')" class="w-6 h-6 rounded-full bg-amber-500 border border-white ring-2 ring-transparent hover:ring-slate-400 focus:ring-slate-400"></button>
+                                    <button type="button" onclick="setDrawColor('#3b82f6')" class="w-6 h-6 rounded-full bg-blue-500 border border-white ring-2 ring-transparent hover:ring-slate-400 focus:ring-slate-400"></button>
+                                    <button type="button" onclick="setDrawColor('#ef4444')" class="w-6 h-6 rounded-full bg-red-500 border border-white ring-2 ring-transparent hover:ring-slate-400 focus:ring-slate-400"></button>
+                                    <button type="button" onclick="setDrawColor('#22c55e')" class="w-6 h-6 rounded-full bg-green-500 border border-white ring-2 ring-transparent hover:ring-slate-400 focus:ring-slate-400"></button>
+                                </div>
+                                <div class="flex space-x-2 pt-1">
+                                    <button type="button" onclick="clearCanvas()" class="text-xxs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded transition-colors">Clear Drawing</button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Interactive Sketch Canvas Panel -->
-                        <div class="flex flex-col space-y-3">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Campus Layout Schematic & Sketch</span>
-                                <div class="flex gap-1.5 no-print">
-                                    <button type="button" onclick="clearCanvas()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded transition-colors">Clear Drawing</button>
-                                </div>
-                            </div>
-                            <!-- Canvas wrap with background SVG simulation -->
-                            <div class="relative bg-slate-900 rounded-xl overflow-hidden shadow border border-slate-800 interactive-canvas-container" style="height: 320px;">
-                                <div class="absolute inset-0 select-none pointer-events-none opacity-20 flex flex-col justify-between p-4 font-mono text-[10px] text-white">
+                        <!-- Right Panel: Canvas drawing -->
+                        <div class="lg:col-span-2 space-y-2">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Route Plan & Layout Annotator</span>
+                            <div class="relative border-2 border-slate-300 rounded-xl overflow-hidden bg-slate-200 aspect-video shadow-inner">
+                                <!-- Background Schematic Map representation (using inline styling fallback layout) -->
+                                <div class="absolute inset-0 select-none pointer-events-none p-4 flex flex-col justify-between">
                                     <div class="flex justify-between">
-                                        <span>PARKING LOT AREA</span>
-                                        <span>NORTH ^</span>
+                                        <div class="bg-slate-800/80 text-white text-xxs font-bold px-2 py-1 rounded">PARKING LOT AREA</div>
+                                        <div class="bg-amber-600/90 text-white text-xxs font-bold px-2 py-1 rounded">SITE LAYOUT BASEMAP</div>
                                     </div>
-                                    <div class="flex justify-around items-center h-full">
-                                        <div class="border border-white/40 p-4 rounded">B1 (HQ)</div>
-                                        <div class="border border-white/40 p-4 rounded">B2 (Modular)</div>
-                                        <div class="border border-white/40 p-4 rounded">B3 (Modular)</div>
-                                    </div>
-                                    <div class="flex justify-around items-center h-1/2">
-                                        <div class="border border-amber-500/40 text-amber-500 p-4 rounded">NEW B1</div>
-                                        <div class="border border-amber-500/40 text-amber-500 p-4 rounded">NEW B2</div>
+                                    
+                                    <!-- Visual Guide Elements -->
+                                    <div class="grid grid-cols-5 gap-2 items-end opacity-20">
+                                        <div class="bg-slate-700 h-24 rounded flex items-center justify-center text-xs font-black text-white">B1 (HQ)</div>
+                                        <div class="bg-slate-700 h-16 rounded flex items-center justify-center text-xs font-black text-white">B2 (Mod)</div>
+                                        <div class="bg-slate-700 h-16 rounded flex items-center justify-center text-xs font-black text-white">B3 (Mod)</div>
+                                        <div class="bg-amber-700 h-16 rounded border border-amber-400 flex items-center justify-center text-xs font-black text-white">NB 1</div>
+                                        <div class="bg-amber-700 h-16 rounded border border-amber-400 flex items-center justify-center text-xs font-black text-white">NB 2</div>
                                     </div>
                                 </div>
-                                <canvas id="pathwayCanvas" class="absolute inset-0 w-full h-full cursor-crosshair z-10"></canvas>
+
+                                <!-- Dynamic sketch canvas -->
+                                <canvas id="routeCanvas" class="absolute inset-0 cursor-crosshair touch-none w-full h-full"></canvas>
                             </div>
-                            <span class="text-[10px] text-slate-400 italic">Drag with mouse or draw with your stylus/finger to map physical conduit routing above.</span>
+                            <p class="text-xxs text-slate-400 italic">Trace path with mouse on desktop, or use finger/stylus directly on touchscreen devices.</p>
                         </div>
                     </div>
                 </section>
 
+                <!-- STEP 6: BOM Planner -->
                 <section id="tab-bom" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 6 of 7</span>
-                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Expansion Bill of Materials (BOM)</h2>
-                        <p class="text-xs text-slate-500 mt-1">Define hardware increases and calculate final engineering counts to support expansion structures.</p>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Expansion Bill of Materials (BOM) Planner</h2>
+                        <p class="text-xs text-slate-500 mt-1">Calculate necessary booster parts, range extenders, and custom category cable requirements instantly.</p>
                     </div>
 
-                    <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-2">
-                        <h4 class="font-bold text-amber-900 text-sm">Original Baseline Quote Includes:</h4>
-                        <ul class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-amber-800 list-disc list-inside">
-                            <li>1 x Nextivity Cel-Fi QUATRA EVO NU (Supports up to 6 CUs)</li>
-                            <li>4 x Nextivity Cel-Fi QUATRA EVO CUs</li>
-                            <li>12 x Inside Dome Antennas</li>
-                            <li>8 x LMR400 Coax Jumper runs</li>
-                            <li>12 x Plenum Ethernet Cable assemblies</li>
-                        </ul>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Original Base Quote Includes:</h3>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            1x NU (Smart Network Unit), 4x CUs (Smart Coverage Units), 12x Inside Dome Antennas, 8x LMR400 Coax Jumper runs, 12x Plenum Ethernet cables.
+                        </p>
                     </div>
 
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Additional Hardware Needed</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Suggested Qty (Calc)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Final Survey Qty</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Purpose / Deployment Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200 text-sm">
-                                <!-- Row 1 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        QUATRA EVO Coverage Unit (Q41-BXCU)
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_cu">2</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_cu" value="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_cu" value="For local signal processing inside New Building 1 & 2" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                                <!-- Row 2 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        Outdoor/Direct Burial Shielded Cat6 Cable (ft)
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_out_cat6">250</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_out_cat6" value="250" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_out_cat6" value="For outdoor runs between buildings in conduit/trench" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                                <!-- Row 3 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        Plenum-Rated Cat6 Cable (ft)
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_plen_cat6">150</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_plen_cat6" value="150" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_plen_cat6" value="Internal drops from entries to Coverage Unit mounts" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                                <!-- Row 4 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        Inside Dome/Panel Antennas
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_domes">2</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_domes" value="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_domes" value="Mounted inside metal trailers to counter Faradays cage" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                                <!-- Row 5 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        LMR400 Coax Cable Jumper Runs (ft)
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_coax_jumps">60</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_coax_jumps" value="60" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_coax_jumps" value="Jumper from inside CU to dome antennas inside trailers" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                                <!-- Row 6 -->
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="px-4 py-3 font-semibold text-slate-900">
-                                        Nextivity Range Extender
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-500" id="calc_range">0</td>
-                                    <td class="px-4 py-3">
-                                        <input type="number" id="final_range" value="0" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input type="text" id="bom_notes_range" value="Check if cable route to B3/New B2 exceeds 328 feet limit" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- Computed Recommendations Panel -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                        <div class="border border-amber-200 rounded-xl p-5 bg-amber-50/20 space-y-3">
+                            <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wide">Automated Pathway Recommendations</h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-2">
+                                    <span class="text-slate-600">Total Inter-building distance:</span>
+                                    <span id="calc_total_distance" class="font-extrabold text-slate-900">0 ft</span>
+                                </div>
+                                <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-2">
+                                    <span class="text-slate-600">Nextivity Range Extenders Recommended:</span>
+                                    <span id="calc_extenders" class="font-extrabold text-red-600">0 Units</span>
+                                </div>
+                                <div class="flex justify-between items-center text-xs pb-1">
+                                    <span class="text-slate-600">Direct-Burial Outdoor Cat6 recommended:</span>
+                                    <span id="calc_outdoor_cat6" class="font-extrabold text-slate-900">0 ft</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Adjust final extra quantities manually:</h4>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">Additional CUs</label>
+                                    <input type="number" id="bom_cu" value="2" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">Outdoor Cat6 (ft)</label>
+                                    <input type="number" id="bom_outdoor_cat6" value="250" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">Plenum Cat6 (ft)</label>
+                                    <input type="number" id="bom_plenum_cat6" value="150" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">Inside Domes (Qty)</label>
+                                    <input type="number" id="bom_domes" value="2" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">LMR400 Jumpers (ft)</label>
+                                    <input type="number" id="bom_lmr" value="60" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wider mb-1">Range Extender Qty</label>
+                                    <input type="number" id="bom_extenders" value="0" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">BOM Additional Requirements & Justification Notes</label>
+                        <textarea id="bom_justification" rows="4" placeholder="e.g. Added 2 CUs to support new mobile units directly due to metal siding blocks. Added range extender for NB2 as run length from IT closet exceeds limits..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
                     </div>
                 </section>
 
+                <!-- STEP 7: Summary Signoff -->
                 <section id="tab-summary" class="tab-section hidden space-y-6">
                     <div class="border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 7 of 7</span>
@@ -729,7 +779,7 @@
 
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Site Photos & Structural Attachments</label>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">General Site Photos & Structural Attachments</label>
                             <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-6 bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer no-print" onclick="document.getElementById('photo_input').click()">
                                 <svg class="w-10 h-10 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
@@ -753,178 +803,563 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-                        <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3">
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Surveyor Validation Sign-off</label>
-                            <input type="text" id="surveyor_sign" value="Will" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-1 focus:ring-amber-500">
-                            <span class="block text-[10px] text-slate-400">By entering your name, you confirm physical details were accurately captured.</span>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Surveyor Validation Sign-off (Name)</label>
+                            <input type="text" id="sign_surveyor" value="Will" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
-                        <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3">
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Client Witness Sign-off</label>
-                            <input type="text" id="client_witness" placeholder="Print client representative's name" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-1 focus:ring-amber-500">
-                            <span class="block text-[10px] text-slate-400">Confirm signature block verified with Ghilotti Facilities staff.</span>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Client Witness Sign-off (Name)</label>
+                            <input type="text" id="sign_witness" placeholder="e.g. Ghilotti Site Manager" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
                         </div>
                     </div>
                 </section>
+            </div>
 
-                <!-- Navigation Controls Footer (Hidden in Print) -->
-                <div class="flex justify-between items-center border-t border-slate-200 pt-6 no-print">
-                    <button type="button" id="prevBtn" onclick="navigateStep(-1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        Previous Step
-                    </button>
-                    <button type="button" id="nextBtn" onclick="navigateStep(1)" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-6 py-2.5 rounded-lg text-sm font-bold transition-transform active:scale-95 flex items-center gap-1 shadow">
-                        Next Step
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                    </button>
-                </div>
-            </form>
+            <!-- Step Navigation Footer (Sticky-Bottom on mobile) -->
+            <footer class="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-between items-center no-print">
+                <button type="button" id="prevBtn" onclick="prevStep()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-lg text-xs font-bold transition-colors">
+                    &larr; Previous Step
+                </button>
+                <button type="button" id="nextBtn" onclick="nextStep()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-5 py-2.5 rounded-lg text-xs font-bold flex items-center space-x-1 shadow-md shadow-amber-500/10 hover:shadow-amber-500/20 transition-all">
+                    <span>Next Step</span>
+                    <span>&rarr;</span>
+                </button>
+            </footer>
+        </form>
+
+        <!-- Dynamic Output Render Area for Print -->
+        <div id="print-area" class="hidden print:block bg-white p-8 text-black">
+            <!-- This area is styled strictly for high-quality multi-page PDF compilation -->
         </div>
     </main>
 
-    <footer class="bg-slate-900 border-t border-slate-800 py-6 mt-8 no-print text-center">
-        <p class="text-xs text-slate-500">&copy; 2026 Ghilotti Construction. Site Engineering Companion Tool. All rights reserved.</p>
-    </footer>
-
     <script>
-        // Tab and Step definition index
+        // Steps index array
         const steps = ['tab-overview', 'tab-audit', 'tab-donor', 'tab-buildings', 'tab-pathways', 'tab-bom', 'tab-summary'];
         let currentStepIndex = 0;
 
-        // Initialize Canvas and Photo variables
+        // Interactive states & photo arrays
         let canvas, ctx;
         let isDrawing = false;
-        let uploadedPhotos = [];
-
-        window.onload = function() {
-            // Load saved progress from local storage
-            loadFromLocalStorage();
-            
-            // Set up our interactive Drawing canvas overlay
-            initCanvas();
-
-            // Set dynamic canvas sizing on resize
-            window.addEventListener('resize', handleCanvasResize);
+        let lastX = 0;
+        let lastY = 0;
+        let drawColor = '#f59e0b';
+        
+        // Multi-image containers
+        let uploadedPhotos = []; // General summary pictures
+        let auditPhotos = {
+            donor: { data: '', caption: '' },
+            mount: { data: '', caption: '' },
+            arrestor: { data: '', caption: '' },
+            coax: { data: '', caption: '' },
+            closet: { data: '', caption: '' }
+        };
+        let buildingPhotos = {
+            b1: { data: '', caption: '' },
+            b2: { data: '', caption: '' },
+            b3: { data: '', caption: '' },
+            nb1: { data: '', caption: '' },
+            nb2: { data: '', caption: '' }
         };
 
-        /* Switch steps/tabs dynamically */
-        function switchTab(tabId) {
-            currentStepIndex = steps.indexOf(tabId);
-            updateTabsUI();
-        }
-
-        function navigateStep(direction) {
-            let nextIndex = currentStepIndex + direction;
-            if (nextIndex >= 0 && nextIndex < steps.length) {
-                currentStepIndex = nextIndex;
-                updateTabsUI();
-            }
-        }
-
-        function updateTabsUI() {
-            // Hide all sections, show active
-            steps.forEach((stepId) => {
-                document.getElementById(stepId).classList.add('hidden');
-                
-                // Reset button styles
-                const btn = document.getElementById(`btn-${stepId}`);
-                btn.className = "tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70";
-            });
-
-            // Show active step
-            document.getElementById(steps[currentStepIndex]).classList.remove('hidden');
-            const activeBtn = document.getElementById(`btn-${steps[currentStepIndex]}`);
-            activeBtn.className = "tab-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-all bg-amber-500 text-slate-950 shadow-sm";
-
-            // Enable/disable previous and next controls
-            document.getElementById('prevBtn').disabled = currentStepIndex === 0;
-            document.getElementById('prevBtn').style.opacity = currentStepIndex === 0 ? '0.5' : '1';
+        window.onload = function() {
+            initCanvas();
+            loadFromLocalStorage();
+            updateNavigationButtons();
+            calculateBOM();
             
-            if (currentStepIndex === steps.length - 1) {
-                document.getElementById('nextBtn').innerHTML = `
-                    Verify & Print 
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                `;
-                document.getElementById('nextBtn').onclick = () => window.print();
-            } else {
-                document.getElementById('nextBtn').innerHTML = `
-                    Next Step 
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                `;
-                document.getElementById('nextBtn').onclick = () => navigateStep(1);
-            }
+            // Set dynamic resize listeners
+            window.addEventListener('resize', handleCanvasResize);
+            
+            // Build the dynamic file upload UI for audits and buildings
+            renderAuditPhotoControls();
+            renderBuildingPhotoControls();
+        };
 
-            // Redraw canvas if it was resized or revealed
-            if (steps[currentStepIndex] === 'tab-pathways') {
-                setTimeout(() => {
-                    handleCanvasResize();
-                }, 50);
+        function switchTab(tabId) {
+            const targetIndex = steps.indexOf(tabId);
+            if (targetIndex !== -1) {
+                currentStepIndex = targetIndex;
+                steps.forEach(step => {
+                    document.getElementById(step).classList.add('hidden');
+                    document.getElementById('btn-' + step).className = 'tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-slate-800 text-slate-400 hover:text-slate-200';
+                });
+                
+                document.getElementById(tabId).classList.remove('hidden');
+                document.getElementById('btn-' + tabId).className = 'tab-btn px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all bg-amber-500 text-slate-950';
+                
+                updateNavigationButtons();
+                if (tabId === 'tab-pathways') {
+                    // Quick canvas resize recovery
+                    setTimeout(handleCanvasResize, 100);
+                }
             }
         }
 
-        function saveToLocalStorage() {
+        function prevStep() {
+            if (currentStepIndex > 0) {
+                switchTab(steps[currentStepIndex - 1]);
+            }
+        }
+
+        function nextStep() {
+            if (currentStepIndex < steps.length - 1) {
+                switchTab(steps[currentStepIndex + 1]);
+            } else {
+                // Compile and trigger print system
+                preparePrintReport();
+                window.print();
+            }
+        }
+
+        function updateNavigationButtons() {
+            const prev = document.getElementById('prevBtn');
+            const next = document.getElementById('nextBtn');
+            
+            if (currentStepIndex === 0) {
+                prev.classList.add('invisible');
+            } else {
+                prev.classList.remove('invisible');
+            }
+
+            if (currentStepIndex === steps.length - 1) {
+                next.innerHTML = `<span>Generate Report</span> <svg class="w-4 h-4 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            } else {
+                next.innerHTML = `<span>Next Step</span> <span>&rarr;</span>`;
+            }
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('routeCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Mouse drawing
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            // Mobile touch drawing support
+            canvas.addEventListener('touchstart', function(e) {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousedown', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                canvas.dispatchEvent(mouseEvent);
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', function(e) {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                canvas.dispatchEvent(mouseEvent);
+                e.preventDefault(); // Stop mobile elastic scroll
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function(e) {
+                const mouseEvent = new MouseEvent('mouseup', {});
+                canvas.dispatchEvent(mouseEvent);
+            }, { passive: false });
+        }
+
+        function handleCanvasResize() {
+            if (!canvas) return;
+            const parent = canvas.parentElement;
+            
+            // Save state of existing drawings before size change
+            const temp = canvas.toDataURL();
+            
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+
+            // Redraw content back to active layer
+            const img = new Image();
+            img.src = temp;
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            // support standard coordinate mapping
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const currX = e.clientX - rect.left;
+            const currY = e.clientY - rect.top;
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currX, currY);
+            ctx.strokeStyle = drawColor;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            lastX = currX;
+            lastY = currY;
+            saveToLocalStorage(false);
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function setDrawColor(color) {
+            drawColor = color;
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveToLocalStorage(false);
+        }
+
+        function saveToLocalStorage(manualTrigger = false) {
             const inputs = document.querySelectorAll('#surveyForm input, #surveyForm textarea, #surveyForm select');
             const formData = {};
+            
             inputs.forEach(input => {
-                if(input.id) {
+                if (input.id) {
                     formData[input.id] = input.value;
                 }
             });
 
-            // Save canvas image as base64 string
+            // Save visual sketches
             if (canvas) {
-                formData['canvasData'] = canvas.toDataURL();
+                formData['canvas_sketch'] = canvas.toDataURL();
             }
 
-            // Save compressed images array
-            formData['uploadedPhotos'] = uploadedPhotos;
+            // Save base64 image strings
+            formData['uploaded_photos'] = uploadedPhotos;
+            formData['audit_photos'] = auditPhotos;
+            formData['building_photos'] = buildingPhotos;
 
-            localStorage.setItem('ghilotti_survey_data', JSON.stringify(formData));
+            localStorage.setItem('ghilotti_booster_survey_v2', JSON.stringify(formData));
+
+            if (manualTrigger) {
+                alert('Site survey progress successfully secured locally!');
+            }
         }
 
         function loadFromLocalStorage() {
-            const savedData = localStorage.getItem('ghilotti_survey_data');
-            if (savedData) {
-                const formData = JSON.parse(savedData);
+            const saved = localStorage.getItem('ghilotti_booster_survey_v2');
+            if (saved) {
+                const formData = JSON.parse(saved);
+                
+                // Bind value elements
                 for (const key in formData) {
                     const el = document.getElementById(key);
                     if (el) {
                         el.value = formData[key];
                     }
                 }
-                
-                // Restore uploaded photos
-                if (formData['uploadedPhotos']) {
-                    uploadedPhotos = formData['uploadedPhotos'];
-                    renderPhotoPreviews();
-                }
 
-                // Trigger health indicators for signal measurements on reload
+                // Restore image arrays
+                if (formData['uploaded_photos']) uploadedPhotos = formData['uploaded_photos'];
+                if (formData['audit_photos']) auditPhotos = formData['audit_photos'];
+                if (formData['building_photos']) buildingPhotos = formData['building_photos'];
+
+                // Restore signal diagnostics badges
                 ['b13', 'b5', 'b66', 'b2'].forEach(band => {
                     if (document.getElementById(`rsrp_${band}`)) assessSignal(band);
                 });
 
-                // Restore canvas state if drawing exists
-                if (formData['canvasData']) {
+                // Restore Canvas sketch overlays
+                if (formData['canvas_sketch']) {
                     setTimeout(() => {
                         const img = new Image();
-                        img.src = formData['canvasData'];
+                        img.src = formData['canvas_sketch'];
                         img.onload = () => {
-                            ctx.drawImage(img, 0, 0);
+                            if (ctx) ctx.drawImage(img, 0, 0);
                         };
-                    }, 100);
+                    }, 200);
                 }
             }
         }
 
         function clearFormData() {
-            if(confirm('Are you sure you want to clear your current survey notes? This action is permanent.')) {
-                localStorage.removeItem('ghilotti_survey_data');
+            if (confirm('Permanently reset the current site survey document? Unsaved changes will be discarded.')) {
+                localStorage.removeItem('ghilotti_booster_survey_v2');
                 document.getElementById('surveyForm').reset();
                 clearCanvas();
                 uploadedPhotos = [];
+                auditPhotos = {
+                    donor: { data: '', caption: '' },
+                    mount: { data: '', caption: '' },
+                    arrestor: { data: '', caption: '' },
+                    coax: { data: '', caption: '' },
+                    closet: { data: '', caption: '' }
+                };
+                buildingPhotos = {
+                    b1: { data: '', caption: '' },
+                    b2: { data: '', caption: '' },
+                    b3: { data: '', caption: '' },
+                    nb1: { data: '', caption: '' },
+                    nb2: { data: '', caption: '' }
+                };
                 renderPhotoPreviews();
+                renderAuditPhotoControls();
+                renderBuildingPhotoControls();
                 switchTab('tab-overview');
             }
+        }
+
+        function assessSignal(band) {
+            const rsrpInput = document.getElementById(`rsrp_${band}`);
+            const badge = document.getElementById(`health_${band}`);
+            if (!rsrpInput || !badge) return;
+
+            const val = parseFloat(rsrpInput.value);
+            if (isNaN(val)) {
+                badge.className = "px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500";
+                badge.innerText = "No Data";
+                return;
+            }
+
+            if (val >= -85) {
+                badge.className = "px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-green-100 text-green-800";
+                badge.innerText = "Excellent / Good";
+            } else if (val >= -100) {
+                badge.className = "px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-yellow-100 text-yellow-800";
+                badge.innerText = "Marginal";
+            } else {
+                badge.className = "px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-red-100 text-red-800";
+                badge.innerText = "Poor / Offline";
+            }
+        }
+
+        function renderAuditPhotoControls() {
+            const keys = ['donor', 'mount', 'arrestor', 'coax', 'closet'];
+            keys.forEach(key => {
+                const container = document.getElementById(`photo_ctrl_${key}`);
+                if (!container) return;
+                
+                const item = auditPhotos[key];
+                if (item && item.data) {
+                    // Photo exists
+                    container.innerHTML = `
+                        <div class="relative w-16 h-12 rounded border border-slate-300 overflow-hidden bg-slate-100 shrink-0">
+                            <img src="${item.data}" class="w-full h-full object-cover">
+                            <button type="button" onclick="removeAuditPhoto('${key}')" class="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center text-white transition-opacity no-print">
+                                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="text" value="${item.caption || ''}" onchange="updateAuditCaption('${key}', this.value)" placeholder="Edit caption..." class="w-full min-w-[100px] border border-slate-200 rounded px-1.5 py-0.5 text-xxs focus:outline-none focus:ring-1 focus:ring-amber-500">
+                    `;
+                } else {
+                    // No photo
+                    container.innerHTML = `
+                        <button type="button" onclick="triggerAuditUpload('${key}')" class="inline-flex items-center space-x-1 text-xxs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 px-2 py-1 rounded transition-colors no-print">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            </svg>
+                            <span>Add Photo</span>
+                        </button>
+                        <span class="text-xxs text-slate-400 italic font-normal">None attached</span>
+                    `;
+                }
+            });
+        }
+
+        function triggerAuditUpload(key) {
+            const input = document.getElementById(`input_photo_${key}`);
+            if (input) input.click();
+        }
+
+        function compressAuditPhoto(key) {
+            const input = document.getElementById(`input_photo_${key}`);
+            if (!input || !input.files || input.files.length === 0) return;
+
+            const file = input.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvasComp = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const max_size = 600; // Optimal footprint size
+
+                    if (width > height) {
+                        if (width > max_size) {
+                            height *= max_size / width;
+                            width = max_size;
+                        }
+                    } else {
+                        if (height > max_size) {
+                            width *= max_size / height;
+                            height = max_size;
+                        }
+                    }
+
+                    canvasComp.width = width;
+                    canvasComp.height = height;
+                    const ctxComp = canvasComp.getContext('2d');
+                    ctxComp.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvasComp.toDataURL('image/jpeg', 0.65);
+                    auditPhotos[key].data = compressedBase64;
+                    
+                    renderAuditPhotoControls();
+                    saveToLocalStorage(false);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeAuditPhoto(key) {
+            auditPhotos[key] = { data: '', caption: '' };
+            renderAuditPhotoControls();
+            saveToLocalStorage(false);
+        }
+
+        function updateAuditCaption(key, value) {
+            auditPhotos[key].caption = value;
+            saveToLocalStorage(false);
+        }
+
+        function renderBuildingPhotoControls() {
+            const keys = ['b1', 'b2', 'b3', 'nb1', 'nb2'];
+            keys.forEach(key => {
+                const container = document.getElementById(`building_photo_${key}`);
+                if (!container) return;
+                
+                const item = buildingPhotos[key];
+                if (item && item.data) {
+                    container.innerHTML = `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                            <div class="relative w-28 h-20 rounded-lg border border-slate-300 overflow-hidden bg-slate-100 shrink-0 shadow-sm">
+                                <img src="${item.data}" class="w-full h-full object-cover">
+                                <button type="button" onclick="removeBuildingPhoto('${key}')" class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow transition-colors no-print">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="w-full space-y-1.5">
+                                <label class="block text-xxs font-bold text-slate-500 uppercase tracking-wide">Building Photo Caption</label>
+                                <input type="text" value="${item.caption || ''}" onchange="updateBuildingCaption('${key}', this.value)" placeholder="Provide a caption (e.g. proposed CU location, pathway trench entry...)" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <button type="button" onclick="triggerBuildingUpload('${key}')" class="inline-flex items-center space-x-2 text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg transition-colors no-print">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                                <span>Add Location / Structural Photo</span>
+                            </button>
+                            <span class="text-xs text-slate-400 italic">No photo attached to this building</span>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        function triggerBuildingUpload(key) {
+            const input = document.getElementById(`input_photo_${key}`);
+            if (input) input.click();
+        }
+
+        function compressBuildingPhoto(key) {
+            const input = document.getElementById(`input_photo_${key}`);
+            if (!input || !input.files || input.files.length === 0) return;
+
+            const file = input.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvasComp = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const max_size = 600;
+
+                    if (width > height) {
+                        if (width > max_size) {
+                            height *= max_size / width;
+                            width = max_size;
+                        }
+                    } else {
+                        if (height > max_size) {
+                            width *= max_size / height;
+                            height = max_size;
+                        }
+                    }
+
+                    canvasComp.width = width;
+                    canvasComp.height = height;
+                    const ctxComp = canvasComp.getContext('2d');
+                    ctxComp.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvasComp.toDataURL('image/jpeg', 0.65);
+                    buildingPhotos[key].data = compressedBase64;
+
+                    renderBuildingPhotoControls();
+                    saveToLocalStorage(false);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeBuildingPhoto(key) {
+            buildingPhotos[key] = { data: '', caption: '' };
+            renderBuildingPhotoControls();
+            saveToLocalStorage(false);
+        }
+
+        function updateBuildingCaption(key, value) {
+            buildingPhotos[key].caption = value;
+            saveToLocalStorage(false);
+        }
+
+        function calculateBOM() {
+            // Get building pathway lengths
+            const b2 = parseFloat(document.getElementById('b2_distance').value) || 0;
+            const b3 = parseFloat(document.getElementById('b3_distance').value) || 0;
+            const nb1 = parseFloat(document.getElementById('nb1_distance').value) || 0;
+            const nb2 = parseFloat(document.getElementById('nb2_distance').value) || 0;
+
+            const totalDist = b2 + b3 + nb1 + nb2;
+            document.getElementById('calc_total_distance').innerText = totalDist + ' ft';
+
+            // Nextivity ranges max out at 328 feet per segment before needing Extenders
+            let extendersNeeded = 0;
+            [b2, b3, nb1, nb2].forEach(dist => {
+                if (dist > 328) {
+                    extendersNeeded += Math.ceil((dist - 328) / 328);
+                }
+            });
+
+            const extSpan = document.getElementById('calc_extenders');
+            extSpan.innerText = extendersNeeded + ' Units';
+            if (extendersNeeded > 0) {
+                extSpan.className = "font-extrabold text-red-600 animate-pulse";
+            } else {
+                extSpan.className = "font-extrabold text-slate-900";
+            }
+
+            // Estimate direct-burial cable pathing totals
+            document.getElementById('calc_outdoor_cat6').innerText = totalDist + ' ft';
         }
 
         function handlePhotoUpload(event) {
@@ -936,11 +1371,10 @@
                 reader.onload = function(e) {
                     const img = new Image();
                     img.onload = function() {
-                        // Max width/height to bypass local storage 5MB quota constraints
                         const canvasComp = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-                        const max_size = 800; 
+                        const max_size = 600; 
 
                         if (width > height) {
                             if (width > max_size) {
@@ -959,11 +1393,13 @@
                         const ctxComp = canvasComp.getContext('2d');
                         ctxComp.drawImage(img, 0, 0, width, height);
 
-                        // Compression format to optimize quality vs storage foot-print
-                        const compressedBase64 = canvasComp.toDataURL('image/jpeg', 0.7);
-                        uploadedPhotos.push(compressedBase64);
+                        const compressedBase64 = canvasComp.toDataURL('image/jpeg', 0.65);
+                        uploadedPhotos.push({
+                            data: compressedBase64,
+                            caption: ''
+                        });
                         renderPhotoPreviews();
-                        saveToLocalStorage();
+                        saveToLocalStorage(false);
                     };
                     img.src = e.target.result;
                 };
@@ -976,16 +1412,19 @@
             if (!grid) return;
             grid.innerHTML = '';
 
-            uploadedPhotos.forEach((photoData, index) => {
+            uploadedPhotos.forEach((photoObj, index) => {
                 const container = document.createElement('div');
-                container.className = 'relative group border border-slate-200 rounded-lg overflow-hidden shadow-sm aspect-video bg-slate-100 flex items-center justify-center';
+                container.className = 'flex flex-col space-y-2 border border-slate-200 rounded-lg p-2 bg-slate-50';
                 container.innerHTML = `
-                    <img src="${photoData}" class="w-full h-full object-cover">
-                    <button type="button" onclick="removePhoto(${index})" class="absolute top-1.5 right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow transition-colors no-print">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </button>
+                    <div class="relative group aspect-video bg-slate-100 rounded overflow-hidden flex items-center justify-center">
+                        <img src="${photoObj.data}" class="w-full h-full object-cover">
+                        <button type="button" onclick="removePhoto(${index})" class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow transition-colors no-print">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <input type="text" value="${photoObj.caption || ''}" onchange="updateSummaryCaption(${index}, this.value)" placeholder="Add description..." class="w-full border border-slate-200 rounded px-2 py-1 text-xxs focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold">
                 `;
                 grid.appendChild(container);
             });
@@ -994,150 +1433,316 @@
         function removePhoto(index) {
             uploadedPhotos.splice(index, 1);
             renderPhotoPreviews();
-            saveToLocalStorage();
+            saveToLocalStorage(false);
         }
 
-        function assessSignal(band) {
-            const rsrpInput = document.getElementById(`rsrp_${band}`);
-            const sinrInput = document.getElementById(`sinr_${band}`);
-            const healthBadge = document.getElementById(`health_${band}`);
-
-            if (!rsrpInput || !sinrInput || !healthBadge) return;
-
-            const rsrp = parseFloat(rsrpInput.value);
-            const sinr = parseFloat(sinrInput.value);
-
-            if (isNaN(rsrp) || isNaN(sinr)) {
-                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600";
-                healthBadge.innerText = "No Data";
-                return;
-            }
-
-            // Evaluate thresholds
-            if (rsrp >= -85 && sinr >= 10) {
-                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200";
-                healthBadge.innerText = "Excellent";
-            } else if (rsrp >= -98 && sinr >= 5) {
-                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200";
-                healthBadge.innerText = "Marginal";
-            } else {
-                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800 border border-rose-200";
-                healthBadge.innerText = "Poor / Dead Zone";
-            }
-            
-            // Trigger dynamic calculations to update estimated BOM lengths based on inputs
-            runBOMCalculators();
-            
-            // Auto save state whenever inputs shift
-            saveToLocalStorage();
+        function updateSummaryCaption(index, value) {
+            uploadedPhotos[index].caption = value;
+            saveToLocalStorage(false);
         }
 
-        function initCanvas() {
-            canvas = document.getElementById('pathwayCanvas');
-            ctx = canvas.getContext('2d');
+        function preparePrintReport() {
+            const printArea = document.getElementById('print-area');
+            if (!printArea) return;
 
-            // Add standard draw events
-            canvas.addEventListener('mousedown', startDrawing);
-            canvas.addEventListener('mousemove', draw);
-            canvas.addEventListener('mouseup', stopDrawing);
-            canvas.addEventListener('mouseout', stopDrawing);
+            // Gather inputs
+            const pName = document.getElementById('project_name').value;
+            const sDate = document.getElementById('survey_date').value;
+            const sName = document.getElementById('surveyor_name').value;
+            const tCarrier = document.getElementById('target_carrier').value;
+            const towerAzimuth = document.getElementById('tower_azimuth').value;
+            const towerLandmark = document.getElementById('tower_landmark').value;
+            const bom_cu = document.getElementById('bom_cu').value;
+            const bom_outdoor_cat6 = document.getElementById('bom_outdoor_cat6').value;
+            const bom_plenum_cat6 = document.getElementById('bom_plenum_cat6').value;
+            const bom_domes = document.getElementById('bom_domes').value;
+            const bom_lmr = document.getElementById('bom_lmr').value;
+            const bom_extenders = document.getElementById('bom_extenders').value;
+            const bom_justification = document.getElementById('bom_justification').value;
+            const fieldNotes = document.getElementById('field_notes').value;
+            const signSurveyor = document.getElementById('sign_surveyor').value;
+            const signWitness = document.getElementById('sign_witness').value;
 
-            // Add touch support for mobile tablets/phones
-            canvas.addEventListener('touchstart', (e) => {
-                const touch = e.touches[0];
-                const mouseEvent = new MouseEvent('mousedown', {
-                    clientX: touch.clientX,
-                    clientY: touch.clientY
-                });
-                canvas.dispatchEvent(mouseEvent);
-                e.preventDefault();
-            });
+            let printHTML = `
+                <div class="max-w-4xl mx-auto space-y-6">
+                    <!-- Title Header -->
+                    <div class="border-b-4 border-slate-900 pb-4 flex justify-between items-end">
+                        <div>
+                            <h1 class="text-2xl font-black text-slate-950 uppercase tracking-tight">ENGINEERING SITE SURVEY REPORT</h1>
+                            <p class="text-xs text-slate-500">Cel-Fi QUATRA EVO Multi-Building Expansion Assessment</p>
+                        </div>
+                        <div class="bg-amber-500 text-slate-950 font-black px-4 py-1.5 rounded uppercase text-xs tracking-wide">
+                            Ghilotti
+                        </div>
+                    </div>
 
-            canvas.addEventListener('touchmove', (e) => {
-                const touch = e.touches[0];
-                const mouseEvent = new MouseEvent('mousemove', {
-                    clientX: touch.clientX,
-                    clientY: touch.clientY
-                });
-                canvas.dispatchEvent(mouseEvent);
-                e.preventDefault();
-            });
+                    <!-- Metadata Grid -->
+                    <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                        <div><strong>Project Name:</strong> ${pName}</div>
+                        <div><strong>Date of Survey:</strong> ${sDate}</div>
+                        <div><strong>Lead Surveyor:</strong> ${sName}</div>
+                        <div><strong>Target Carrier:</strong> ${tCarrier}</div>
+                    </div>
 
-            canvas.addEventListener('touchend', () => {
-                const mouseEvent = new MouseEvent('mouseup', {});
-                canvas.dispatchEvent(mouseEvent);
-            });
+                    <!-- Pre-Survey Component Audit Block -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Pre-Survey Component Audit</h2>
+                        <table class="min-w-full divide-y divide-slate-200 text-xxs">
+                            <thead>
+                                <tr class="bg-slate-100 text-left">
+                                    <th class="p-2 font-bold">Component</th>
+                                    <th class="p-2 font-bold">Action Plan</th>
+                                    <th class="p-2 font-bold">Inline Photo Evidence</th>
+                                    <th class="p-2 font-bold">Condition & Field Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${['donor', 'mount', 'arrestor', 'coax', 'closet'].map(key => {
+                                    const selectVal = document.getElementById(`audit_${key}`) ? document.getElementById(`audit_${key}`).value : '';
+                                    const notesVal = document.getElementById(`notes_${key}`) ? document.getElementById(`notes_${key}`).value : '';
+                                    const photo = auditPhotos[key];
+                                    return `
+                                        <tr class="border-b border-slate-100">
+                                            <td class="p-2 font-bold capitalize">${key === 'coax' ? 'Donor Coax' : key}</td>
+                                            <td class="p-2 font-semibold text-slate-700 capitalize">${selectVal}</td>
+                                            <td class="p-2">
+                                                ${photo && photo.data ? `
+                                                    <div class="flex items-center space-x-2">
+                                                        <img src="${photo.data}" class="w-14 h-10 object-cover rounded border border-slate-300">
+                                                        <span class="text-xxs italic text-slate-500 max-w-[120px] truncate">${photo.caption || 'No caption'}</span>
+                                                    </div>
+                                                ` : '<span class="text-slate-400 italic">None</span>'}
+                                            </td>
+                                            <td class="p-2 text-slate-600">${notesVal || 'None'}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Page Break for clear reading on print -->
+                    <div class="print-break"></div>
+
+                    <!-- Outdoor Measurements -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Outdoor Signal Profiles</h2>
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div><strong>Bearing Azimuth:</strong> ${towerAzimuth}°</div>
+                            <div><strong>Tower Landmark:</strong> ${towerLandmark}</div>
+                        </div>
+                        <table class="min-w-full divide-y divide-slate-200 text-xxs text-center">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700">
+                                    <th class="p-2 text-left font-bold">Band</th>
+                                    <th class="p-2 font-bold">RSSI</th>
+                                    <th class="p-2 font-bold">RSRP</th>
+                                    <th class="p-2 font-bold">RSRQ</th>
+                                    <th class="p-2 font-bold">SINR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${['b13', 'b5', 'b66', 'b2'].map(band => {
+                                    const rssi = document.getElementById(`rssi_${band}`).value;
+                                    const rsrp = document.getElementById(`rsrp_${band}`).value;
+                                    const rsrq = document.getElementById(`rsrq_${band}`).value;
+                                    const sinr = document.getElementById(`sinr_${band}`).value;
+                                    return `
+                                        <tr class="border-b border-slate-100">
+                                            <td class="p-2 text-left font-bold uppercase">${band}</td>
+                                            <td class="p-2">${rssi || 'N/A'} dBm</td>
+                                            <td class="p-2 font-bold">${rsrp || 'N/A'} dBm</td>
+                                            <td class="p-2">${rsrq || 'N/A'} dB</td>
+                                            <td class="p-2">${sinr || 'N/A'} dB</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Building Profiles Summary -->
+                    <div class="space-y-4 pt-4">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Building Profile Assessments</h2>
+                        
+                        <!-- Building 1 -->
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xxs space-y-1.5">
+                            <div class="flex justify-between font-bold border-b pb-1">
+                                <span class="text-slate-800">Building 1 (HQ / Anchor)</span>
+                                <span>Wall/Ceiling: ${document.getElementById('b1_ceiling').value}</span>
+                            </div>
+                            <p><strong>Proposed CU Placement Notes:</strong> ${document.getElementById('b1_notes').value || 'None'}</p>
+                            ${buildingPhotos.b1 && buildingPhotos.b1.data ? `
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <img src="${buildingPhotos.b1.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
+                                    <div>
+                                        <span class="block text-xxs font-bold uppercase text-slate-500">Structural Photo Link Evidence</span>
+                                        <p class="text-xxs italic text-slate-700">${buildingPhotos.b1.caption || 'No caption'}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Building 2 -->
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xxs space-y-1.5">
+                            <div class="flex justify-between font-bold border-b pb-1">
+                                <span class="text-slate-800">Building 2 (Existing Mobile)</span>
+                                <span>Siding: ${document.getElementById('b2_siding').value} | Distance: ${document.getElementById('b2_distance').value} ft</span>
+                            </div>
+                            <p><strong>Proposed CU Location:</strong> ${document.getElementById('b2_cu_loc').value || 'None'}</p>
+                            ${buildingPhotos.b2 && buildingPhotos.b2.data ? `
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <img src="${buildingPhotos.b2.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
+                                    <div>
+                                        <span class="block text-xxs font-bold uppercase text-slate-500">Structural Photo Link Evidence</span>
+                                        <p class="text-xxs italic text-slate-700">${buildingPhotos.b2.caption || 'No caption'}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Building 3 -->
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xxs space-y-1.5">
+                            <div class="flex justify-between font-bold border-b pb-1">
+                                <span class="text-slate-800">Building 3 (Existing Mobile)</span>
+                                <span>Siding: ${document.getElementById('b3_siding').value} | Distance: ${document.getElementById('b3_distance').value} ft</span>
+                            </div>
+                            <p><strong>Proposed CU Location:</strong> ${document.getElementById('b3_cu_loc').value || 'None'}</p>
+                            ${buildingPhotos.b3 && buildingPhotos.b3.data ? `
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <img src="${buildingPhotos.b3.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
+                                    <div>
+                                        <span class="block text-xxs font-bold uppercase text-slate-500">Structural Photo Link Evidence</span>
+                                        <p class="text-xxs italic text-slate-700">${buildingPhotos.b3.caption || 'No caption'}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- New Building 1 -->
+                        <div class="bg-amber-50/40 p-3 rounded-lg border border-amber-200 text-xxs space-y-1.5">
+                            <div class="flex justify-between font-bold border-b border-amber-200 pb-1">
+                                <span class="text-slate-800">NEW Building 1 (Scope Trailer)</span>
+                                <span>Siding: ${document.getElementById('nb1_siding').value} | Distance: ${document.getElementById('nb1_distance').value} ft</span>
+                            </div>
+                            <p><strong>Proposed CU / Server Notes:</strong> ${document.getElementById('nb1_notes').value || 'None'}</p>
+                            ${buildingPhotos.nb1 && buildingPhotos.nb1.data ? `
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <img src="${buildingPhotos.nb1.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
+                                    <div>
+                                        <span class="block text-xxs font-bold uppercase text-slate-500">Structural Photo Link Evidence</span>
+                                        <p class="text-xxs italic text-slate-700">${buildingPhotos.nb1.caption || 'No caption'}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- New Building 2 -->
+                        <div class="bg-amber-50/40 p-3 rounded-lg border border-amber-200 text-xxs space-y-1.5">
+                            <div class="flex justify-between font-bold border-b border-amber-200 pb-1">
+                                <span class="text-slate-800">NEW Building 2 (Scope Trailer)</span>
+                                <span>Siding: ${document.getElementById('nb2_siding').value} | Distance: ${document.getElementById('nb2_distance').value} ft</span>
+                            </div>
+                            <p><strong>Proposed CU / Server Notes:</strong> ${document.getElementById('nb2_notes').value || 'None'}</p>
+                            ${buildingPhotos.nb2 && buildingPhotos.nb2.data ? `
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <img src="${buildingPhotos.nb2.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
+                                    <div>
+                                        <span class="block text-xxs font-bold uppercase text-slate-500">Structural Photo Link Evidence</span>
+                                        <p class="text-xxs italic text-slate-700">${buildingPhotos.nb2.caption || 'No caption'}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Page Break -->
+                    <div class="print-break"></div>
+
+                    <!-- Route annotations & Map sketch -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Inter-Building Route Schematic</h2>
+                        <div class="relative border border-slate-300 rounded overflow-hidden aspect-video">
+                            <!-- Background Map outline -->
+                            <div class="absolute inset-0 select-none p-4 opacity-10 flex flex-col justify-between text-xxs font-bold">
+                                <div>PARKING LOT BASE ROUTING LAYOUT</div>
+                                <div class="flex space-x-8">
+                                    <div>[B1 Anchor]</div>
+                                    <div>[B2 Mod]</div>
+                                    <div>[B3 Mod]</div>
+                                    <div>[NB 1]</div>
+                                    <div>[NB 2]</div>
+                                </div>
+                            </div>
+                            <img src="${canvas ? canvas.toDataURL() : ''}" class="absolute inset-0 w-full h-full object-contain">
+                        </div>
+                    </div>
+
+                    <!-- BOM Estimator Summary -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">BOM Expansion Plan Estimator</h2>
+                        <div class="grid grid-cols-3 gap-2 text-xxs">
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>Additional CUs:</strong> ${bom_cu}</div>
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>Range Extenders:</strong> ${bom_extenders}</div>
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>Dome Antennas:</strong> ${bom_domes}</div>
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>Outdoor Cat6:</strong> ${bom_outdoor_cat6} ft</div>
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>Plenum Cat6:</strong> ${bom_plenum_cat6} ft</div>
+                            <div class="bg-slate-50 p-2.5 rounded border"><strong>LMR400 Jumpers:</strong> ${bom_lmr} ft</div>
+                        </div>
+                        <p class="text-xxs text-slate-600 bg-slate-50/50 p-3 rounded-lg"><strong>Justification / Notes:</strong> ${bom_justification || 'No justification written.'}</p>
+                    </div>
+
+                    <!-- Attachments / Photo Evidence Grid -->
+                    ${uploadedPhotos.length > 0 ? `
+                        <div class="print-break"></div>
+                        <div class="space-y-3">
+                            <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">General Site Survey Attachments</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                ${uploadedPhotos.map(photo => `
+                                    <div class="border border-slate-200 rounded p-2 bg-slate-50 space-y-2">
+                                        <img src="${photo.data}" class="w-full h-40 object-cover rounded">
+                                        <p class="text-xxs font-bold text-slate-700 italic">${photo.caption || 'No caption details'}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Field Notes Summary -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Special Field Notes</h2>
+                        <p class="text-xxs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border">${fieldNotes || 'No special field notes recorded.'}</p>
+                    </div>
+
+                    <!-- Authorization Sign-offs -->
+                    <div class="grid grid-cols-2 gap-12 pt-8 text-xs">
+                        <div class="border-t border-slate-400 pt-2">
+                            <p class="font-bold">Surveyor Signature:</p>
+                            <p class="text-slate-600 mt-2 font-mono italic text-sm">${signSurveyor || 'Will'}</p>
+                            <p class="text-slate-400 mt-1">Lead Surveyor Validation</p>
+                        </div>
+                        <div class="border-t border-slate-400 pt-2">
+                            <p class="font-bold">Client/Witness Signature:</p>
+                            <p class="text-slate-600 mt-2 font-mono italic text-sm">${signWitness || '_________________________'}</p>
+                            <p class="text-slate-400 mt-1">Authorized Stakeholder Representative</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            printArea.innerHTML = printHTML;
         }
 
-        function handleCanvasResize() {
-            if (!canvas) return;
-            // Back up contents before resizing
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(canvas, 0, 0);
-
-            // Resize canvas
-            const rect = canvas.parentNode.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-
-            // Restore canvas backup
-            ctx.drawImage(tempCanvas, 0, 0);
-            
-            // Set standard drawing context parameters
-            ctx.strokeStyle = '#F59E0B'; // Amber orange lines
-            ctx.lineWidth = 3.5;
-            ctx.lineCap = 'round';
-        }
-
-        function startDrawing(e) {
-            isDrawing = true;
-            const rect = canvas.getBoundingClientRect();
-            ctx.beginPath();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            const rect = canvas.getBoundingClientRect();
-            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-            ctx.stroke();
-        }
-
-        function stopDrawing() {
-            if (isDrawing) {
-                isDrawing = false;
-                saveToLocalStorage();
-            }
-        }
-
-        function clearCanvas() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            saveToLocalStorage();
-        }
-
-        function runBOMCalculators() {
-            // Get expansion structures physical parameters
-            const d2 = parseFloat(document.getElementById('b2_dist_b1').value) || 0;
-            const d3 = parseFloat(document.getElementById('b3_dist_b2').value) || 0;
-            const nd1 = parseFloat(document.getElementById('nb1_dist').value) || 0;
-            const nd2 = parseFloat(document.getElementById('nb2_dist').value) || 0;
-
-            // Auto calculate required Shielded Outdoor Cat6 run estimation
-            const calculatedOutdoorRun = d2 + d3 + nd1 + nd2;
-            document.getElementById('calc_out_cat6').innerText = calculatedOutdoorRun > 0 ? calculatedOutdoorRun : 250;
-            
-            // Auto identify if any calculated segment crosses the critical 100m ethernet limit
-            const segmentLengths = [d2, d3, nd1, nd2];
-            const rangeExtendersNeeded = segmentLengths.filter(l => l > 328).length;
-            document.getElementById('calc_range').innerText = rangeExtendersNeeded;
-
-            // Suggested internal coax drops based on 30ft estimate per dome
-            const domesNeeded = 2; // Assuming 1 per expansion trailer
-            document.getElementById('calc_coax_jumps').innerText = domesNeeded * 30;
-        }
+        // Hook up browser printing listener to auto-format before triggering print window
+        window.onbeforeprint = preparePrintReport;
     </script>
 </body>
 </html>
+```
+`eof`
+
+### Summary of Changes made:
+1. **Photo Upload Links for Audit Components (Step 2):** In **Step 2**, a new **Inline Photo & Caption** column has been added. It features an interactive `+ Add Photo` camera button. When a picture is uploaded, it renders a tight, elegant thumbnail preview with a localized, live-editable caption input underneath it.
+2. **Building-Specific Attachment Modules (Step 4):** Each building assessment card (Building 1, Building 2, Building 3, New Building 1, New Building 2) now features a customized dashed attachment zone. Will can capture distinct physical characteristics of each site location and write detailed descriptions right below.
+3. **Optimized Local Persistence:** All captured audit images, building images, and their respective caption states are successfully integrated into the lightweight auto-save and state-restore loops.
+4. **Professional Printed Reports:** These newly linked photos and captions are formatted to print in highly precise locations (right next to their respective checklist rows and building profiles) when hitting "Generate Report" or printing to PDF.
