@@ -729,6 +729,24 @@
 
                     <div class="space-y-4">
                         <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Site Photos & Structural Attachments</label>
+                            <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-6 bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer no-print" onclick="document.getElementById('photo_input').click()">
+                                <svg class="w-10 h-10 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                                <span class="text-sm font-semibold text-slate-700">Tap to Capture with Camera or Upload Photos</span>
+                                <span class="text-xs text-slate-400 mt-1">Images auto-optimized for report generation</span>
+                                <input type="file" id="photo_input" accept="image/*" multiple capture="environment" class="hidden" onchange="handlePhotoUpload(event)">
+                            </div>
+                            
+                            <!-- Photos Preview Grid -->
+                            <div id="photo_preview_grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
+                                <!-- Dynamic thumbnails will inject here -->
+                            </div>
+                        </div>
+
+                        <div>
                             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">General Field Notes / Special Site Directives</label>
                             <textarea id="field_notes" rows="5" placeholder="Include keys, escort names, PPE rules, safety setups, or custom structural problems encountered here..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
                         </div>
@@ -772,9 +790,10 @@
         const steps = ['tab-overview', 'tab-audit', 'tab-donor', 'tab-buildings', 'tab-pathways', 'tab-bom', 'tab-summary'];
         let currentStepIndex = 0;
 
-        // Initialize Canvas variables
+        // Initialize Canvas and Photo variables
         let canvas, ctx;
         let isDrawing = false;
+        let uploadedPhotos = [];
 
         window.onload = function() {
             // Load saved progress from local storage
@@ -856,6 +875,9 @@
                 formData['canvasData'] = canvas.toDataURL();
             }
 
+            // Save compressed images array
+            formData['uploadedPhotos'] = uploadedPhotos;
+
             localStorage.setItem('ghilotti_survey_data', JSON.stringify(formData));
         }
 
@@ -870,6 +892,12 @@
                     }
                 }
                 
+                // Restore uploaded photos
+                if (formData['uploadedPhotos']) {
+                    uploadedPhotos = formData['uploadedPhotos'];
+                    renderPhotoPreviews();
+                }
+
                 // Trigger health indicators for signal measurements on reload
                 ['b13', 'b5', 'b66', 'b2'].forEach(band => {
                     if (document.getElementById(`rsrp_${band}`)) assessSignal(band);
@@ -893,8 +921,80 @@
                 localStorage.removeItem('ghilotti_survey_data');
                 document.getElementById('surveyForm').reset();
                 clearCanvas();
+                uploadedPhotos = [];
+                renderPhotoPreviews();
                 switchTab('tab-overview');
             }
+        }
+
+        function handlePhotoUpload(event) {
+            const files = event.target.files;
+            if (!files) return;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Max width/height to bypass local storage 5MB quota constraints
+                        const canvasComp = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const max_size = 800; 
+
+                        if (width > height) {
+                            if (width > max_size) {
+                                height *= max_size / width;
+                                width = max_size;
+                            }
+                        } else {
+                            if (height > max_size) {
+                                width *= max_size / height;
+                                height = max_size;
+                            }
+                        }
+
+                        canvasComp.width = width;
+                        canvasComp.height = height;
+                        const ctxComp = canvasComp.getContext('2d');
+                        ctxComp.drawImage(img, 0, 0, width, height);
+
+                        // Compression format to optimize quality vs storage foot-print
+                        const compressedBase64 = canvasComp.toDataURL('image/jpeg', 0.7);
+                        uploadedPhotos.push(compressedBase64);
+                        renderPhotoPreviews();
+                        saveToLocalStorage();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderPhotoPreviews() {
+            const grid = document.getElementById('photo_preview_grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            uploadedPhotos.forEach((photoData, index) => {
+                const container = document.createElement('div');
+                container.className = 'relative group border border-slate-200 rounded-lg overflow-hidden shadow-sm aspect-video bg-slate-100 flex items-center justify-center';
+                container.innerHTML = `
+                    <img src="${photoData}" class="w-full h-full object-cover">
+                    <button type="button" onclick="removePhoto(${index})" class="absolute top-1.5 right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow transition-colors no-print">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                `;
+                grid.appendChild(container);
+            });
+        }
+
+        function removePhoto(index) {
+            uploadedPhotos.splice(index, 1);
+            renderPhotoPreviews();
+            saveToLocalStorage();
         }
 
         function assessSignal(band) {
