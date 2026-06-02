@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghilotti Construction Site Survey Form</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom print styling to ensure a beautiful multi-page PDF generation */
+        @media print {
+            body {
+                background: white;
+                color: black;
+                font-size: 12px;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-break {
+                page-break-after: always;
+            }
+            .print-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            input, select, textarea {
+                border: none !important;
+                border-bottom: 1px solid #ccc !important;
+                background: transparent !important;
+                padding: 2px !important;
+                appearance: none !important;
+                -webkit-appearance: none !important;
+            }
+            .interactive-canvas-container {
+                border: 1px solid #000 !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50 no-print">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-lg font-extrabold tracking-wider text-lg shadow-inner">
+                    GCC
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Ghilotti Construction</h1>
+                    <p class="text-xs text-slate-400">Cel-Fi Booster Upgrade & Mobile Expansion Survey Tool</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="saveToLocalStorage()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 border border-slate-700">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save Progress
+                </button>
+                <button onclick="clearFormData()" class="bg-red-950 hover:bg-red-900 text-red-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+                    Reset
+                </button>
+                <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95 flex items-center gap-1.5 shadow">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden print-container">
+            
+            <!-- Navigation Tabs for Step-by-Step Experience (Hidden in Print) -->
+            <div class="bg-slate-100 border-b border-slate-200 p-2 flex flex-wrap gap-1 no-print">
+                <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-amber-500 text-slate-950 shadow-sm">
+                    1. Overview
+                </button>
+                <button onclick="switchTab('tab-audit')" id="btn-tab-audit" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    2. Infrastructure Audit
+                </button>
+                <button onclick="switchTab('tab-donor')" id="btn-tab-donor" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    3. Donor Signal
+                </button>
+                <button onclick="switchTab('tab-buildings')" id="btn-tab-buildings" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    4. Building Assessments
+                </button>
+                <button onclick="switchTab('tab-pathways')" id="btn-tab-pathways" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    5. Pathways & Map
+                </button>
+                <button onclick="switchTab('tab-bom')" id="btn-tab-bom" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    6. BOM Planner
+                </button>
+                <button onclick="switchTab('tab-summary')" id="btn-tab-summary" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70">
+                    7. Notes & Sign-off
+                </button>
+            </div>
+
+            <!-- Form Wrapper element -->
+            <form id="surveyForm" onsubmit="event.preventDefault();" class="p-6 sm:p-8 space-y-8">
+
+                <section id="tab-overview" class="tab-section space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 1 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">General Project Info & Objectives</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Project Name</label>
+                            <input type="text" id="project_name" value="Ghilotti Construction — Cel-Fi Booster Upgrade" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Date of Survey</label>
+                            <input type="date" id="survey_date" value="2026-06-02" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Lead Surveyor</label>
+                            <input type="text" id="surveyor" value="Will" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Target Carrier</label>
+                            <input type="text" id="carrier" value="Verizon Wireless" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg space-y-2 mt-4">
+                        <h3 class="font-bold text-amber-900 flex items-center gap-1.5 text-sm">
+                            <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                            Critical Engineering Guideline
+                        </h3>
+                        <p class="text-xs text-amber-800 leading-relaxed">
+                            <strong>Transition Note:</strong> The G41 is a traditional RF-over-Coax booster splitting signal dynamically over thick LMR400. The new <strong>Cel-Fi QUATRA EVO</strong> functions differently. The Network Unit (NU) digitizes the signal and transmits it to remote Coverage Units (CUs) over <strong>Category Cables (Cat5e/Cat6)</strong>. You must identify dedicated network cable paths between buildings. Coax cannot carry the signal between NU and CUs.
+                        </p>
+                    </div>
+                </section>
+
+                <section id="tab-audit" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 2 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Pre-Survey Component Audit</h2>
+                        <p class="text-xs text-slate-500 mt-1">Audit existing cellular booster system elements to identify reuse viability.</p>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Component</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location / Spec</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Action Plan</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Condition & Field Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 text-sm">
+                                <!-- Row 1 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Donor Antenna</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">Roof of Building 1</td>
+                                    <td class="px-4 py-3">
+                                        <select id="action_donor" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                            <option value="reuse" selected>Reuse Existing</option>
+                                            <option value="replace">Replace with New</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="notes_donor" placeholder="Check corrosion, aiming direction, structural wear..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                </tr>
+                                <!-- Row 2 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Antenna Mount</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">Roof of Building 1</td>
+                                    <td class="px-4 py-3">
+                                        <select id="action_mount" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                            <option value="reuse" selected>Reuse Existing</option>
+                                            <option value="replace">Replace with New</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="notes_mount" placeholder="Check ballast blocks, sled stability, J-Mount structural tightness..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                </tr>
+                                <!-- Row 3 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Surge Arrestor</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">Inline on main donor run</td>
+                                    <td class="px-4 py-3">
+                                        <select id="action_surge" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                            <option value="reuse" selected>Reuse Existing</option>
+                                            <option value="replace">Replace with New</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="notes_surge" placeholder="Inspect ground connection, look for burn/corrosion signs..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                </tr>
+                                <!-- Row 4 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Donor Coax Run</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">Roof to B1 Closet</td>
+                                    <td class="px-4 py-3">
+                                        <select id="action_coax" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                            <option value="reuse" selected>Reuse Existing</option>
+                                            <option value="replace">Replace with New</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="notes_coax" placeholder="Check outer jacket, LMR400 condition, run length..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                </tr>
+                                <!-- Row 5 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Main IT Closet / IDF</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">Building 1</td>
+                                    <td class="px-4 py-3">
+                                        <select id="action_closet" class="bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                            <option value="available" selected>Ready / Dedicated Space</option>
+                                            <option value="needs_prep">Needs Prep / Relocation</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="notes_closet" placeholder="Verify 120V AC outlet availability, wall space for NU installation..." class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="tab-donor" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 3 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Outdoor & Donor Signal Measurements</h2>
+                        <p class="text-xs text-slate-500 mt-1">Collect cellular signal health statistics on the roof of Building 1 near the donor antenna position.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-150">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Target Cell Tower Azimuth / Bearing (°)</label>
+                            <input type="number" id="tower_bearing" placeholder="e.g. 185" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Nearest Major Intersection / Landmark</label>
+                            <input type="text" id="tower_landmark" placeholder="e.g. Hwy 101 Overpass & Bell Rd" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrier / Band</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSSI (dBm)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSRP (dBm)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">RSRQ (dB)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">SINR (dB)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Signal Health</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 text-sm">
+                                <!-- Verizon B13 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B13 (700 MHz)</td>
+                                    <td class="px-4 py-3"><input type="number" id="rssi_b13" placeholder="-70" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrp_b13" oninput="assessSignal('b13')" placeholder="-85" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrq_b13" placeholder="-12" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="sinr_b13" oninput="assessSignal('b13')" placeholder="10" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><span id="health_b13" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
+                                </tr>
+                                <!-- Verizon B5 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B5 (850 MHz)</td>
+                                    <td class="px-4 py-3"><input type="number" id="rssi_b5" placeholder="-72" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrp_b5" oninput="assessSignal('b5')" placeholder="-88" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrq_b5" placeholder="-11" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="sinr_b5" oninput="assessSignal('b5')" placeholder="8" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><span id="health_b5" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
+                                </tr>
+                                <!-- Verizon B4/B66 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B4/B66 (AWS)</td>
+                                    <td class="px-4 py-3"><input type="number" id="rssi_b66" placeholder="-75" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrp_b66" oninput="assessSignal('b66')" placeholder="-94" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrq_b66" placeholder="-14" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="sinr_b66" oninput="assessSignal('b66')" placeholder="4" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><span id="health_b66" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
+                                </tr>
+                                <!-- Verizon B2 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">Verizon B2 (1900 MHz)</td>
+                                    <td class="px-4 py-3"><input type="number" id="rssi_b2" placeholder="-78" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrp_b2" oninput="assessSignal('b2')" placeholder="-96" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="rsrq_b2" placeholder="-15" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><input type="number" id="sinr_b2" oninput="assessSignal('b2')" placeholder="2" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"></td>
+                                    <td class="px-4 py-3"><span id="health_b2" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">No Data</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="tab-buildings" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 4 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Building-by-Building Assessment</h2>
+                        <p class="text-xs text-slate-500 mt-1">Audit individual properties to define localized coverage, pathing solutions, and physical construction properties.</p>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- BUILDING 1 -->
+                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                            <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                                <h3 class="text-lg font-bold text-slate-900">Building 1 (Main Office / HQ)</h3>
+                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Anchor</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Wall / Ceiling Type</label>
+                                    <select id="b1_ceiling" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                        <option value="drop">Drop Ceiling (Grid/Tile)</option>
+                                        <option value="drywall">Drywall / Sheetrock</option>
+                                        <option value="exposed">Exposed / Open Wood Joist</option>
+                                        <option value="hardlid">Concrete / Hard Lid</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Coax Runs Viability</label>
+                                    <select id="b1_coax_viable" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                        <option value="yes">Yes - Can reuse coax for local CU branch passive expansion</option>
+                                        <option value="no">No - Coax needs complete retirement</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (System OFF)</label>
+                                    <input type="number" id="b1_rsrp_off" placeholder="-105" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline SINR (System OFF)</label>
+                                    <input type="number" id="b1_sinr_off" placeholder="-3" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU/Antenna Placement Notes</label>
+                                    <input type="text" id="b1_placement" placeholder="e.g. IT closet wall, server antenna on corridor ceiling..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BUILDING 2 -->
+                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                            <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                                <h3 class="text-lg font-bold text-slate-900">Building 2 (Existing Modular Office)</h3>
+                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Extension</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
+                                    <select id="b2_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                        <option value="metal">Corrugated Steel / Metal Panel</option>
+                                        <option value="wood">Wood Panel (T1-11)</option>
+                                        <option value="vinyl">Vinyl Siding</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Cable Pathway from B1</label>
+                                    <select id="b2_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                        <option value="underground_conduit">Underground Conduit / PVC Sleeve</option>
+                                        <option value="aerial_coax">Aerial Coax (Messenger Wire)</option>
+                                        <option value="direct_burial">Direct Burial</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Can we pull Plenum Cat6 through run?</label>
+                                    <select id="b2_cat6_pull" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:ring-1 focus:ring-amber-500">
+                                        <option value="yes">Yes - conduit has spare capacity</option>
+                                        <option value="no">No - conduit blocked or too tight</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to Building 1 (ft)</label>
+                                    <input type="number" id="b2_dist_b1" placeholder="85" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="b2_rsrp_off" placeholder="-112" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU Location</label>
+                                    <input type="text" id="b2_placement" placeholder="e.g. Centered ceiling, utility wall mount..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BUILDING 3 -->
+                        <div class="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-4">
+                            <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                                <h3 class="text-lg font-bold text-slate-900">Building 3 (Existing Modular Office)</h3>
+                                <span class="bg-amber-150 text-slate-800 text-xs px-2.5 py-1 rounded font-semibold border border-amber-200">Existing Extension</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
+                                    <select id="b3_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="metal">Corrugated Steel / Metal Panel</option>
+                                        <option value="wood">Wood Panel (T1-11)</option>
+                                        <option value="vinyl">Vinyl Siding</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Existing Cable Pathway from B2</label>
+                                    <select id="b3_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="underground_conduit">Underground Conduit / PVC Sleeve</option>
+                                        <option value="aerial_coax">Aerial Coax (Messenger Wire)</option>
+                                        <option value="direct_burial">Direct Burial</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Can we pull Plenum Cat6 through run?</label>
+                                    <select id="b3_cat6_pull" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="yes">Yes - conduit has spare capacity</option>
+                                        <option value="no">No - conduit blocked or too tight</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to Building 2 (ft)</label>
+                                    <input type="number" id="b3_dist_b2" placeholder="40" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="b3_rsrp_off" placeholder="-115" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU Location</label>
+                                    <input type="text" id="b3_placement" placeholder="e.g. Back wall, office open room ceiling..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NEW BUILDING 1 -->
+                        <div class="p-5 border border-amber-300 rounded-xl bg-amber-50/20 space-y-4">
+                            <div class="flex justify-between items-center border-b border-amber-300 pb-2">
+                                <h3 class="text-lg font-bold text-slate-900">NEW Building 1 (New Modular Trailer)</h3>
+                                <span class="bg-amber-500 text-slate-950 text-xs px-2.5 py-1 rounded font-extrabold tracking-wide">Scope Expansion</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
+                                    <select id="nb1_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="metal" selected>Corrugated Steel / Metal Panel (Faraday risk)</option>
+                                        <option value="wood">Wood Panel (T1-11)</option>
+                                        <option value="vinyl">Vinyl Siding</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed Cable Pathway Option</label>
+                                    <select id="nb1_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="trench">Trench & Underground Conduit (Proposed)</option>
+                                        <option value="aerial">Overhead / Aerial Span (Messenger Wire)</option>
+                                        <option value="chassis">Under-chassis crawls (from Building 2)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nearest Signal Source Node</label>
+                                    <select id="nb1_source" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="b1">Building 1 (IT Closet / NU Base)</option>
+                                        <option value="b2">Building 2 (Via extension branch)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to closest Source Node (ft)</label>
+                                    <input type="number" id="nb1_dist" placeholder="120" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="nb1_rsrp_off" placeholder="-118" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU / Server Antenna Notes</label>
+                                    <input type="text" id="nb1_placement" placeholder="Internal server antenna highly recommended due to metal siding..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NEW BUILDING 2 -->
+                        <div class="p-5 border border-amber-300 rounded-xl bg-amber-50/20 space-y-4">
+                            <div class="flex justify-between items-center border-b border-amber-300 pb-2">
+                                <h3 class="text-lg font-bold text-slate-900">NEW Building 2 (New Modular Trailer)</h3>
+                                <span class="bg-amber-500 text-slate-950 text-xs px-2.5 py-1 rounded font-extrabold tracking-wide">Scope Expansion</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Exterior Siding Type</label>
+                                    <select id="nb2_siding" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="metal" selected>Corrugated Steel / Metal Panel (Faraday risk)</option>
+                                        <option value="wood">Wood Panel (T1-11)</option>
+                                        <option value="vinyl">Vinyl Siding</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed Cable Pathway Option</label>
+                                    <select id="nb2_pathway" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="trench">Trench & Underground Conduit (Proposed)</option>
+                                        <option value="aerial">Overhead / Aerial Span (Messenger Wire)</option>
+                                        <option value="daisy_chain">Daisy-chain Category Run from Building 3</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nearest Signal Source Node</label>
+                                    <select id="nb2_source" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                        <option value="b3">Building 3 (Adjacent Office)</option>
+                                        <option value="b1">Building 1 (Direct to NU Base)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Distance to closest Source Node (ft)</label>
+                                    <input type="number" id="nb2_dist" placeholder="50" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Local Baseline RSRP (OFF)</label>
+                                    <input type="number" id="nb2_rsrp_off" placeholder="-120" class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Proposed CU / Server Antenna Notes</label>
+                                    <input type="text" id="nb2_placement" placeholder="Internal server antenna mandatory. Route Category run under chassis..." class="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-sm">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="tab-pathways" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 5 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Inter-Building Pathway Design & Schematic</h2>
+                        <p class="text-xs text-slate-500 mt-1">Confirm physical pathways, infrastructure constraints, and trace connections on our campus layout map.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Questions/Notes Panel -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Asphalt / Concrete Barriers & Open Pathways</label>
+                                <textarea id="asphalt_barriers" rows="3" placeholder="Are there physical paved sections between Building 1/2/3 and the New Buildings that will require trenching, directional boring, or aerial messenger wires? Describe details..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Conduit / Utility Trench Availability Verification</label>
+                                <textarea id="conduit_verification" rows="3" placeholder="Did you find any spare, empty, or pull-string equipped underground PVC conduits during your client facilities walk? Describe findings..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">Distance Limitation Watchdogs</h3>
+                                <div class="space-y-2 text-xs text-slate-600 leading-relaxed">
+                                    <p class="flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shrink-0"></span>
+                                        Category Cables cannot run past <strong>328 feet (100 meters)</strong> from NU to CU without a Range Extender.
+                                    </p>
+                                    <p class="flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block shrink-0"></span>
+                                        If pathways are outside/exposed, you must specify <strong>Outdoor-Rated / Direct Burial Shielded Cat6</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Sketch Canvas Panel -->
+                        <div class="flex flex-col space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Campus Layout Schematic & Sketch</span>
+                                <div class="flex gap-1.5 no-print">
+                                    <button type="button" onclick="clearCanvas()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded transition-colors">Clear Drawing</button>
+                                </div>
+                            </div>
+                            <!-- Canvas wrap with background SVG simulation -->
+                            <div class="relative bg-slate-900 rounded-xl overflow-hidden shadow border border-slate-800 interactive-canvas-container" style="height: 320px;">
+                                <div class="absolute inset-0 select-none pointer-events-none opacity-20 flex flex-col justify-between p-4 font-mono text-[10px] text-white">
+                                    <div class="flex justify-between">
+                                        <span>PARKING LOT AREA</span>
+                                        <span>NORTH ^</span>
+                                    </div>
+                                    <div class="flex justify-around items-center h-full">
+                                        <div class="border border-white/40 p-4 rounded">B1 (HQ)</div>
+                                        <div class="border border-white/40 p-4 rounded">B2 (Modular)</div>
+                                        <div class="border border-white/40 p-4 rounded">B3 (Modular)</div>
+                                    </div>
+                                    <div class="flex justify-around items-center h-1/2">
+                                        <div class="border border-amber-500/40 text-amber-500 p-4 rounded">NEW B1</div>
+                                        <div class="border border-amber-500/40 text-amber-500 p-4 rounded">NEW B2</div>
+                                    </div>
+                                </div>
+                                <canvas id="pathwayCanvas" class="absolute inset-0 w-full h-full cursor-crosshair z-10"></canvas>
+                            </div>
+                            <span class="text-[10px] text-slate-400 italic">Drag with mouse or draw with your stylus/finger to map physical conduit routing above.</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="tab-bom" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 6 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Expansion Bill of Materials (BOM)</h2>
+                        <p class="text-xs text-slate-500 mt-1">Define hardware increases and calculate final engineering counts to support expansion structures.</p>
+                    </div>
+
+                    <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-2">
+                        <h4 class="font-bold text-amber-900 text-sm">Original Baseline Quote Includes:</h4>
+                        <ul class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-amber-800 list-disc list-inside">
+                            <li>1 x Nextivity Cel-Fi QUATRA EVO NU (Supports up to 6 CUs)</li>
+                            <li>4 x Nextivity Cel-Fi QUATRA EVO CUs</li>
+                            <li>12 x Inside Dome Antennas</li>
+                            <li>8 x LMR400 Coax Jumper runs</li>
+                            <li>12 x Plenum Ethernet Cable assemblies</li>
+                        </ul>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Additional Hardware Needed</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Suggested Qty (Calc)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Final Survey Qty</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Purpose / Deployment Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 text-sm">
+                                <!-- Row 1 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        QUATRA EVO Coverage Unit (Q41-BXCU)
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_cu">2</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_cu" value="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_cu" value="For local signal processing inside New Building 1 & 2" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                                <!-- Row 2 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        Outdoor/Direct Burial Shielded Cat6 Cable (ft)
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_out_cat6">250</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_out_cat6" value="250" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_out_cat6" value="For outdoor runs between buildings in conduit/trench" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                                <!-- Row 3 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        Plenum-Rated Cat6 Cable (ft)
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_plen_cat6">150</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_plen_cat6" value="150" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_plen_cat6" value="Internal drops from entries to Coverage Unit mounts" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                                <!-- Row 4 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        Inside Dome/Panel Antennas
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_domes">2</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_domes" value="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_domes" value="Mounted inside metal trailers to counter Faradays cage" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                                <!-- Row 5 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        LMR400 Coax Cable Jumper Runs (ft)
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_coax_jumps">60</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_coax_jumps" value="60" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_coax_jumps" value="Jumper from inside CU to dome antennas inside trailers" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                                <!-- Row 6 -->
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="px-4 py-3 font-semibold text-slate-900">
+                                        Nextivity Range Extender
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-500" id="calc_range">0</td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" id="final_range" value="0" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" id="bom_notes_range" value="Check if cable route to B3/New B2 exceeds 328 feet limit" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="tab-summary" class="tab-section hidden space-y-6">
+                    <div class="border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Step 7 of 7</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Survey Summary & Sign-off</h2>
+                        <p class="text-xs text-slate-500 mt-1">Document critical stakeholder details, client worries, and surveyor authorization before submission.</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">General Field Notes / Special Site Directives</label>
+                            <textarea id="field_notes" rows="5" placeholder="Include keys, escort names, PPE rules, safety setups, or custom structural problems encountered here..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition-shadow"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                        <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Surveyor Validation Sign-off</label>
+                            <input type="text" id="surveyor_sign" value="Will" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-1 focus:ring-amber-500">
+                            <span class="block text-[10px] text-slate-400">By entering your name, you confirm physical details were accurately captured.</span>
+                        </div>
+                        <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3">
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Client Witness Sign-off</label>
+                            <input type="text" id="client_witness" placeholder="Print client representative's name" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-1 focus:ring-amber-500">
+                            <span class="block text-[10px] text-slate-400">Confirm signature block verified with Ghilotti Facilities staff.</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Navigation Controls Footer (Hidden in Print) -->
+                <div class="flex justify-between items-center border-t border-slate-200 pt-6 no-print">
+                    <button type="button" id="prevBtn" onclick="navigateStep(-1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        Previous Step
+                    </button>
+                    <button type="button" id="nextBtn" onclick="navigateStep(1)" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-6 py-2.5 rounded-lg text-sm font-bold transition-transform active:scale-95 flex items-center gap-1 shadow">
+                        Next Step
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <footer class="bg-slate-900 border-t border-slate-800 py-6 mt-8 no-print text-center">
+        <p class="text-xs text-slate-500">&copy; 2026 Ghilotti Construction. Site Engineering Companion Tool. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Tab and Step definition index
+        const steps = ['tab-overview', 'tab-audit', 'tab-donor', 'tab-buildings', 'tab-pathways', 'tab-bom', 'tab-summary'];
+        let currentStepIndex = 0;
+
+        // Initialize Canvas variables
+        let canvas, ctx;
+        let isDrawing = false;
+
+        window.onload = function() {
+            // Load saved progress from local storage
+            loadFromLocalStorage();
+            
+            // Set up our interactive Drawing canvas overlay
+            initCanvas();
+
+            // Set dynamic canvas sizing on resize
+            window.addEventListener('resize', handleCanvasResize);
+        };
+
+        /* Switch steps/tabs dynamically */
+        function switchTab(tabId) {
+            currentStepIndex = steps.indexOf(tabId);
+            updateTabsUI();
+        }
+
+        function navigateStep(direction) {
+            let nextIndex = currentStepIndex + direction;
+            if (nextIndex >= 0 && nextIndex < steps.length) {
+                currentStepIndex = nextIndex;
+                updateTabsUI();
+            }
+        }
+
+        function updateTabsUI() {
+            // Hide all sections, show active
+            steps.forEach((stepId) => {
+                document.getElementById(stepId).classList.add('hidden');
+                
+                // Reset button styles
+                const btn = document.getElementById(`btn-${stepId}`);
+                btn.className = "tab-btn px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-200/70";
+            });
+
+            // Show active step
+            document.getElementById(steps[currentStepIndex]).classList.remove('hidden');
+            const activeBtn = document.getElementById(`btn-${steps[currentStepIndex]}`);
+            activeBtn.className = "tab-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-all bg-amber-500 text-slate-950 shadow-sm";
+
+            // Enable/disable previous and next controls
+            document.getElementById('prevBtn').disabled = currentStepIndex === 0;
+            document.getElementById('prevBtn').style.opacity = currentStepIndex === 0 ? '0.5' : '1';
+            
+            if (currentStepIndex === steps.length - 1) {
+                document.getElementById('nextBtn').innerHTML = `
+                    Verify & Print 
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                `;
+                document.getElementById('nextBtn').onclick = () => window.print();
+            } else {
+                document.getElementById('nextBtn').innerHTML = `
+                    Next Step 
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                `;
+                document.getElementById('nextBtn').onclick = () => navigateStep(1);
+            }
+
+            // Redraw canvas if it was resized or revealed
+            if (steps[currentStepIndex] === 'tab-pathways') {
+                setTimeout(() => {
+                    handleCanvasResize();
+                }, 50);
+            }
+        }
+
+        function saveToLocalStorage() {
+            const inputs = document.querySelectorAll('#surveyForm input, #surveyForm textarea, #surveyForm select');
+            const formData = {};
+            inputs.forEach(input => {
+                if(input.id) {
+                    formData[input.id] = input.value;
+                }
+            });
+
+            // Save canvas image as base64 string
+            if (canvas) {
+                formData['canvasData'] = canvas.toDataURL();
+            }
+
+            localStorage.setItem('ghilotti_survey_data', JSON.stringify(formData));
+        }
+
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('ghilotti_survey_data');
+            if (savedData) {
+                const formData = JSON.parse(savedData);
+                for (const key in formData) {
+                    const el = document.getElementById(key);
+                    if (el) {
+                        el.value = formData[key];
+                    }
+                }
+                
+                // Trigger health indicators for signal measurements on reload
+                ['b13', 'b5', 'b66', 'b2'].forEach(band => {
+                    if (document.getElementById(`rsrp_${band}`)) assessSignal(band);
+                });
+
+                // Restore canvas state if drawing exists
+                if (formData['canvasData']) {
+                    setTimeout(() => {
+                        const img = new Image();
+                        img.src = formData['canvasData'];
+                        img.onload = () => {
+                            ctx.drawImage(img, 0, 0);
+                        };
+                    }, 100);
+                }
+            }
+        }
+
+        function clearFormData() {
+            if(confirm('Are you sure you want to clear your current survey notes? This action is permanent.')) {
+                localStorage.removeItem('ghilotti_survey_data');
+                document.getElementById('surveyForm').reset();
+                clearCanvas();
+                switchTab('tab-overview');
+            }
+        }
+
+        function assessSignal(band) {
+            const rsrpInput = document.getElementById(`rsrp_${band}`);
+            const sinrInput = document.getElementById(`sinr_${band}`);
+            const healthBadge = document.getElementById(`health_${band}`);
+
+            if (!rsrpInput || !sinrInput || !healthBadge) return;
+
+            const rsrp = parseFloat(rsrpInput.value);
+            const sinr = parseFloat(sinrInput.value);
+
+            if (isNaN(rsrp) || isNaN(sinr)) {
+                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600";
+                healthBadge.innerText = "No Data";
+                return;
+            }
+
+            // Evaluate thresholds
+            if (rsrp >= -85 && sinr >= 10) {
+                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200";
+                healthBadge.innerText = "Excellent";
+            } else if (rsrp >= -98 && sinr >= 5) {
+                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200";
+                healthBadge.innerText = "Marginal";
+            } else {
+                healthBadge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800 border border-rose-200";
+                healthBadge.innerText = "Poor / Dead Zone";
+            }
+            
+            // Trigger dynamic calculations to update estimated BOM lengths based on inputs
+            runBOMCalculators();
+            
+            // Auto save state whenever inputs shift
+            saveToLocalStorage();
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('pathwayCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Add standard draw events
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            // Add touch support for mobile tablets/phones
+            canvas.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousedown', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                canvas.dispatchEvent(mouseEvent);
+                e.preventDefault();
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                canvas.dispatchEvent(mouseEvent);
+                e.preventDefault();
+            });
+
+            canvas.addEventListener('touchend', () => {
+                const mouseEvent = new MouseEvent('mouseup', {});
+                canvas.dispatchEvent(mouseEvent);
+            });
+        }
+
+        function handleCanvasResize() {
+            if (!canvas) return;
+            // Back up contents before resizing
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+
+            // Resize canvas
+            const rect = canvas.parentNode.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            // Restore canvas backup
+            ctx.drawImage(tempCanvas, 0, 0);
+            
+            // Set standard drawing context parameters
+            ctx.strokeStyle = '#F59E0B'; // Amber orange lines
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = 'round';
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            if (isDrawing) {
+                isDrawing = false;
+                saveToLocalStorage();
+            }
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveToLocalStorage();
+        }
+
+        function runBOMCalculators() {
+            // Get expansion structures physical parameters
+            const d2 = parseFloat(document.getElementById('b2_dist_b1').value) || 0;
+            const d3 = parseFloat(document.getElementById('b3_dist_b2').value) || 0;
+            const nd1 = parseFloat(document.getElementById('nb1_dist').value) || 0;
+            const nd2 = parseFloat(document.getElementById('nb2_dist').value) || 0;
+
+            // Auto calculate required Shielded Outdoor Cat6 run estimation
+            const calculatedOutdoorRun = d2 + d3 + nd1 + nd2;
+            document.getElementById('calc_out_cat6').innerText = calculatedOutdoorRun > 0 ? calculatedOutdoorRun : 250;
+            
+            // Auto identify if any calculated segment crosses the critical 100m ethernet limit
+            const segmentLengths = [d2, d3, nd1, nd2];
+            const rangeExtendersNeeded = segmentLengths.filter(l => l > 328).length;
+            document.getElementById('calc_range').innerText = rangeExtendersNeeded;
+
+            // Suggested internal coax drops based on 30ft estimate per dome
+            const domesNeeded = 2; // Assuming 1 per expansion trailer
+            document.getElementById('calc_coax_jumps').innerText = domesNeeded * 30;
+        }
+    </script>
+</body>
+</html>

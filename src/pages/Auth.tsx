@@ -63,7 +63,13 @@ const Auth = () => {
                 <Button 
                   variant="glass" 
                   className="w-full py-4 flex items-center justify-center gap-4 bg-white/5 hover:bg-white/10"
-                  onClick={() => window.location.href = "https://accounts.google.com"}
+                  onClick={() => {
+                    if (vendor === 'ATG') {
+                      window.location.href = "/ghilotti_site_survey_form.html";
+                    } else {
+                      window.location.href = "https://accounts.google.com";
+                    }
+                  }}
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path

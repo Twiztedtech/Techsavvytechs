@@ -29,7 +29,7 @@ const vendors = [
   { name: "Verizon", category: "Carrier", icon: Antenna },
   { name: "Wilson Connectivity", category: "Signal", icon: Radio },
   { name: "SureCall", category: "Signal", icon: Radio },
-  { name: "Ericsson", category: "Infrastructure", icon: Cpu },
+  { name: "ATG", category: "Infrastructure", icon: Cpu },
   { name: "Nokia", category: "Infrastructure", icon: Cpu },
   { name: "SOLiD", category: "Distributed Antenna", icon: Network },
   { name: "Highway 9 Networks", category: "Edge Computing", icon: Cloud },
