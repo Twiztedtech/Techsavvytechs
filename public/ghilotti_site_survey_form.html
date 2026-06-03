@@ -11,6 +11,8 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        
+        /* STREAMING_CHUNK: Refining CSS print overrides to preserve chronological page order */
         @media print {
             .no-print {
                 display: none !important;
@@ -18,10 +20,33 @@
             .print-break {
                 page-break-before: always;
             }
+            
+            /* Disable flexbox mechanics entirely during printing to preserve 1st to last sequential order */
             body {
+                display: block !important;
                 background-color: #fff !important;
                 color: #000 !important;
+                height: auto !important;
+                min-height: 0 !important;
             }
+            
+            main {
+                display: block !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            #print-area {
+                display: block !important;
+            }
+
+            /* Prevent elements like images or table rows from splitting across page breaks */
+            img, tr, .border {
+                page-break-inside: avoid;
+            }
+
             .shadow-xl, .shadow-md, .shadow-sm {
                 box-shadow: none !important;
             }
@@ -29,6 +54,7 @@
                 border-color: #cbd5e1 !important;
             }
         }
+        
         /* Custom scrollbar styling */
         ::-webkit-scrollbar {
             width: 6px;
@@ -177,7 +203,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location / Spec</th>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Action Plan</th>
                                     <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Inline Photo & Caption</th>
-                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Condition & Field Notes</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider min-w-[280px]">Condition & Field Notes</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-slate-100">
@@ -198,7 +224,7 @@
                                         </div>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <input type="text" id="notes_donor" placeholder="Check corrosion, aiming direction, structural wear..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <textarea id="notes_donor" rows="2" placeholder="Check corrosion, aiming direction, structural wear..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none min-h-[64px] resize-y"></textarea>
                                     </td>
                                 </tr>
 
@@ -217,7 +243,7 @@
                                         <div id="photo_ctrl_mount" class="flex flex-col space-y-1.5"></div>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <input type="text" id="notes_mount" placeholder="Check ballast blocks, sled stability, J-Mount structural tightness..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <textarea id="notes_mount" rows="2" placeholder="Check ballast blocks, sled stability, J-Mount structural tightness..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none min-h-[64px] resize-y"></textarea>
                                     </td>
                                 </tr>
 
@@ -236,7 +262,7 @@
                                         <div id="photo_ctrl_arrestor" class="flex flex-col space-y-1.5"></div>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <input type="text" id="notes_arrestor" placeholder="Inspect ground connection, look for burn/corrosion..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <textarea id="notes_arrestor" rows="2" placeholder="Inspect ground connection, look for burn/corrosion..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none min-h-[64px] resize-y"></textarea>
                                     </td>
                                 </tr>
 
@@ -255,7 +281,7 @@
                                         <div id="photo_ctrl_coax" class="flex flex-col space-y-1.5"></div>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <input type="text" id="notes_coax" placeholder="Check outer jacket, LMR400 condition, run length..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <textarea id="notes_coax" rows="2" placeholder="Check outer jacket, LMR400 condition, run length..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none min-h-[64px] resize-y"></textarea>
                                     </td>
                                 </tr>
 
@@ -273,7 +299,7 @@
                                         <div id="photo_ctrl_closet" class="flex flex-col space-y-1.5"></div>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <input type="text" id="notes_closet" placeholder="Verify 120V AC outlet availability, wall space for NU..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none">
+                                        <textarea id="notes_closet" rows="2" placeholder="Verify 120V AC outlet availability, wall space for NU..." class="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none min-h-[64px] resize-y"></textarea>
                                     </td>
                                 </tr>
                             </tbody>
@@ -355,7 +381,7 @@
                                         <td class="px-4 py-3.5"><input type="number" id="rssi_b2" placeholder="-78" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
                                         <td class="px-4 py-3.5"><input type="number" id="rsrp_b2" oninput="assessSignal('b2')" placeholder="-96" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
                                         <td class="px-4 py-3.5"><input type="number" id="rsrq_b2" placeholder="-15" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
-                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b2" placeholder="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none"></td>
+                                        <td class="px-4 py-3.5"><input type="number" id="sinr_b2" placeholder="2" class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none font-semibold"></td>
                                         <td class="px-4 py-3.5"><span id="health_b2" class="px-2.5 py-1 rounded-full text-xxs font-extrabold uppercase bg-slate-100 text-slate-500">No Data</span></td>
                                     </tr>
                                 </tbody>
@@ -1362,6 +1388,7 @@
             document.getElementById('calc_outdoor_cat6').innerText = totalDist + ' ft';
         }
 
+        // Handle multiple attachment image inputs
         function handlePhotoUpload(event) {
             const files = event.target.files;
             if (!files) return;
@@ -1493,7 +1520,7 @@
                                     <th class="p-2 font-bold">Component</th>
                                     <th class="p-2 font-bold">Action Plan</th>
                                     <th class="p-2 font-bold">Inline Photo Evidence</th>
-                                    <th class="p-2 font-bold">Condition & Field Notes</th>
+                                    <th class="p-2 font-bold min-w-[200px]">Condition & Field Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1513,7 +1540,7 @@
                                                     </div>
                                                 ` : '<span class="text-slate-400 italic">None</span>'}
                                             </td>
-                                            <td class="p-2 text-slate-600">${notesVal || 'None'}</td>
+                                            <td class="p-2 text-slate-600 whitespace-pre-wrap leading-relaxed">${notesVal || 'None'}</td>
                                         </tr>
                                     `;
                                 }).join('')}
@@ -1571,7 +1598,7 @@
                                 <span class="text-slate-800">Building 1 (HQ / Anchor)</span>
                                 <span>Wall/Ceiling: ${document.getElementById('b1_ceiling').value}</span>
                             </div>
-                            <p><strong>Proposed CU Placement Notes:</strong> ${document.getElementById('b1_notes').value || 'None'}</p>
+                            <p><strong>Proposed CU/Antenna Placement Notes:</strong> ${document.getElementById('b1_notes').value || 'None'}</p>
                             ${buildingPhotos.b1 && buildingPhotos.b1.data ? `
                                 <div class="flex items-center space-x-3 pt-2">
                                     <img src="${buildingPhotos.b1.data}" class="w-20 h-14 object-cover rounded border border-slate-300">
@@ -1711,7 +1738,7 @@
                     <!-- Field Notes Summary -->
                     <div class="space-y-3">
                         <h2 class="text-sm font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Special Field Notes</h2>
-                        <p class="text-xxs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border">${fieldNotes || 'No special field notes recorded.'}</p>
+                        <p class="text-xxs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border whitespace-pre-wrap">${fieldNotes || 'No special field notes recorded.'}</p>
                     </div>
 
                     <!-- Authorization Sign-offs -->
@@ -1738,11 +1765,3 @@
     </script>
 </body>
 </html>
-```
-`eof`
-
-### Summary of Changes made:
-1. **Photo Upload Links for Audit Components (Step 2):** In **Step 2**, a new **Inline Photo & Caption** column has been added. It features an interactive `+ Add Photo` camera button. When a picture is uploaded, it renders a tight, elegant thumbnail preview with a localized, live-editable caption input underneath it.
-2. **Building-Specific Attachment Modules (Step 4):** Each building assessment card (Building 1, Building 2, Building 3, New Building 1, New Building 2) now features a customized dashed attachment zone. Will can capture distinct physical characteristics of each site location and write detailed descriptions right below.
-3. **Optimized Local Persistence:** All captured audit images, building images, and their respective caption states are successfully integrated into the lightweight auto-save and state-restore loops.
-4. **Professional Printed Reports:** These newly linked photos and captions are formatted to print in highly precise locations (right next to their respective checklist rows and building profiles) when hitting "Generate Report" or printing to PDF.
