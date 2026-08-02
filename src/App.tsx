@@ -18,6 +18,8 @@ import Portal from "./pages/Portal";
 import Auth from "./pages/Auth";
 import Contact from "./pages/Contact";
 import ContractorDashboard from "./pages/ContractorDashboard";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -51,6 +53,8 @@ export default function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/contractor/dashboard" element={<ContractorDashboard />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
             {/* Fallback to Home */}
             <Route path="*" element={<Home />} />
           </Routes>
