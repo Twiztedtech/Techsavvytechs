@@ -1,23 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-
-// Antigravity Firebase Config Placeholder
-const firebaseConfig = typeof __firebase_config !== 'undefined'
-  ? JSON.parse(__firebase_config)
-  : {
-      apiKey: "YOUR_FIREBASE_API_KEY",
-      authDomain: "tech-savvy-techs.firebaseapp.com",
-      projectId: "tech-savvy-techs",
-      storageBucket: "tech-savvy-techs.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef"
-    };
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 export default function ContractorDashboard() {
   // Authentication & View State
