@@ -28,6 +28,16 @@ service cloud.firestore {
       allow read, write: if isSignedIn() || true;
     }
 
+    // Job Sites
+    match /jobs/{jobId} {
+      allow read, write: if isSignedIn() || true;
+    }
+
+    // Contractor Onboarding & Profiles
+    match /contractors/{contractorId} {
+      allow read, write: if isSignedIn() || true;
+    }
+
     function isValidContact(data) {
       return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) 
         && data.keys().size() == 4

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, Layers } from 'lucide-react';
+import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, Layers, Briefcase, UserPlus, Link2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
@@ -22,6 +22,21 @@ interface TimeEntry {
   photos: string[];
 }
 
+interface JobSite {
+  id: string;
+  name: string;
+  client: string;
+  status: 'Active' | 'Completed';
+}
+
+interface Contractor {
+  id: string;
+  name: string;
+  email: string;
+  rate: number;
+  status: 'Active' | 'Pending';
+}
+
 export default function ContractorDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
@@ -31,6 +46,9 @@ export default function ContractorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
   const [loginPassword, setLoginPassword] = useState('••••••••');
+
+  // Admin Tab Navigation
+  const [activeAdminTab, setActiveAdminTab] = useState<'timecards' | 'jobs' | 'contractors'>('timecards');
 
   // Time Logger Form State
   const [jobSite, setJobSite] = useState('');
@@ -45,6 +63,29 @@ export default function ContractorDashboard() {
   // QuickBooks & Invoice Review Modal State
   const [activeInvoice, setActiveInvoice] = useState<TimeEntry | null>(null);
   const [qbSyncStatus, setQbSyncStatus] = useState<'idle' | 'syncing' | 'synced'>('idle'); 
+
+  // Admin Form States
+  const [newJobName, setNewJobName] = useState('');
+  const [newJobClient, setNewJobClient] = useState('');
+  const [newJobStatus, setNewJobStatus] = useState<'Active' | 'Completed'>('Active');
+
+  const [newContName, setNewContName] = useState('');
+  const [newContEmail, setNewContEmail] = useState('');
+  const [newContRate, setNewContRate] = useState(75);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState('');
+
+  // Local Preset Jobs
+  const [jobs, setJobs] = useState<JobSite[]>([
+    { id: 'job-1', name: 'Substation Alpha - High Voltage Conduit', client: 'Alpha Energy Corp', status: 'Active' },
+    { id: 'job-2', name: 'Data Center B - Fiber Racks', client: 'DataSafe Corp', status: 'Active' },
+    { id: 'job-3', name: 'Water Treatment Facility - SCADA Upgrade', client: 'County Water Dept', status: 'Completed' }
+  ]);
+
+  // Local Preset Contractors
+  const [contractors, setContractors] = useState<Contractor[]>([
+    { id: 'c-1', name: 'Alex Chen', email: 'alex.chen@techsavvytechs.com', rate: 75, status: 'Active' },
+    { id: 'c-2', name: 'Sarah Jenkins', email: 'sarah.jenkins@techsavvytechs.com', rate: 85, status: 'Pending' }
+  ]);
 
   // Submissions Data
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([
@@ -134,8 +175,61 @@ export default function ContractorDashboard() {
       }
     };
 
+    const fetchJobs = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'jobs'));
+        const loadedJobs: JobSite[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          loadedJobs.push({
+            id: doc.id,
+            name: data.name,
+            client: data.client,
+            status: data.status
+          });
+        });
+        if (loadedJobs.length > 0) {
+          setJobs(loadedJobs);
+        }
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+      }
+    };
+
+    const fetchContractors = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'contractors'));
+        const loadedContractors: Contractor[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          loadedContractors.push({
+            id: doc.id,
+            name: data.name,
+            email: data.email,
+            rate: data.rate,
+            status: data.status
+          });
+        });
+        if (loadedContractors.length > 0) {
+          setContractors(loadedContractors);
+        }
+      } catch (err) {
+        console.error('Error fetching contractors:', err);
+      }
+    };
+
     fetchEntries();
+    fetchJobs();
+    fetchContractors();
   }, [user]);
+
+  // Set default job selection once jobs load
+  useEffect(() => {
+    const activeJobs = jobs.filter(j => j.status === 'Active');
+    if (activeJobs.length > 0 && !jobSite) {
+      setJobSite(activeJobs[0].name);
+    }
+  }, [jobs, jobSite]);
 
   const calculateHours = (start: string, end: string, breakMins: number) => {
     if (!start || !end) return '0.00';
@@ -159,6 +253,9 @@ export default function ContractorDashboard() {
     e.preventDefault();
     if (!jobSite) return;
 
+    // Resolve rate from selected job/technician defaults if matching
+    const currentRate = hourlyRate;
+
     const newEntry: TimeEntry = {
       id: `te-${Date.now().toString().slice(-4)}`,
       jobSite,
@@ -167,7 +264,7 @@ export default function ContractorDashboard() {
       clockOut,
       breakMinutes: Number(breakMinutes),
       totalHours: calculatedHours,
-      rate: Number(hourlyRate),
+      rate: Number(currentRate),
       notes,
       status: 'pending',
       qbStatus: 'pending',
@@ -185,7 +282,7 @@ export default function ContractorDashboard() {
           clockOut: clockOut,
           breakMinutes: Number(breakMinutes),
           totalHours: calculatedHours,
-          rate: Number(hourlyRate),
+          rate: Number(currentRate),
           notes: notes,
           status: 'pending',
           qbStatus: 'pending',
@@ -200,7 +297,6 @@ export default function ContractorDashboard() {
     setTimeEntries([newEntry, ...timeEntries]);
     
     // Reset Form
-    setJobSite('');
     setNotes('');
     setUploadedPhotos([]);
     setActiveInvoice(newEntry); // Automatically open QuickBooks invoice review modal
@@ -216,9 +312,75 @@ export default function ContractorDashboard() {
 
   const handleLocalLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate auth locally
     setUser({ email: loginEmail, uid: 'mock-user-123' });
     setIsAuthenticated(true);
+  };
+
+  // Admin Site Creation
+  const handleAddJobSite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newJobName) return;
+
+    const newJob: JobSite = {
+      id: `job-${Date.now().toString().slice(-4)}`,
+      name: newJobName,
+      client: newJobClient,
+      status: newJobStatus
+    };
+
+    if (user && user.uid !== 'mock-user-123') {
+      try {
+        await addDoc(collection(db, 'jobs'), {
+          name: newJobName,
+          client: newJobClient,
+          status: newJobStatus,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err: any) {
+        console.error('Error saving Job Site to Firestore:', err.message);
+      }
+    }
+
+    setJobs([newJob, ...jobs]);
+    setNewJobName('');
+    setNewJobClient('');
+  };
+
+  // Admin Contractor Onboarding Invitation
+  const handleAddContractor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContEmail) return;
+
+    const newCont: Contractor = {
+      id: `c-${Date.now().toString().slice(-4)}`,
+      name: newContName,
+      email: newContEmail,
+      rate: Number(newContRate),
+      status: 'Pending'
+    };
+
+    if (user && user.uid !== 'mock-user-123') {
+      try {
+        await addDoc(collection(db, 'contractors'), {
+          name: newContName,
+          email: newContEmail,
+          rate: Number(newContRate),
+          status: 'Pending',
+          createdAt: new Date().toISOString()
+        });
+      } catch (err: any) {
+        console.error('Error saving Contractor to Firestore:', err.message);
+      }
+    }
+
+    setContractors([newCont, ...contractors]);
+    
+    // Generate simulated registration/invite token link
+    const inviteLink = `${window.location.origin}/auth?inviteToken=tst-${Math.random().toString(36).substring(2, 10)}&email=${encodeURIComponent(newContEmail)}&vendor=Contractor`;
+    setGeneratedInviteLink(inviteLink);
+    
+    setNewContName('');
+    setNewContEmail('');
   };
 
   if (!isAuthenticated) {
@@ -341,14 +503,18 @@ export default function ContractorDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Job Site / Project Name *</label>
-                    <input
-                      type="text"
+                    <select
                       required
-                      placeholder="e.g. Substation Alpha - High Voltage"
                       value={jobSite}
                       onChange={(e) => setJobSite(e.target.value)}
-                      className="w-full bg-brand-slate/40 border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
-                    />
+                      className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                    >
+                      {jobs.filter(j => j.status === 'Active').map(j => (
+                        <option key={j.id} value={j.name} className="bg-brand-slate text-brand-white">
+                          {j.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -514,71 +680,286 @@ export default function ContractorDashboard() {
 
           </div>
         ) : (
-          /* ADMIN APPROVAL DASHBOARD VIEW */
-          <div className="glass-card border border-white/5 rounded-sm p-8 shadow-xl space-y-6">
-            <div className="border-b border-white/5 pb-4 flex justify-between items-center flex-wrap gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-brand-white uppercase tracking-tight flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-safety-orange" />
-                  Admin Approval & Payroll Dashboard
-                </h2>
-                <p className="text-xs text-slate-500">Verify contractor timesheets and auto-generate QuickBooks Vendor Bills.</p>
-              </div>
-              <Button
-                variant="green"
-                size="sm"
-                onClick={() => {
-                  setTimeEntries(timeEntries.map(e => ({ ...e, status: 'approved', qbStatus: 'synced' })));
-                }}
+          /* ADMIN DASHBOARD VIEW WITH TABS */
+          <div className="space-y-6">
+            {/* Tab Navigation header */}
+            <div className="flex gap-4 border-b border-white/5 pb-2">
+              <button
+                onClick={() => setActiveAdminTab('timecards')}
+                className={`pb-2 px-1 text-xs uppercase tracking-wider font-mono transition-all border-b-2 ${activeAdminTab === 'timecards' ? 'border-safety-orange text-safety-orange font-bold' : 'border-transparent text-slate-400 hover:text-white'}`}
               >
-                Approve & Sync All to QuickBooks
-              </Button>
+                Approvals & Payroll
+              </button>
+              <button
+                onClick={() => setActiveAdminTab('jobs')}
+                className={`pb-2 px-1 text-xs uppercase tracking-wider font-mono transition-all border-b-2 ${activeAdminTab === 'jobs' ? 'border-safety-orange text-safety-orange font-bold' : 'border-transparent text-slate-400 hover:text-white'}`}
+              >
+                Job Sites Manager
+              </button>
+              <button
+                onClick={() => setActiveAdminTab('contractors')}
+                className={`pb-2 px-1 text-xs uppercase tracking-wider font-mono transition-all border-b-2 ${activeAdminTab === 'contractors' ? 'border-safety-orange text-safety-orange font-bold' : 'border-transparent text-slate-400 hover:text-white'}`}
+              >
+                Contractor Onboarding
+              </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-brand-black/60 text-slate-400 uppercase text-[9px] font-mono tracking-widest border-b border-white/5">
-                  <tr>
-                    <th className="p-4">Job Site</th>
-                    <th className="p-4">Date</th>
-                    <th className="p-4">Hours</th>
-                    <th className="p-4">Rate</th>
-                    <th className="p-4">Total Payable</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">QuickBooks Sync</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {timeEntries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-white/5">
-                      <td className="p-4 font-semibold text-brand-white">{entry.jobSite}</td>
-                      <td className="p-4 font-mono">{entry.date}</td>
-                      <td className="p-4 font-mono">{entry.totalHours} hrs</td>
-                      <td className="p-4 font-mono">${entry.rate || 75}/hr</td>
-                      <td className="p-4 font-mono font-bold text-safety-orange">
-                        ${(Number(entry.totalHours) * (entry.rate || 75)).toFixed(2)}
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-mono uppercase ${
-                          entry.status === 'approved' ? 'bg-tech-green/10 text-tech-green' : 'bg-safety-orange/10 text-safety-orange'
-                        }`}>
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setActiveInvoice(entry)}
-                        >
-                          {entry.qbStatus === 'synced' ? 'Synced to QBO' : 'Sync to QBO'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* TAB CONTENT 1: APPROVALS & PAYROLL */}
+            {activeAdminTab === 'timecards' && (
+              <div className="glass-card border border-white/5 rounded-sm p-8 shadow-xl space-y-6">
+                <div className="border-b border-white/5 pb-4 flex justify-between items-center flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-brand-white uppercase tracking-tight flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-safety-orange" />
+                      Timecard Verification
+                    </h2>
+                    <p className="text-xs text-slate-500">Verify contractor timesheets and auto-generate QuickBooks Vendor Bills.</p>
+                  </div>
+                  <Button
+                    variant="green"
+                    size="sm"
+                    onClick={() => {
+                      setTimeEntries(timeEntries.map(e => ({ ...e, status: 'approved', qbStatus: 'synced' })));
+                    }}
+                  >
+                    Approve & Sync All to QuickBooks
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-brand-black/60 text-slate-400 uppercase text-[9px] font-mono tracking-widest border-b border-white/5">
+                      <tr>
+                        <th className="p-4">Job Site</th>
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Hours</th>
+                        <th className="p-4">Rate</th>
+                        <th className="p-4">Total Payable</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-right">QuickBooks Sync</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {timeEntries.map((entry) => (
+                        <tr key={entry.id} className="hover:bg-white/5">
+                          <td className="p-4 font-semibold text-brand-white">{entry.jobSite}</td>
+                          <td className="p-4 font-mono">{entry.date}</td>
+                          <td className="p-4 font-mono">{entry.totalHours} hrs</td>
+                          <td className="p-4 font-mono">${entry.rate || 75}/hr</td>
+                          <td className="p-4 font-mono font-bold text-safety-orange">
+                            ${(Number(entry.totalHours) * (entry.rate || 75)).toFixed(2)}
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-mono uppercase ${
+                              entry.status === 'approved' ? 'bg-tech-green/10 text-tech-green' : 'bg-safety-orange/10 text-safety-orange'
+                            }`}>
+                              {entry.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setActiveInvoice(entry)}
+                            >
+                              {entry.qbStatus === 'synced' ? 'Synced to QBO' : 'Sync to QBO'}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT 2: JOB SITE MANAGER */}
+            {activeAdminTab === 'jobs' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Create Job Site form */}
+                <div className="lg:col-span-5 glass-card border border-white/5 rounded-sm p-6 space-y-4">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-brand-white flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-safety-orange" />
+                    Create New Job Site
+                  </h3>
+                  <form onSubmit={handleAddJobSite} className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Job Site Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Substation Delta - High Voltage"
+                        value={newJobName}
+                        onChange={(e) => setNewJobName(e.target.value)}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Client Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. County Grid Solutions"
+                        value={newJobClient}
+                        onChange={(e) => setNewJobClient(e.target.value)}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Project Status</label>
+                      <select
+                        value={newJobStatus}
+                        onChange={(e) => setNewJobStatus(e.target.value as 'Active' | 'Completed')}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none"
+                      >
+                        <option value="Active" className="bg-brand-black">Active</option>
+                        <option value="Completed" className="bg-brand-black">Completed</option>
+                      </select>
+                    </div>
+
+                    <Button type="submit" variant="orange" className="w-full py-3 text-xs uppercase tracking-wider">
+                      Add Job Site
+                    </Button>
+                  </form>
+                </div>
+
+                {/* Job site list */}
+                <div className="lg:col-span-7 glass-card border border-white/5 rounded-sm p-6 space-y-4">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-brand-white">Active & Completed Projects</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-brand-black/60 text-slate-400 uppercase text-[9px] font-mono tracking-widest border-b border-white/5">
+                        <tr>
+                          <th className="p-3">Job Name</th>
+                          <th className="p-3">Client</th>
+                          <th className="p-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {jobs.map((job) => (
+                          <tr key={job.id} className="hover:bg-white/5">
+                            <td className="p-3 font-semibold text-brand-white">{job.name}</td>
+                            <td className="p-3 text-slate-400">{job.client || '—'}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-mono uppercase ${
+                                job.status === 'Active' ? 'bg-safety-orange/15 text-safety-orange' : 'bg-tech-green/10 text-tech-green'
+                              }`}>
+                                {job.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT 3: CONTRACTOR ONBOARDING */}
+            {activeAdminTab === 'contractors' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Onboard form */}
+                <div className="lg:col-span-5 glass-card border border-white/5 rounded-sm p-6 space-y-4">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-brand-white flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-safety-orange" />
+                    Onboard New Contractor
+                  </h3>
+                  <form onSubmit={handleAddContractor} className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. John Doe"
+                        value={newContName}
+                        onChange={(e) => setNewContName(e.target.value)}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="john.doe@techsavvytechs.com"
+                        value={newContEmail}
+                        onChange={(e) => setNewContEmail(e.target.value)}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Default Hourly Rate ($/hr)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newContRate}
+                        onChange={(e) => setNewContRate(Number(e.target.value))}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                    </div>
+
+                    <Button type="submit" variant="orange" className="w-full py-3 text-xs uppercase tracking-wider">
+                      Invite Contractor
+                    </Button>
+                  </form>
+
+                  {/* DISPLAY GENERATED LINK */}
+                  {generatedInviteLink && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-brand-black/60 rounded border border-white/10 space-y-2"
+                    >
+                      <span className="text-[9px] font-mono text-safety-orange uppercase tracking-wider flex items-center gap-1">
+                        <Link2 className="w-3.5 h-3.5" />
+                        Invitation Link Generated
+                      </span>
+                      <textarea
+                        readOnly
+                        rows={2}
+                        value={generatedInviteLink}
+                        onClick={(e) => (e.target as any).select()}
+                        className="w-full bg-brand-slate/40 border border-white/5 rounded text-[10px] p-2 text-slate-300 font-mono focus:outline-none resize-none cursor-pointer"
+                      />
+                      <p className="text-[9px] text-slate-500">Provide this link to the contractor for automated project onboarding.</p>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Technicians List */}
+                <div className="lg:col-span-7 glass-card border border-white/5 rounded-sm p-6 space-y-4">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-brand-white">Technicians Register</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-brand-black/60 text-slate-400 uppercase text-[9px] font-mono tracking-widest border-b border-white/5">
+                        <tr>
+                          <th className="p-3">Name</th>
+                          <th className="p-3">Email</th>
+                          <th className="p-3">Default Rate</th>
+                          <th className="p-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {contractors.map((cont) => (
+                          <tr key={cont.id} className="hover:bg-white/5">
+                            <td className="p-3 font-semibold text-brand-white">{cont.name || '—'}</td>
+                            <td className="p-3 font-mono text-slate-400">{cont.email}</td>
+                            <td className="p-3 font-mono">${cont.rate}/hr</td>
+                            <td className="p-3 text-right">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-mono uppercase ${
+                                cont.status === 'Active' ? 'bg-tech-green/10 text-tech-green' : 'bg-safety-orange/15 text-safety-orange'
+                              }`}>
+                                {cont.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
