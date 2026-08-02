@@ -65,7 +65,7 @@ export const Navbar = () => {
           <NavItem label="Contractor Portal">
             <NavDropdownItem 
               label="Contractor Login" 
-              href="/auth?vendor=Contractor" 
+              href="/contractor/dashboard" 
               description="Access Subcontractor Resources"
             />
             <NavDropdownItem 
