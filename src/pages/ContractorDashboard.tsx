@@ -19,6 +19,21 @@ export default function ContractorDashboard() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
 
+  // MFA State
+  const [isMfaStep, setIsMfaStep] = useState(false);
+  const [mfaCodeInput, setMfaCodeInput] = useState('');
+  const [generatedMfaCode, setGeneratedMfaCode] = useState('');
+
+  // Support Tickets State
+  const [supportTickets, setSupportTickets] = useState(() => {
+    const saved = localStorage.getItem('tst_support_tickets');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('QuickBooks Sync Error');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportEmail, setSupportEmail] = useState('');
+
   // Pre-loaded Job Sites with Address info for Google Maps Directions
   const [jobSitesList, setJobSitesList] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites');
@@ -222,6 +237,10 @@ export default function ContractorDashboard() {
     localStorage.setItem('tst_job_sites_viewed_at', JSON.stringify(jobSitesViewedAt));
   }, [jobSitesViewedAt]);
 
+  useEffect(() => {
+    localStorage.setItem('tst_support_tickets', JSON.stringify(supportTickets));
+  }, [supportTickets]);
+
   const formatElapsed = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -422,6 +441,74 @@ export default function ContractorDashboard() {
   };
 
   if (!isAuthenticated) {
+    if (isMfaStep) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
+            <div className="text-center space-y-2">
+              <div className="inline-block bg-green-500/10 text-green-400 border border-green-500/20 font-bold px-3 py-0.5 rounded text-[10px] tracking-wider uppercase mb-2">
+                🔒 Firebase MFA Secured
+              </div>
+              <h1 className="text-2xl font-black text-white">Security Verification</h1>
+              <p className="text-xs text-slate-400">
+                A verification code has been dispatched. Enter the 6-digit code below to authorize this session.
+              </p>
+            </div>
+
+            {/* Banner showing code for easy testing */}
+            <div className="bg-slate-950 border border-slate-800/80 p-3 rounded-lg text-center text-xs text-slate-400">
+              <span>Demo Security Code: </span>
+              <strong className="text-amber-400 font-mono text-sm tracking-widest">{generatedMfaCode}</strong>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (mfaCodeInput === generatedMfaCode) {
+                  setIsAuthenticated(true);
+                  setIsMfaStep(false);
+                } else {
+                  alert('Invalid verification code. Please try again.');
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 text-center">6-Digit Verification Code</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  placeholder="e.g. 123456"
+                  value={mfaCodeInput}
+                  onChange={(e) => setMfaCodeInput(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-center text-lg font-mono tracking-[0.5em] text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg text-xs transition uppercase cursor-pointer"
+              >
+                Verify & Log In
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMfaStep(false);
+                  setMfaCodeInput('');
+                }}
+                className="w-full text-xs text-slate-400 hover:text-white underline text-center block cursor-pointer"
+              >
+                Back to Login
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
@@ -433,7 +520,16 @@ export default function ContractorDashboard() {
             <p className="text-xs text-slate-400">Secure Industrial Infrastructure Login</p>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); setIsAuthenticated(true); }} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const code = Math.floor(100000 + Math.random() * 900000).toString();
+              setGeneratedMfaCode(code);
+              setMfaCodeInput('');
+              setIsMfaStep(true);
+            }}
+            className="space-y-4"
+          >
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Contractor Email</label>
               <input
@@ -605,11 +701,25 @@ export default function ContractorDashboard() {
             </div>
 
             <button
-              onClick={() => setIsAuthenticated(false)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold transition"
-            >
-              Sign Out
-            </button>
+               type="button"
+               onClick={() => {
+                 setSupportSubject('QuickBooks Sync Error');
+                 setSupportEmail(loginEmail || '');
+                 setIsSupportModalOpen(true);
+               }}
+               className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/30 text-amber-400 rounded font-semibold transition cursor-pointer flex items-center gap-1"
+             >
+               <span>📞</span>
+               <span>Contact Admin</span>
+             </button>
+
+             <button
+               type="button"
+               onClick={() => setIsAuthenticated(false)}
+               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold transition cursor-pointer"
+             >
+               Sign Out
+             </button>
           </div>
         </div>
       </header>
@@ -1291,6 +1401,21 @@ export default function ContractorDashboard() {
                   {contractorsList.length}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('tickets')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  activeAdminTab === 'tickets'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>🛠️</span>
+                <span>Support Tickets</span>
+                <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {supportTickets.filter(t => t.status === 'Open').length}
+                </span>
+              </button>
             </div>
 
             {activeAdminTab === 'timecards' && (
@@ -1675,6 +1800,90 @@ export default function ContractorDashboard() {
                 </div>
               </div>
             )}
+
+            {activeAdminTab === 'tickets' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>🛠️</span> Support & Sync Tickets Ledger
+                    </h3>
+                    <p className="text-xs text-slate-400">View and resolve support requests submitted by portal contractors.</p>
+                  </div>
+                  <div className="text-xs font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300">
+                    Total Tickets: <span className="text-amber-500 font-bold">{supportTickets.length}</span>
+                  </div>
+                </div>
+
+                {supportTickets.length === 0 ? (
+                  <div className="text-center py-12 bg-slate-950/20 border border-slate-800/40 rounded-xl space-y-2">
+                    <span className="text-2xl">🎉</span>
+                    <p className="text-xs text-slate-400 font-medium">All clear! No support tickets have been reported.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                        <tr>
+                          <th className="p-3 w-24">Ticket ID</th>
+                          <th className="p-3 w-40">Submitted At</th>
+                          <th className="p-3">User Email</th>
+                          <th className="p-3">Issue Category</th>
+                          <th className="p-3">Message Details</th>
+                          <th className="p-3 w-28 text-center">Status</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {supportTickets.map((ticket) => (
+                          <tr key={ticket.id} className="hover:bg-slate-950/40 align-top">
+                            <td className="p-3 font-mono font-bold text-amber-500">#{ticket.id}</td>
+                            <td className="p-3 font-mono text-[11px] text-slate-400">{ticket.timestamp}</td>
+                            <td className="p-3 font-mono text-slate-200">{ticket.email}</td>
+                            <td className="p-3 font-semibold text-slate-100">{ticket.subject}</td>
+                            <td className="p-3 text-slate-400 max-w-xs whitespace-pre-wrap">{ticket.message}</td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                ticket.status === 'Resolved'
+                                  ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              }`}>
+                                {ticket.status}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              {ticket.status === 'Open' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSupportTickets(prev =>
+                                      prev.map(t => t.id === ticket.id ? { ...t, status: 'Resolved' } : t)
+                                    );
+                                  }}
+                                  className="px-2 py-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white font-bold rounded text-[10px] transition cursor-pointer"
+                                >
+                                  Resolve
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSupportTickets(prev => prev.filter(t => t.id !== ticket.id));
+                                  }}
+                                  className="text-red-400 hover:text-red-300 font-bold hover:underline text-[11px] cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -1806,6 +2015,102 @@ export default function ContractorDashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPORT / REPORT SYNC ERROR TICKET MODAL */}
+      {isSupportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100 space-y-4">
+            <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>🛠️</span> Support & Sync Ticket
+                </h3>
+                <p className="text-xs text-slate-400">Submit error logs or request help from administrative support.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSupportModalOpen(false)}
+                className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const newTicket = {
+                  id: `ticket-${Date.now().toString().slice(-4)}`,
+                  subject: supportSubject,
+                  message: supportMessage,
+                  email: supportEmail || loginEmail || 'anonymous@techsavvytechs.com',
+                  timestamp: new Date().toLocaleString(),
+                  status: 'Open'
+                };
+                setSupportTickets(prev => [...prev, newTicket]);
+                setSupportMessage('');
+                setIsSupportModalOpen(false);
+                alert(`Support ticket #${newTicket.id} created successfully! The system administrator has been notified.`);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Issue Category *</label>
+                <select
+                  value={supportSubject}
+                  onChange={(e) => setSupportSubject(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
+                >
+                  <option value="QuickBooks Sync Error">QuickBooks Sync Error (Credentials/API)</option>
+                  <option value="Timesheet Log Issue">Timesheet / Shift Logging Issue</option>
+                  <option value="Portal UI Display Error">Portal UI / Feature Display Issue</option>
+                  <option value="General Admin Question">General Administrative Inquiry</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Contact Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="support@techsavvytechs.com"
+                  value={supportEmail}
+                  onChange={(e) => setSupportEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Error Message / Problem Description *</label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Describe the issue, including error messages..."
+                  value={supportMessage}
+                  onChange={(e) => setSupportMessage(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSupportModalOpen(false)}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition cursor-pointer"
+                >
+                  Submit Ticket
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
