@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 export default function ContractorDashboard() {
   // Authentication & View State
   const [userRole, setUserRole] = useState('contractor'); // 'contractor' | 'admin'
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
+  const [contractorsList, setContractorsList] = useState([
+    { id: 'qbo-1', name: 'Sinatra Monroe', email: 'contractor@techsavvytechs.com', rate: 75.00, status: 'Active', qboVendorId: '1' }
+  ]);
   const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
   const [loginPassword, setLoginPassword] = useState('••••••••');
 
@@ -173,6 +179,19 @@ export default function ContractorDashboard() {
     }
     return () => clearInterval(timer);
   }, [activeShift.isClockedIn]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'contractors'), (snapshot) => {
+      const list = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      if (list.length > 0) {
+        setContractorsList(list);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const formatElapsed = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
@@ -1160,165 +1179,250 @@ export default function ContractorDashboard() {
                 <h2 className="text-lg font-bold text-slate-100">Admin Approval & Payroll Dashboard</h2>
                 <p className="text-xs text-slate-400">Review contractor time, supplies, and travel line items independently. Authorize payouts to QuickBooks Online.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={selectedEntryIds.length === 0}
-                  onClick={() => handleBulkStatusChange('approved')}
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
-                >
-                  ✓ Approve All Selected ({selectedEntryIds.length})
-                </button>
-                <button
-                  type="button"
-                  disabled={selectedEntryIds.length === 0}
-                  onClick={() => handleBulkStatusChange('rejected')}
-                  className="px-3 py-1.5 bg-red-600/90 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
-                >
-                  ✕ Reject All Selected ({selectedEntryIds.length})
-                </button>
-              </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
-                  <tr>
-                    <th className="p-3 w-10">
-                      <input
-                        type="checkbox"
-                        checked={timeEntries.length > 0 && selectedEntryIds.length === timeEntries.length}
-                        onChange={toggleSelectAll}
-                        className="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
-                      />
-                    </th>
-                    <th className="p-3">Job Site & Date</th>
-                    <th className="p-3">Item 1: Labor Hours</th>
-                    <th className="p-3">Item 2: Supplies</th>
-                    <th className="p-3">Item 3: Travel</th>
-                    <th className="p-3">Total Payable</th>
-                    <th className="p-3 text-right">QuickBooks Sync</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {timeEntries.map((entry) => {
-                    const isSelected = selectedEntryIds.includes(entry.id);
-                    const totals = getEntryTotals(entry);
-                    return (
-                      <tr key={entry.id} className={`hover:bg-slate-950/40 ${isSelected ? 'bg-amber-500/5' : ''}`}>
-                        <td className="p-3">
+            {/* ADMIN VIEW TABS */}
+            <div className="flex border-b border-slate-800 gap-4 mb-2">
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('timecards')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  activeAdminTab === 'timecards'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>🕒</span>
+                <span>Timecards & Line Items</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('contractors')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  activeAdminTab === 'contractors'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>👥</span>
+                <span>Contractor Sync (QBO)</span>
+                <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {contractorsList.length}
+                </span>
+              </button>
+            </div>
+
+            {activeAdminTab === 'timecards' ? (
+              <>
+                <div className="flex justify-end gap-2 mb-2">
+                  <button
+                    type="button"
+                    disabled={selectedEntryIds.length === 0}
+                    onClick={() => handleBulkStatusChange('approved')}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
+                  >
+                    ✓ Approve All Selected ({selectedEntryIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedEntryIds.length === 0}
+                    onClick={() => handleBulkStatusChange('rejected')}
+                    className="px-3 py-1.5 bg-red-600/90 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
+                  >
+                    ✕ Reject All Selected ({selectedEntryIds.length})
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="p-3 w-10">
                           <input
                             type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectEntry(entry.id)}
+                            checked={timeEntries.length > 0 && selectedEntryIds.length === timeEntries.length}
+                            onChange={toggleSelectAll}
                             className="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
                           />
-                        </td>
-                        <td className="p-3">
-                          <span className="font-bold text-slate-100 block">{entry.jobSite}</span>
-                          <span className="text-[11px] font-mono text-amber-400 block">{entry.date}</span>
-                        </td>
-
-                        {/* LINE ITEM 1: LABOR */}
-                        <td className="p-3 bg-slate-950/30">
-                          <div className="font-mono text-slate-200 font-semibold">{entry.totalHours} hrs @ ${entry.rate || 75}</div>
-                          <div className="text-[11px] font-mono text-green-400 mb-1">${totals.labor.toFixed(2)}</div>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.laborStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.laborStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✕ Reject
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* LINE ITEM 2: SUPPLIES */}
-                        <td className="p-3 bg-slate-950/30">
-                          <div className="font-mono text-slate-200 font-semibold">${totals.supplies.toFixed(2)}</div>
-                          <div className="text-[10px] text-slate-500 mb-1 truncate max-w-[120px]">Materials</div>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.suppliesStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.suppliesStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✕ Reject
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* LINE ITEM 3: TRAVEL */}
-                        <td className="p-3 bg-slate-950/30">
-                          <div className="font-mono text-slate-200 font-semibold">${totals.travel.toFixed(2)}</div>
-                          <div className="text-[10px] text-slate-500 mb-1 truncate max-w-[120px]">Travel/Mileage</div>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.travelStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                entry.travelStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                              }`}
-                            >
-                              ✕ Reject
-                            </button>
-                          </div>
-                        </td>
-
-                        <td className="p-3 font-mono font-bold">
-                          <span className="text-amber-400 block">${totals.totalApproved.toFixed(2)}</span>
-                          {totals.totalGross !== totals.totalApproved && (
-                            <span className="text-[9px] text-slate-500 line-through block">${totals.totalGross.toFixed(2)} claimed</span>
-                          )}
-                        </td>
-
-                        <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setActiveInvoice(entry)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded text-[11px] cursor-pointer"
-                          >
-                            {entry.qbStatus === 'synced' ? 'QBO Bill ✓' : 'Sync QBO'}
-                          </button>
-                        </td>
+                        </th>
+                        <th className="p-3">Job Site & Date</th>
+                        <th className="p-3">Item 1: Labor Hours</th>
+                        <th className="p-3">Item 2: Supplies</th>
+                        <th className="p-3">Item 3: Travel</th>
+                        <th className="p-3">Total Payable</th>
+                        <th className="p-3 text-right">QuickBooks Sync</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {timeEntries.map((entry) => {
+                        const isSelected = selectedEntryIds.includes(entry.id);
+                        const totals = getEntryTotals(entry);
+                        return (
+                          <tr key={entry.id} className={`hover:bg-slate-950/40 ${isSelected ? 'bg-amber-500/5' : ''}`}>
+                            <td className="p-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectEntry(entry.id)}
+                                className="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className="font-bold text-slate-100 block">{entry.jobSite}</span>
+                              <span className="text-[11px] font-mono text-amber-400 block">{entry.date}</span>
+                            </td>
+
+                            {/* LINE ITEM 1: LABOR */}
+                            <td className="p-3 bg-slate-950/30">
+                              <div className="font-mono text-slate-200 font-semibold">{entry.totalHours} hrs @ ${entry.rate || 75}</div>
+                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.labor.toFixed(2)}</div>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.laborStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.laborStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* LINE ITEM 2: SUPPLIES */}
+                            <td className="p-3 bg-slate-950/30">
+                              <div className="font-mono text-slate-200 font-semibold">${totals.supplies.toFixed(2)}</div>
+                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.supplies.toFixed(2)}</div>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.suppliesStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.suppliesStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* LINE ITEM 3: TRAVEL */}
+                            <td className="p-3 bg-slate-950/30">
+                              <div className="font-mono text-slate-200 font-semibold">${totals.travel.toFixed(2)}</div>
+                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.travel.toFixed(2)}</div>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.travelStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    entry.travelStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </td>
+
+                            <td className="p-3 font-mono font-bold">
+                              <span className="text-amber-400 block">${totals.totalApproved.toFixed(2)}</span>
+                              {totals.totalGross !== totals.totalApproved && (
+                                <span className="text-[9px] text-slate-500 line-through block">${totals.totalGross.toFixed(2)} claimed</span>
+                              )}
+                            </td>
+
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setActiveInvoice(entry)}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded text-[11px] cursor-pointer"
+                              >
+                                {entry.qbStatus === 'synced' ? 'QBO Bill ✓' : 'Sync QBO'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100">QuickBooks Online Sync Engine</h3>
+                    <p className="text-xs text-slate-400">Sync and link QBO Vendors to your local contractor portal profiles.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert('To run the real-time sync, execute in terminal: node scripts/sync_qbo_vendors.js');
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition"
+                  >
+                    🔄 Run Sync Script
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Contractor Name</th>
+                        <th className="p-3">Email Address</th>
+                        <th className="p-3">Default Rate</th>
+                        <th className="p-3">QBO Vendor ID</th>
+                        <th className="p-3 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {contractorsList.map((cont) => (
+                        <tr key={cont.id} className="hover:bg-slate-950/40">
+                          <td className="p-3 font-semibold text-slate-100">{cont.name}</td>
+                          <td className="p-3 font-mono">{cont.email}</td>
+                          <td className="p-3 font-mono">${cont.rate || 75}/hr</td>
+                          <td className="p-3 font-mono text-amber-500 font-bold">
+                            {cont.qboVendorId ? `#${cont.qboVendorId}` : 'Not Linked'}
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
+                              {cont.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
