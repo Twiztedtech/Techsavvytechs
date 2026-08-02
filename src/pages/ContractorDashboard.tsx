@@ -455,12 +455,6 @@ export default function ContractorDashboard() {
               </p>
             </div>
 
-            {/* Banner showing code for easy testing */}
-            <div className="bg-slate-950 border border-slate-800/80 p-3 rounded-lg text-center text-xs text-slate-400">
-              <span>Demo Security Code: </span>
-              <strong className="text-amber-400 font-mono text-sm tracking-widest">{generatedMfaCode}</strong>
-            </div>
-
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -474,7 +468,7 @@ export default function ContractorDashboard() {
               className="space-y-4"
             >
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 text-center">6-Digit Verification Code</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 text-center font-mono">6-Digit Verification Code</label>
                 <input
                   type="text"
                   required
@@ -484,6 +478,9 @@ export default function ContractorDashboard() {
                   onChange={(e) => setMfaCodeInput(e.target.value.replace(/\D/g, ''))}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-center text-lg font-mono tracking-[0.5em] text-slate-100 focus:outline-none focus:border-amber-500"
                 />
+                <p className="text-[10px] text-slate-500 text-center mt-2 font-mono">
+                  * For test environments, the secure verification code has been printed to your **Developer Console** (Press <kbd className="bg-slate-800 px-1 rounded text-slate-300">F12</kbd> &rarr; Console).
+                </p>
               </div>
 
               <button
@@ -525,6 +522,7 @@ export default function ContractorDashboard() {
               e.preventDefault();
               const code = Math.floor(100000 + Math.random() * 900000).toString();
               setGeneratedMfaCode(code);
+              console.log("🔒 [Firebase MFA] Security verification code: " + code);
               setMfaCodeInput('');
               setIsMfaStep(true);
             }}
