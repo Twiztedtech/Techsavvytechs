@@ -28,6 +28,9 @@ export default function ContractorDashboard() {
   
   // Authentication & View State
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor'); 
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
+  const [loginPassword, setLoginPassword] = useState('••••••••');
 
   // Time Logger Form State
   const [jobSite, setJobSite] = useState('');
@@ -84,8 +87,10 @@ export default function ContractorDashboard() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        setIsAuthenticated(true);
       } else {
-        setUser({ email: 'contractor@tech5avvy.com', uid: 'mock-user-123' });
+        setUser(null);
+        setIsAuthenticated(false);
       }
     });
     return () => unsubscribe();
@@ -202,9 +207,70 @@ export default function ContractorDashboard() {
   };
 
   const handleSignOut = async () => {
-    await signOut(auth);
-    navigate('/');
+    if (auth.currentUser) {
+      await signOut(auth);
+    }
+    setIsAuthenticated(false);
+    setUser(null);
   };
+
+  const handleLocalLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simulate auth locally
+    setUser({ email: loginEmail, uid: 'mock-user-123' });
+    setIsAuthenticated(true);
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-6 bg-brand-black">
+        <div className="glass-card border border-white/10 rounded-sm p-10 max-w-md w-full shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="inline-block bg-safety-orange text-brand-black font-mono font-black px-3 py-1 rounded-sm text-xs tracking-wider mb-2 uppercase">
+              TECH SAVVY TECHS
+            </div>
+            <h1 className="text-2xl font-black text-brand-white uppercase tracking-tight">Contractor Portal</h1>
+            <p className="text-xs text-slate-500 font-mono uppercase tracking-widest">Secure Industrial Infrastructure Login</p>
+          </div>
+
+          <form onSubmit={handleLocalLogin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Contractor Email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                required
+                className="w-full bg-brand-slate/40 border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Password</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+                className="w-full bg-brand-slate/40 border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="orange"
+              className="w-full py-4 mt-2"
+            >
+              Sign In to Portal
+            </Button>
+          </form>
+
+          <div className="text-center text-[10px] font-mono text-slate-600 border-t border-white/5 pt-4 uppercase tracking-wider leading-relaxed">
+            Protected by Supabase Row-Level Security (RLS) & Intuit QBO OAuth2
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-black text-brand-white font-sans pt-12 pb-32">
