@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, Layers, Briefcase, UserPlus, Link2 } from 'lucide-react';
+import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, Layers, Briefcase, UserPlus, Link2, Calendar } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
@@ -50,8 +50,19 @@ export default function ContractorDashboard() {
   // Admin Tab Navigation
   const [activeAdminTab, setActiveAdminTab] = useState<'timecards' | 'jobs' | 'contractors'>('timecards');
 
+  // Job Sites list
+  const [jobs, setJobs] = useState<JobSite[]>([
+    { id: 'job-1', name: 'Mars Davis - High Voltage', client: 'Davis Energy Group', status: 'Active' },
+    { id: 'job-2', name: 'Substation Alpha - Conduit Run', client: 'Alpha Energy Corp', status: 'Active' },
+    { id: 'job-3', name: 'Data Center B - Fiber Racks', client: 'DataSafe Corp', status: 'Active' },
+    { id: 'job-4', name: 'Solar Array Site 4 - Inverters', client: 'Solaris Inc', status: 'Active' },
+    { id: 'job-5', name: 'Metro Substation - Transformer Bay', client: 'City Transit Authority', status: 'Active' }
+  ]);
+
   // Time Logger Form State
-  const [jobSite, setJobSite] = useState('');
+  const [jobSite, setJobSite] = useState('Mars Davis - High Voltage');
+  const [customJobSite, setCustomJobSite] = useState('');
+  const [isCustomJob, setIsCustomJob] = useState(false);
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
   const [clockIn, setClockIn] = useState('07:00');
   const [clockOut, setClockOut] = useState('15:30');
@@ -59,6 +70,18 @@ export default function ContractorDashboard() {
   const [hourlyRate, setHourlyRate] = useState(75.00);
   const [notes, setNotes] = useState('');
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+
+  // Active Clock-In / Live Shift Tracking
+  const [activeShift, setActiveShift] = useState({
+    isClockedIn: false,
+    startTime: '' as string | null,
+    jobSite: '',
+    elapsedSeconds: 0
+  });
+
+  // Calendar Popover Modal State
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   // QuickBooks & Invoice Review Modal State
   const [activeInvoice, setActiveInvoice] = useState<TimeEntry | null>(null);
@@ -73,13 +96,6 @@ export default function ContractorDashboard() {
   const [newContEmail, setNewContEmail] = useState('');
   const [newContRate, setNewContRate] = useState(75);
   const [generatedInviteLink, setGeneratedInviteLink] = useState('');
-
-  // Local Preset Jobs
-  const [jobs, setJobs] = useState<JobSite[]>([
-    { id: 'job-1', name: 'Substation Alpha - High Voltage Conduit', client: 'Alpha Energy Corp', status: 'Active' },
-    { id: 'job-2', name: 'Data Center B - Fiber Racks', client: 'DataSafe Corp', status: 'Active' },
-    { id: 'job-3', name: 'Water Treatment Facility - SCADA Upgrade', client: 'County Water Dept', status: 'Completed' }
-  ]);
 
   // Local Preset Contractors
   const [contractors, setContractors] = useState<Contractor[]>([
@@ -123,6 +139,50 @@ export default function ContractorDashboard() {
       ],
     }
   ]);
+
+  // Timer Effect for Active Onsite Clock-In
+  useEffect(() => {
+    let timer: any;
+    if (activeShift.isClockedIn) {
+      timer = setInterval(() => {
+        setActiveShift(prev => ({ ...prev, elapsedSeconds: prev.elapsedSeconds + 1 }));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [activeShift.isClockedIn]);
+
+  // Format Elapsed Seconds to HH:MM:SS
+  const formatElapsed = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Start Live Shift
+  const handleStartShift = () => {
+    const now = new Date();
+    const formattedTime = now.toTimeString().slice(0, 5); // HH:MM
+    const selectedSite = isCustomJob && customJobSite ? customJobSite : jobSite;
+    
+    setActiveShift({
+      isClockedIn: true,
+      startTime: formattedTime,
+      jobSite: selectedSite || 'Mars Davis - High Voltage',
+      elapsedSeconds: 0
+    });
+    setClockIn(formattedTime);
+    setLogDate(now.toISOString().split('T')[0]);
+  };
+
+  // Stop Live Shift
+  const handleStopShift = () => {
+    const now = new Date();
+    const formattedTime = now.toTimeString().slice(0, 5); // HH:MM
+    
+    setClockOut(formattedTime);
+    setActiveShift(prev => ({ ...prev, isClockedIn: false }));
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -251,20 +311,18 @@ export default function ContractorDashboard() {
 
   const handleSubmitLog = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobSite) return;
-
-    // Resolve rate from selected job/technician defaults if matching
-    const currentRate = hourlyRate;
+    const finalJobSite = isCustomJob ? customJobSite : jobSite;
+    if (!finalJobSite) return;
 
     const newEntry: TimeEntry = {
       id: `te-${Date.now().toString().slice(-4)}`,
-      jobSite,
+      jobSite: finalJobSite,
       date: logDate,
       clockIn,
       clockOut,
       breakMinutes: Number(breakMinutes),
       totalHours: calculatedHours,
-      rate: Number(currentRate),
+      rate: Number(hourlyRate),
       notes,
       status: 'pending',
       qbStatus: 'pending',
@@ -276,13 +334,13 @@ export default function ContractorDashboard() {
       try {
         await addDoc(collection(db, 'time_entries'), {
           contractorId: user.uid,
-          jobSite: jobSite,
+          jobSite: finalJobSite,
           date: logDate,
           clockIn: clockIn,
           clockOut: clockOut,
           breakMinutes: Number(breakMinutes),
           totalHours: calculatedHours,
-          rate: Number(currentRate),
+          rate: Number(hourlyRate),
           notes: notes,
           status: 'pending',
           qbStatus: 'pending',
@@ -296,7 +354,18 @@ export default function ContractorDashboard() {
 
     setTimeEntries([newEntry, ...timeEntries]);
     
-    // Reset Form
+    // Reset Form & append job site list if custom
+    if (isCustomJob && customJobSite) {
+      const customJobObj: JobSite = {
+        id: `job-${Date.now().toString().slice(-4)}`,
+        name: customJobSite,
+        client: 'Manual Entry',
+        status: 'Active'
+      };
+      setJobs(prev => [customJobObj, ...prev]);
+      setIsCustomJob(false);
+      setCustomJobSite('');
+    }
     setNotes('');
     setUploadedPhotos([]);
     setActiveInvoice(newEntry); // Automatically open QuickBooks invoice review modal
@@ -383,6 +452,45 @@ export default function ContractorDashboard() {
     setNewContEmail('');
   };
 
+  // Calendar Grid Renderer
+  const renderCalendarDays = () => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(<div key={`empty-${i}`} className="h-8"></div>);
+    }
+    for (let day = 1; day <= totalDays; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isSelected = logDate === dateStr;
+      const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+      days.push(
+        <button
+          key={day}
+          type="button"
+          onClick={() => {
+            setLogDate(dateStr);
+            setIsCalendarOpen(false);
+          }}
+          className={`h-8 w-8 rounded-full text-xs font-bold transition flex items-center justify-center mx-auto ${
+            isSelected
+              ? 'bg-safety-orange text-brand-black shadow-md scale-105 font-bold'
+              : isToday
+              ? 'border border-safety-orange text-safety-orange bg-safety-orange/10'
+              : 'text-slate-200 hover:bg-white/10'
+          }`}
+        >
+          {day}
+        </button>
+      );
+    }
+    return days;
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-6 bg-brand-black">
@@ -427,7 +535,7 @@ export default function ContractorDashboard() {
           </form>
 
           <div className="text-center text-[10px] font-mono text-slate-600 border-t border-white/5 pt-4 uppercase tracking-wider leading-relaxed">
-            Protected by Supabase Row-Level Security (RLS) & Intuit QBO OAuth2
+            Protected by Firebase Authentication & Firestore Security Rules
           </div>
         </div>
       </div>
@@ -484,8 +592,59 @@ export default function ContractorDashboard() {
           /* CONTRACTOR VIEW: TIME & PHOTO LOGGING */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* LEFT COLUMN: TIME & PHOTO ENTRY FORM */}
+            {/* LEFT COLUMN: LIVE CLOCK-IN & TIME LOG FORM */}
             <div className="lg:col-span-7 glass-card border border-white/5 rounded-sm p-8 shadow-xl space-y-6">
+              
+              {/* LIVE SHIFT / ONSITE CLOCK-IN BANNER */}
+              <div className="bg-brand-slate border border-safety-orange/30 rounded-sm p-4 flex flex-wrap items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${activeShift.isClockedIn ? 'bg-green-500 animate-ping' : 'bg-slate-600'}`}></span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-slate-200">
+                      {activeShift.isClockedIn ? 'Active Shift Onsite' : 'Onsite Shift Clock-In'}
+                    </span>
+                  </div>
+                  {activeShift.isClockedIn ? (
+                    <p className="text-xs text-safety-orange font-mono">
+                      Working @ <strong className="text-white">{activeShift.jobSite}</strong> since {activeShift.startTime}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      Tap below when arriving at the job site to start recording time automatically.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {activeShift.isClockedIn && (
+                    <div className="font-mono text-base font-black text-green-400 bg-brand-black px-3 py-1 rounded-sm border border-green-500/20">
+                      {formatElapsed(activeShift.elapsedSeconds)}
+                    </div>
+                  )}
+
+                  {!activeShift.isClockedIn ? (
+                    <button
+                      type="button"
+                      onClick={handleStartShift}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-black text-xs rounded-sm transition shadow-lg shadow-green-600/20 flex items-center gap-2"
+                    >
+                      <span>🟢</span>
+                      <span>Clock In Now</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStopShift}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-sm transition shadow-lg shadow-red-600/20 flex items-center gap-2"
+                    >
+                      <span>🔴</span>
+                      <span>Clock Out Now</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* FORM HEADER */}
               <div className="border-b border-white/5 pb-4 flex justify-between items-center">
                 <div>
                   <h2 className="text-lg font-bold text-brand-white uppercase tracking-tight flex items-center gap-2">
@@ -501,31 +660,125 @@ export default function ContractorDashboard() {
 
               <form onSubmit={handleSubmitLog} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* JOB SITE SELECT WITH INLINE CUSTOM ADDER */}
                   <div>
                     <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Job Site / Project Name *</label>
-                    <select
-                      required
-                      value={jobSite}
-                      onChange={(e) => setJobSite(e.target.value)}
-                      className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
-                    >
-                      {jobs.filter(j => j.status === 'Active').map(j => (
-                        <option key={j.id} value={j.name} className="bg-brand-slate text-brand-white">
-                          {j.name}
+                    {!isCustomJob ? (
+                      <select
+                        required
+                        value={jobSite}
+                        onChange={(e) => {
+                          if (e.target.value === '__NEW__') {
+                            setIsCustomJob(true);
+                          } else {
+                            setJobSite(e.target.value);
+                          }
+                        }}
+                        className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange cursor-pointer"
+                      >
+                        {jobs.filter(j => j.status === 'Active').map((job) => (
+                          <option key={job.id} value={job.name} className="bg-brand-black text-brand-white">
+                            {job.name}
+                          </option>
+                        ))}
+                        <option value="__NEW__" className="bg-brand-black text-safety-orange font-bold">
+                          + Add Custom Job Site...
                         </option>
-                      ))}
-                    </select>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type new job site name..."
+                          value={customJobSite}
+                          onChange={(e) => setCustomJobSite(e.target.value)}
+                          className="w-full bg-brand-slate border border-white/10 rounded-sm px-4 py-2.5 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomJob(false)}
+                          className="px-3 py-1 text-[10px] font-mono uppercase tracking-wider bg-brand-black hover:bg-white/10 text-slate-300 rounded-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div>
+                  {/* WORK DATE WITH INTERACTIVE CALENDAR POPOVER */}
+                  <div className="relative">
                     <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Work Date *</label>
-                    <input
-                      type="date"
-                      required
-                      value={logDate}
-                      onChange={(e) => setLogDate(e.target.value)}
-                      className="w-full bg-brand-slate/40 border border-white/10 rounded-sm px-4 py-3 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        required
+                        value={logDate}
+                        onChange={(e) => setLogDate(e.target.value)}
+                        className="w-full bg-brand-slate/40 border border-white/10 rounded-sm px-4 py-2 text-xs text-brand-white focus:outline-none focus:border-safety-orange"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                        className="px-3 py-2 bg-brand-slate hover:bg-white/10 text-safety-orange rounded-sm text-[10px] font-mono uppercase tracking-wider border border-white/10 flex items-center gap-1 shrink-0"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        Calendar
+                      </button>
+                    </div>
+
+                    {/* CALENDAR POPOVER MODAL */}
+                    {isCalendarOpen && (
+                      <div className="absolute top-full left-0 mt-2 z-50 bg-brand-slate border border-white/10 rounded-sm p-4 shadow-2xl w-72 space-y-3 text-brand-white">
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                          <button
+                            type="button"
+                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                            className="text-slate-400 hover:text-white px-2 py-0.5 rounded bg-brand-black text-xs font-bold"
+                          >
+                            ◄
+                          </button>
+                          <span className="text-xs font-bold font-mono text-safety-orange">
+                            {calendarMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                            className="text-slate-400 hover:text-white px-2 py-0.5 rounded bg-brand-black text-xs font-bold"
+                          >
+                            ►
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500">
+                          <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1">
+                          {renderCalendarDays()}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLogDate(new Date().toISOString().split('T')[0]);
+                              setIsCalendarOpen(false);
+                            }}
+                            className="text-[10px] font-bold text-safety-orange hover:underline font-mono"
+                          >
+                            Select Today
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsCalendarOpen(false)}
+                            className="text-[10px] font-bold text-slate-400 hover:text-white font-mono"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
