@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Shield, Cpu, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { supabase } from '../lib/supabaseClient';
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -63,9 +64,12 @@ const Auth = () => {
                 <Button 
                   variant="glass" 
                   className="w-full py-4 flex items-center justify-center gap-4 bg-white/5 hover:bg-white/10"
-                  onClick={() => {
+                  onClick={async () => {
                     if (vendor === 'ATG') {
                       window.location.href = "/ghilotti_site_survey_form.html";
+                    } else if (vendor === 'Contractor') {
+                      // Redirect to the Contractor Dashboard
+                      navigate('/contractor/dashboard');
                     } else {
                       window.location.href = "https://accounts.google.com";
                     }

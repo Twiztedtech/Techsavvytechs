@@ -17,6 +17,7 @@ import ServiceAreas from "./pages/ServiceAreas";
 import Portal from "./pages/Portal";
 import Auth from "./pages/Auth";
 import Contact from "./pages/Contact";
+import ContractorDashboard from "./pages/ContractorDashboard";
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/contractor/dashboard" element={<ContractorDashboard />} />
             {/* Fallback to Home */}
             <Route path="*" element={<Home />} />
           </Routes>
