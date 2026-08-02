@@ -68,9 +68,9 @@ export const NavDropdownItem: React.FC<{ label: string; href: string; descriptio
     to={href} 
     className="group/item p-3 flex flex-col hover:bg-white/5 rounded-sm transition-all border border-transparent hover:border-white/5"
   >
-    <span className="text-[11px] font-bold text-brand-white group-hover/item:text-tech-green transition-colors uppercase tracking-widest">{label}</span>
+    <span className="text-[13px] font-bold text-brand-white group-hover/item:text-tech-green transition-colors uppercase tracking-widest">{label}</span>
     {description && (
-      <span className="text-[9px] text-slate-500 font-medium mt-1 leading-tight group-hover/item:text-slate-400 transition-colors">{description}</span>
+      <span className="text-[11px] text-slate-500 font-medium mt-1 leading-tight group-hover/item:text-slate-400 transition-colors">{description}</span>
     )}
   </Link>
 );

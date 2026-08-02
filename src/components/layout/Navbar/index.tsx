@@ -12,7 +12,7 @@ export const Navbar = () => {
           <Logo variant="horizontal" className="scale-90 md:scale-100 origin-left" />
         </Link>
         
-        <div className="hidden lg:flex items-center gap-8 font-mono text-[10px] uppercase tracking-[0.3em] text-slate-400 h-full">
+        <div className="hidden lg:flex items-center gap-8 font-mono text-[13px] uppercase tracking-[0.18em] text-slate-400 h-full">
           <NavItem label="Services">
             <NavDropdownItem 
               label="Low-Voltage Cabling" 
@@ -59,6 +59,19 @@ export const Navbar = () => {
               label="Client Portal" 
               href="/portal" 
               description="Access Management Console"
+            />
+          </NavItem>
+
+          <NavItem label="Contractor Portal">
+            <NavDropdownItem 
+              label="Contractor Login" 
+              href="/auth?vendor=Contractor" 
+              description="Access Subcontractor Resources"
+            />
+            <NavDropdownItem 
+              label="Work Orders" 
+              href="/portal" 
+              description="Active Field Service Tickets"
             />
           </NavItem>
 
