@@ -10,6 +10,7 @@ export default function ContractorDashboard() {
   const [contractorsList, setContractorsList] = useState([
     { id: 'qbo-1', name: 'Sinatra Monroe', email: 'contractor@techsavvytechs.com', rate: 75.00, status: 'Active', qboVendorId: '1' }
   ]);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
   const [loginPassword, setLoginPassword] = useState('••••••••');
 
@@ -1382,12 +1383,26 @@ export default function ContractorDashboard() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      alert('To run the real-time sync, execute in terminal: node scripts/sync_qbo_vendors.js');
+                    disabled={isSyncing}
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      try {
+                        const res = await fetch('/api/sync-vendors', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                          alert(data.message);
+                        } else {
+                          alert('Sync failed: ' + (data.error || 'Unknown error'));
+                        }
+                      } catch (err) {
+                        alert('Sync request failed: ' + err.message);
+                      } finally {
+                        setIsSyncing(false);
+                      }
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition disabled:opacity-50"
                   >
-                    🔄 Run Sync Script
+                    {isSyncing ? '🔄 Syncing QBO...' : '🔄 Run Sync Script'}
                   </button>
                 </div>
 

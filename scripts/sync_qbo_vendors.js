@@ -1,8 +1,13 @@
-const fs = require('fs');
-const path = require('path');
-const dotenv = require('dotenv');
-const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, doc, setDoc } = require('firebase/firestore');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, doc, setDoc } from 'firebase/firestore';
+
+// Setup __dirname in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
