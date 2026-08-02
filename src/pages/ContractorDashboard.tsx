@@ -58,6 +58,11 @@ export default function ContractorDashboard() {
   const [adminJobName, setAdminJobName] = useState('');
   const [adminJobAddress, setAdminJobAddress] = useState('');
   const [adminJobNotes, setAdminJobNotes] = useState('');
+  const [editingJobId, setEditingJobId] = useState(null);
+  const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
+    const saved = localStorage.getItem('tst_job_sites_viewed_at');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   // Calendar Popover Modal State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -212,6 +217,10 @@ export default function ContractorDashboard() {
   useEffect(() => {
     localStorage.setItem('tst_time_entries', JSON.stringify(timeEntries));
   }, [timeEntries]);
+
+  useEffect(() => {
+    localStorage.setItem('tst_job_sites_viewed_at', JSON.stringify(jobSitesViewedAt));
+  }, [jobSitesViewedAt]);
 
   const formatElapsed = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
@@ -795,6 +804,43 @@ export default function ContractorDashboard() {
                           >
                             <span>🗺️ Get Directions</span>
                           </a>
+                        </div>
+                      )}
+
+                      {/* JOB INSTRUCTIONS & MANAGER UPDATES NOTIFICATION */}
+                      {!isCustomJob && selectedJobObj && (
+                        <div className="space-y-2">
+                          {/* Real-time Notification Banner */}
+                          {selectedJobObj.updatedAt && (!jobSitesViewedAt[selectedJobObj.id] || new Date(selectedJobObj.updatedAt) > new Date(jobSitesViewedAt[selectedJobObj.id])) && (
+                            <div className="bg-amber-500/10 border border-amber-500/40 p-3 rounded-lg text-xs text-amber-300 space-y-2 flex flex-col sm:flex-row justify-between sm:items-center gap-2 animate-pulse">
+                              <div>
+                                <span className="font-bold block">⚠️ Site Update Detected</span>
+                                <span>The manager updated the instructions for this job. Please review below.</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setJobSitesViewedAt(prev => ({
+                                    ...prev,
+                                    [selectedJobObj.id]: new Date().toISOString()
+                                  }));
+                                }}
+                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-[10px] transition uppercase cursor-pointer self-start sm:self-center"
+                              >
+                                Acknowledge
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Site Instructions / Notes Card */}
+                          <div className={`p-3 rounded-lg text-xs space-y-1 transition ${
+                            selectedJobObj.updatedAt && (!jobSitesViewedAt[selectedJobObj.id] || new Date(selectedJobObj.updatedAt) > new Date(jobSitesViewedAt[selectedJobObj.id]))
+                              ? 'bg-amber-500/5 border border-amber-500/30'
+                              : 'bg-slate-950/40 border border-slate-800'
+                          }`}>
+                            <span className="text-slate-400 block font-semibold uppercase tracking-wider text-[10px]">Site Instructions / Notes:</span>
+                            <p className="text-slate-200 leading-relaxed font-mono">{selectedJobObj.notes || 'No special instructions recorded.'}</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1413,22 +1459,36 @@ export default function ContractorDashboard() {
             {activeAdminTab === 'jobs' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* LEFT: ADD NEW JOB FORM */}
+                  {/* LEFT: ADD / EDIT JOB FORM */}
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-4">
                     <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      <span>➕</span> Add New Job Site
+                      <span>{editingJobId ? '📝' : '➕'}</span> {editingJobId ? 'Edit Job Site' : 'Add New Job Site'}
                     </h3>
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
                         if (!adminJobName) return;
-                        const newJob = {
-                          id: `j-${Date.now().toString().slice(-4)}`,
-                          name: adminJobName,
-                          address: adminJobAddress || 'Address on file',
-                          notes: adminJobNotes || 'Site instructions unspecified'
-                        };
-                        setJobSitesList(prev => [...prev, newJob]);
+                        const nowStr = new Date().toISOString();
+
+                        if (editingJobId) {
+                          setJobSitesList(prev =>
+                            prev.map(job =>
+                              job.id === editingJobId
+                                ? { ...job, name: adminJobName, address: adminJobAddress || 'Address on file', notes: adminJobNotes || 'Site instructions unspecified', updatedAt: nowStr }
+                                : job
+                            )
+                          );
+                          setEditingJobId(null);
+                        } else {
+                          const newJob = {
+                            id: `j-${Date.now().toString().slice(-4)}`,
+                            name: adminJobName,
+                            address: adminJobAddress || 'Address on file',
+                            notes: adminJobNotes || 'Site instructions unspecified',
+                            updatedAt: nowStr
+                          };
+                          setJobSitesList(prev => [...prev, newJob]);
+                        }
                         setAdminJobName('');
                         setAdminJobAddress('');
                         setAdminJobNotes('');
@@ -1466,12 +1526,28 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
                         />
                       </div>
-                      <button
-                        type="submit"
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
-                      >
-                        Create Job Site
-                      </button>
+                      <div className="flex gap-2">
+                        {editingJobId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingJobId(null);
+                              setAdminJobName('');
+                              setAdminJobAddress('');
+                              setAdminJobNotes('');
+                            }}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          {editingJobId ? 'Update Job Site' : 'Create Job Site'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -1492,14 +1568,32 @@ export default function ContractorDashboard() {
                         </thead>
                         <tbody className="divide-y divide-slate-800/60">
                           {jobSitesList.map((job) => (
-                            <tr key={job.id} className="hover:bg-slate-950/40">
+                            <tr key={job.id} className={`hover:bg-slate-950/40 ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
                               <td className="p-3 font-semibold text-slate-100">{job.name}</td>
                               <td className="p-3 text-slate-400 font-mono text-[11px]">{job.address}</td>
                               <td className="p-3 text-slate-400">{job.notes}</td>
-                              <td className="p-3 text-right">
+                              <td className="p-3 text-right space-x-2">
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    setEditingJobId(job.id);
+                                    setAdminJobName(job.name);
+                                    setAdminJobAddress(job.address);
+                                    setAdminJobNotes(job.notes);
+                                  }}
+                                  className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (editingJobId === job.id) {
+                                      setEditingJobId(null);
+                                      setAdminJobName('');
+                                      setAdminJobAddress('');
+                                      setAdminJobNotes('');
+                                    }
                                     setJobSitesList(prev => prev.filter(item => item.id !== job.id));
                                   }}
                                   className="text-red-400 hover:text-red-300 font-bold hover:underline text-[11px] cursor-pointer"
