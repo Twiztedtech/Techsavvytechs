@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, RefreshCw, Layers } from 'lucide-react';
+import { Clock, Camera, FileText, CheckCircle, AlertCircle, LogOut, Layers } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { supabase } from '../lib/supabaseClient';
+import { db, auth } from '../lib/firebase';
+import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 interface TimeEntry {
@@ -79,17 +81,56 @@ export default function ContractorDashboard() {
   ]);
 
   useEffect(() => {
-    // Check local session
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setUser({ email: 'contractor@tech5avvy.com', id: 'mock-user-123' });
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
       } else {
-        setUser(session.user);
+        setUser({ email: 'contractor@tech5avvy.com', uid: 'mock-user-123' });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch from Firestore
+  useEffect(() => {
+    if (!user || user.uid === 'mock-user-123') return;
+
+    const fetchEntries = async () => {
+      try {
+        const q = query(
+          collection(db, 'time_entries'),
+          orderBy('createdAt', 'desc'),
+          limit(20)
+        );
+        const querySnapshot = await getDocs(q);
+        const loadedEntries: TimeEntry[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          loadedEntries.push({
+            id: doc.id,
+            jobSite: data.jobSite,
+            date: data.date,
+            clockIn: data.clockIn,
+            clockOut: data.clockOut,
+            breakMinutes: data.breakMinutes,
+            totalHours: data.totalHours,
+            rate: data.rate,
+            notes: data.notes,
+            status: data.status,
+            qbStatus: data.qbStatus,
+            photos: data.photos || []
+          });
+        });
+        if (loadedEntries.length > 0) {
+          setTimeEntries(loadedEntries);
+        }
+      } catch (err: any) {
+        console.error('Error fetching time entries:', err);
       }
     };
-    getSession();
-  }, []);
+
+    fetchEntries();
+  }, [user]);
 
   const calculateHours = (start: string, end: string, breakMins: number) => {
     if (!start || !end) return '0.00';
@@ -128,19 +169,26 @@ export default function ContractorDashboard() {
       photos: [...uploadedPhotos],
     };
 
-    // If real supabase user is authenticated, save it
-    if (user && user.id !== 'mock-user-123') {
+    // If real Firebase user is authenticated, save it
+    if (user && user.uid !== 'mock-user-123') {
       try {
-        await supabase.from('time_entries').insert({
-          contractor_id: user.id,
-          job_name: jobSite,
-          clock_in: new Date(`${logDate}T${clockIn}`).toISOString(),
-          clock_out: new Date(`${logDate}T${clockOut}`).toISOString(),
+        await addDoc(collection(db, 'time_entries'), {
+          contractorId: user.uid,
+          jobSite: jobSite,
+          date: logDate,
+          clockIn: clockIn,
+          clockOut: clockOut,
+          breakMinutes: Number(breakMinutes),
+          totalHours: calculatedHours,
+          rate: Number(hourlyRate),
+          notes: notes,
           status: 'pending',
-          notes: notes
+          qbStatus: 'pending',
+          photos: [...uploadedPhotos],
+          createdAt: new Date().toISOString()
         });
       } catch (err: any) {
-        console.error('Error saving to Supabase:', err.message);
+        console.error('Error saving to Firestore:', err.message);
       }
     }
 
@@ -154,7 +202,7 @@ export default function ContractorDashboard() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
     navigate('/');
   };
 

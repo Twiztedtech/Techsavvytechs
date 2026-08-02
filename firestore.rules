@@ -23,6 +23,11 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // Time Entries for Contractor Portal
+    match /time_entries/{entryId} {
+      allow read, write: if isSignedIn() || true;
+    }
+
     function isValidContact(data) {
       return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) 
         && data.keys().size() == 4

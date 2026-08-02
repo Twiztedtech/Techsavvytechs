@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Shield, Cpu, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { supabase } from '../lib/supabaseClient';
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
