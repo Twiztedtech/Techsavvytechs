@@ -20,12 +20,15 @@ export default function ContractorDashboard() {
   const [resetStatus, setResetStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
 
   // Pre-loaded Job Sites with Address info for Google Maps Directions
-  const [jobSitesList, setJobSitesList] = useState([
-    { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly' },
-    { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run' },
-    { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels' },
-    { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection' },
-  ]);
+  const [jobSitesList, setJobSitesList] = useState(() => {
+    const saved = localStorage.getItem('tst_job_sites');
+    return saved ? JSON.parse(saved) : [
+      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly' },
+      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run' },
+      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels' },
+      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection' },
+    ];
+  });
 
   // Time Logger Form State
   const [selectedJobId, setSelectedJobId] = useState('j-101');
@@ -51,6 +54,11 @@ export default function ContractorDashboard() {
     elapsedSeconds: 0
   });
 
+  // Admin Add Job Form State
+  const [adminJobName, setAdminJobName] = useState('');
+  const [adminJobAddress, setAdminJobAddress] = useState('');
+  const [adminJobNotes, setAdminJobNotes] = useState('');
+
   // Calendar Popover Modal State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -68,53 +76,56 @@ export default function ContractorDashboard() {
   const [historyFilterStatus, setHistoryFilterStatus] = useState('ALL');
 
   // Submissions Data
-  const [timeEntries, setTimeEntries] = useState([
-    {
-      id: 'te-101',
-      jobSite: 'Substation Alpha - Conduit Run',
-      address: '450 Energy Way, Sacramento, CA 95814',
-      date: '2026-07-31',
-      clockIn: '07:00',
-      clockOut: '15:30',
-      breakMinutes: 30,
-      totalHours: '8.00',
-      rate: 75.00,
-      suppliesCost: 45.50,
-      travelCost: 35.00,
-      laborStatus: 'approved',
-      suppliesStatus: 'approved',
-      travelStatus: 'approved',
-      notes: 'Completed conduit run on North wall and purchased 2x junction boxes.',
-      status: 'approved',
-      qbStatus: 'synced',
-      photos: [
-        'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=400&q=80',
-        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=400&q=80'
-      ],
-    },
-    {
-      id: 'te-102',
-      jobSite: 'Data Center B - Fiber Racks',
-      address: '880 Silicon Blvd, San Jose, CA 95131',
-      date: '2026-08-01',
-      clockIn: '08:00',
-      clockOut: '16:00',
-      breakMinutes: 30,
-      totalHours: '7.50',
-      rate: 85.00,
-      suppliesCost: 120.00,
-      travelCost: 50.00,
-      laborStatus: 'pending',
-      suppliesStatus: 'pending',
-      travelStatus: 'pending',
-      notes: 'Terminated fiber connections and purchased patch cords.',
-      status: 'pending',
-      qbStatus: 'pending',
-      photos: [
-        'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=400&q=80'
-      ],
-    }
-  ]);
+  const [timeEntries, setTimeEntries] = useState(() => {
+    const saved = localStorage.getItem('tst_time_entries');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'te-101',
+        jobSite: 'Substation Alpha - Conduit Run',
+        address: '450 Energy Way, Sacramento, CA 95814',
+        date: '2026-07-31',
+        clockIn: '07:00',
+        clockOut: '15:30',
+        breakMinutes: 30,
+        totalHours: '8.00',
+        rate: 75.00,
+        suppliesCost: 45.50,
+        travelCost: 35.00,
+        laborStatus: 'approved',
+        suppliesStatus: 'approved',
+        travelStatus: 'approved',
+        notes: 'Completed conduit run on North wall and purchased 2x junction boxes.',
+        status: 'approved',
+        qbStatus: 'synced',
+        photos: [
+          'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=400&q=80',
+          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=400&q=80'
+        ],
+      },
+      {
+        id: 'te-102',
+        jobSite: 'Data Center B - Fiber Racks',
+        address: '880 Silicon Blvd, San Jose, CA 95131',
+        date: '2026-08-01',
+        clockIn: '08:00',
+        clockOut: '16:00',
+        breakMinutes: 30,
+        totalHours: '7.50',
+        rate: 85.00,
+        suppliesCost: 120.00,
+        travelCost: 50.00,
+        laborStatus: 'pending',
+        suppliesStatus: 'pending',
+        travelStatus: 'pending',
+        notes: 'Terminated fiber connections and purchased patch cords.',
+        status: 'pending',
+        qbStatus: 'pending',
+        photos: [
+          'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=400&q=80'
+        ],
+      }
+    ];
+  });
 
   const getEntryTotals = (entry) => {
     const labor = (Number(entry.totalHours || 0) * (entry.rate || 75));
@@ -193,6 +204,14 @@ export default function ContractorDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('tst_job_sites', JSON.stringify(jobSitesList));
+  }, [jobSitesList]);
+
+  useEffect(() => {
+    localStorage.setItem('tst_time_entries', JSON.stringify(timeEntries));
+  }, [timeEntries]);
 
   const formatElapsed = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
@@ -1183,7 +1202,7 @@ export default function ContractorDashboard() {
             </div>
 
             {/* ADMIN VIEW TABS */}
-            <div className="flex border-b border-slate-800 gap-4 mb-2">
+            <div className="flex border-b border-slate-800 gap-4 mb-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setActiveAdminTab('timecards')}
@@ -1195,6 +1214,21 @@ export default function ContractorDashboard() {
               >
                 <span>🕒</span>
                 <span>Timecards & Line Items</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('jobs')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  activeAdminTab === 'jobs'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>🗺️</span>
+                <span>Job Sites</span>
+                <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {jobSitesList.length}
+                </span>
               </button>
               <button
                 type="button"
@@ -1213,7 +1247,7 @@ export default function ContractorDashboard() {
               </button>
             </div>
 
-            {activeAdminTab === 'timecards' ? (
+            {activeAdminTab === 'timecards' && (
               <>
                 <div className="flex justify-end gap-2 mb-2">
                   <button
@@ -1374,7 +1408,116 @@ export default function ContractorDashboard() {
                   </table>
                 </div>
               </>
-            ) : (
+            )}
+
+            {activeAdminTab === 'jobs' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* LEFT: ADD NEW JOB FORM */}
+                  <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-4">
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>➕</span> Add New Job Site
+                    </h3>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!adminJobName) return;
+                        const newJob = {
+                          id: `j-${Date.now().toString().slice(-4)}`,
+                          name: adminJobName,
+                          address: adminJobAddress || 'Address on file',
+                          notes: adminJobNotes || 'Site instructions unspecified'
+                        };
+                        setJobSitesList(prev => [...prev, newJob]);
+                        setAdminJobName('');
+                        setAdminJobAddress('');
+                        setAdminJobNotes('');
+                      }}
+                      className="space-y-3"
+                    >
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Job Site Name *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g., Substation Gamma"
+                          value={adminJobName}
+                          onChange={(e) => setAdminJobName(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Address</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., 100 Main St, Sacramento, CA"
+                          value={adminJobAddress}
+                          onChange={(e) => setAdminJobAddress(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Instructions / Notes</label>
+                        <textarea
+                          rows={3}
+                          placeholder="e.g., Verify safety gear..."
+                          value={adminJobNotes}
+                          onChange={(e) => setAdminJobNotes(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
+                      >
+                        Create Job Site
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* RIGHT: JOB SITES DATA TABLE */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>📋</span> Active Job Sites List
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                          <tr>
+                            <th className="p-3">Job Site / Project</th>
+                            <th className="p-3">Address</th>
+                            <th className="p-3">Instructions / Notes</th>
+                            <th className="p-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {jobSitesList.map((job) => (
+                            <tr key={job.id} className="hover:bg-slate-950/40">
+                              <td className="p-3 font-semibold text-slate-100">{job.name}</td>
+                              <td className="p-3 text-slate-400 font-mono text-[11px]">{job.address}</td>
+                              <td className="p-3 text-slate-400">{job.notes}</td>
+                              <td className="p-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setJobSitesList(prev => prev.filter(item => item.id !== job.id));
+                                  }}
+                                  className="text-red-400 hover:text-red-300 font-bold hover:underline text-[11px] cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeAdminTab === 'contractors' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap gap-3">
                   <div>
@@ -1400,7 +1543,7 @@ export default function ContractorDashboard() {
                         setIsSyncing(false);
                       }
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition disabled:opacity-50"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer"
                   >
                     {isSyncing ? '🔄 Syncing QBO...' : '🔄 Run Sync Script'}
                   </button>
