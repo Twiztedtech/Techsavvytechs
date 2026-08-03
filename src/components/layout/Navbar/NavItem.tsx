@@ -31,15 +31,21 @@ export const NavItem: React.FC<NavItemProps> = ({ label, href, children }) => {
   );
 
   return (
-    <div 
-      className="relative group h-full flex items-center"
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
-    >
-      {href ? (
+    <div className="relative h-full flex items-center">
+      {children ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+          className="cursor-pointer focus-visible:outline-none focus-visible:text-tech-green"
+        >
+          {content}
+        </button>
+      ) : href ? (
         <Link to={href}>{content}</Link>
       ) : (
-        <button className="cursor-default">{content}</button>
+        <span>{content}</span>
       )}
 
       <AnimatePresence>
@@ -49,6 +55,7 @@ export const NavItem: React.FC<NavItemProps> = ({ label, href, children }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
+            role="menu"
             className="absolute top-full left-0 mt-0 pt-2 z-50 min-w-[240px]"
           >
             <div className="glass-card bg-brand-black/95 backdrop-blur-xl p-4 rounded-sm border border-white/5 shadow-2xl">
@@ -66,6 +73,7 @@ export const NavItem: React.FC<NavItemProps> = ({ label, href, children }) => {
 export const NavDropdownItem: React.FC<{ label: string; href: string; description?: string }> = ({ label, href, description }) => (
   <Link 
     to={href} 
+    role="menuitem"
     className="group/item p-3 flex flex-col hover:bg-white/5 rounded-sm transition-all border border-transparent hover:border-white/5"
   >
     <span className="text-[13px] font-bold text-brand-white group-hover/item:text-tech-green transition-colors uppercase tracking-widest">{label}</span>

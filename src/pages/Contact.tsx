@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Phone, MapPin, Send, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { useSearchParams } from 'react-router-dom';
 
 const Contact = () => {
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -11,6 +13,14 @@ const Contact = () => {
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const requestedService = searchParams.get('service');
+
+  useEffect(() => {
+    if (!requestedService) return;
+    setFormData((current) => current.message
+      ? current
+      : { ...current, message: `I'm interested in ${requestedService}. Please contact me about next steps.` });
+  }, [requestedService]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +60,7 @@ const Contact = () => {
               Direct <br /> <span className="text-slate-500">Interface.</span>
             </h1>
             <p className="text-slate-400 text-lg font-light leading-relaxed mb-16 max-w-md">
-              Initialize connection for technical inquiries, site audits, or partnership integrations. Our response units monitor this channel 24/7.
+              Tell us about your project, site survey, or service need. We will follow up with the right next step.
             </p>
 
             <div className="space-y-8">
@@ -120,6 +130,11 @@ const Contact = () => {
                   onSubmit={handleSubmit}
                   className="space-y-8"
                 >
+                  {requestedService && (
+                    <p className="border-l-2 border-tech-green bg-tech-green/5 px-4 py-3 text-xs text-slate-300">
+                      Request type: <span className="font-semibold text-tech-green">{requestedService}</span>
+                    </p>
+                  )}
                   <div className="space-y-2">
                     <label className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Full Name</label>
                     <input 

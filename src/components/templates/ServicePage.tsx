@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Shield, CheckCircle, Zap, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Link } from 'react-router-dom';
 
 interface ServicePageProps {
   title: string;
@@ -30,9 +31,13 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
             <p className="text-slate-400 text-lg md:text-xl font-light leading-relaxed mb-12">
               {description}
             </p>
-            <div className="flex gap-6">
-              <Button variant="orange" size="lg">Consultation</Button>
-              <Button variant="glass" size="lg">Case Studies</Button>
+          <div className="flex gap-6">
+              <Link to={`/contact?service=${encodeURIComponent(title)}`}>
+                <Button variant="orange" size="lg">Request a consultation</Button>
+              </Link>
+              <Link to={`/contact?service=${encodeURIComponent(`${title} project details`)}`}>
+                <Button variant="glass" size="lg">Discuss your project</Button>
+              </Link>
             </div>
           </div>
           
@@ -76,13 +81,15 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
         <div className="flex items-center gap-6">
           <Shield className="w-10 h-10 text-tech-green/40" />
           <div>
-            <p className="text-xs font-mono text-slate-500 uppercase tracking-widest">Industry Standard Compliance</p>
-            <p className="text-sm font-medium text-brand-white uppercase">ISO 27001 & TIA-568 Certified Workflows</p>
+            <p className="text-xs font-mono text-slate-500 uppercase tracking-widest">Project planning</p>
+            <p className="text-sm font-medium text-brand-white uppercase">Standards-aware scope and deployment planning</p>
           </div>
         </div>
-        <Button variant="glass" size="sm" className="hidden md:flex">
-          Download Site Specs <ArrowRight className="ml-2 w-3 h-3" />
-        </Button>
+        <Link to={`/contact?service=${encodeURIComponent(`${title} site requirements`)}`} className="hidden md:block">
+          <Button variant="glass" size="sm">
+            Discuss site requirements <ArrowRight className="ml-2 w-3 h-3" />
+          </Button>
+        </Link>
       </div>
     </div>
   );

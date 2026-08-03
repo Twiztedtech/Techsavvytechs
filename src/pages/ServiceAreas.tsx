@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { MapPin, ArrowRight, Shield, Globe } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Link } from 'react-router-dom';
 
 const regions = [
   {
@@ -42,7 +43,9 @@ const ServiceAreas = () => {
               Our technical deployment units are strategically positioned in Fairfield to provide sub-2-hour onsite response times across the entire Northern California technical corridor.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Button variant="orange" size="lg">Check Availability</Button>
+              <Link to="/contact?service=Service-area availability">
+                <Button variant="orange" size="lg">Check availability</Button>
+              </Link>
               <div className="flex items-center gap-3 px-6 py-4 glass-card rounded-sm text-xs font-mono text-slate-400 uppercase tracking-widest">
                 <Globe className="w-4 h-4 text-tech-green animate-spin-slow" />
                 <span>Active Network Coverage</span>
@@ -113,9 +116,11 @@ const ServiceAreas = () => {
           <p className="text-slate-500 text-sm font-light max-w-sm">
             We maintain fully-equipped service vehicles across the valley to ensure parts and expertise are always within reach.
           </p>
-          <Button variant="glass" size="sm">
-            Service SLA Details <ArrowRight className="ml-2 w-3 h-3" />
-          </Button>
+          <Link to="/contact?service=Service response and scheduling">
+            <Button variant="glass" size="sm">
+              Ask about scheduling <ArrowRight className="ml-2 w-3 h-3" />
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

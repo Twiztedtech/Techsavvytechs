@@ -4,7 +4,7 @@
  */
 
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import Home from "./pages/Home";
@@ -17,9 +17,11 @@ import ServiceAreas from "./pages/ServiceAreas";
 import Portal from "./pages/Portal";
 import Auth from "./pages/Auth";
 import Contact from "./pages/Contact";
-import ContractorDashboard from "./pages/ContractorDashboard";
+import { Seo } from "./components/Seo";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+
+const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -34,6 +36,7 @@ export default function App() {
   return (
     <Router>
       <ScrollToTop />
+      <Seo />
       <div className="min-h-screen flex flex-col selection:bg-safety-orange selection:text-white bg-brand-black text-brand-white">
         {/* Blueprint Grid Overlay */}
         <div className="fixed inset-0 blueprint-grid pointer-events-none z-0 opacity-40" />
@@ -52,7 +55,11 @@ export default function App() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/contractor/dashboard" element={<ContractorDashboard />} />
+            <Route path="/contractor/dashboard" element={
+              <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
+                <ContractorDashboard />
+              </Suspense>
+            } />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             {/* Fallback to Home */}

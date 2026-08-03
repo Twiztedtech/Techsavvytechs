@@ -1,10 +1,10 @@
 import React from 'react';
 
 const stats = [
-  { label: "Network Uptime", value: "99.9%" },
-  { label: "Deployment Speed", value: "2X" },
-  { label: "Lines Certified", value: "10K+" },
-  { label: "Reliability score", value: "A+" }
+  { label: "Local service area", value: "NorCal" },
+  { label: "Core service areas", value: "4" },
+  { label: "Project planning", value: "On-site" },
+  { label: "Support approach", value: "Practical" }
 ];
 
 export const Stats = () => {

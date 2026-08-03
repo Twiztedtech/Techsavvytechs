@@ -9,11 +9,8 @@ const Auth = () => {
   useEffect(() => {
     if (vendor === 'Contractor') {
       navigate('/contractor/dashboard', { replace: true });
-    } else if (vendor === 'ATG') {
-      window.location.href = "/ghilotti_site_survey_form.html";
     } else {
-      // Default to Contractor Dashboard for direct access or Google redirection
-      window.location.href = "https://accounts.google.com";
+      navigate('/portal', { replace: true });
     }
   }, [vendor, navigate]);
 
