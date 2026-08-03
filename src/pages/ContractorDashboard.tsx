@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+
 
 export default function ContractorDashboard() {
   // Authentication & View State
@@ -78,10 +79,40 @@ export default function ContractorDashboard() {
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
   const [adminJobAssignedTech, setAdminJobAssignedTech] = useState('ALL');
   const [editingJobId, setEditingJobId] = useState(null);
-  const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
-    const saved = localStorage.getItem('tst_job_sites_viewed_at');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [qboConnected, setQboConnected] = useState(false);
+  const [qboRealmId, setQboRealmId] = useState('');
+
+  // Listen to QuickBooks OAuth settings
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'quickbooks'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setQboConnected(data.status === 'connected');
+        setQboRealmId(data.realmId || '');
+      } else {
+        setQboConnected(false);
+        setQboRealmId('');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Handle QuickBooks Connection Redirect Params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qboConnect = params.get('qbo_connect');
+    if (qboConnect === 'success') {
+      const realmId = params.get('realmId');
+      alert(`🎉 QuickBooks Online connected successfully! (Realm ID: ${realmId})`);
+      // Clear URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (qboConnect === 'error') {
+      const details = params.get('details');
+      alert(`✕ QuickBooks Connection Failed: ${details}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
 
   // Auto-fill contractor rates when selecting a predefined job site
   useEffect(() => {
@@ -1916,23 +1947,61 @@ export default function ContractorDashboard() {
             {activeAdminTab === 'contractors' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap gap-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100">QuickBooks Online Sync Engine</h3>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>🔗</span> QuickBooks Online Sync Engine
+                    </h3>
                     <p className="text-xs text-slate-400">Sync and link QBO Vendors to your local contractor portal profiles.</p>
+                    
+                    {/* Status Badge */}
+                    <div className="pt-1.5 flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${qboConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        {qboConnected ? `Connected to Realm ID: ${qboRealmId}` : 'Not Connected to QuickBooks'}
+                      </span>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={async () => {
-                      setIsSyncing(true);
-                      try {
-                        const res = await fetch('/api/sync-vendors', { method: 'POST' });
-                        const data = await res.json();
-                        if (data.success) {
-                          alert(data.message);
-                        } else {
-                          alert('Sync failed: ' + (data.error || 'Unknown error'));
-                        }
+
+                  <div className="flex gap-2">
+                    {qboConnected ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to disconnect QuickBooks? This will remove the authentication tokens.')) {
+                            try {
+                              await deleteDoc(doc(db, 'settings', 'quickbooks'));
+                              alert('QuickBooks disconnected successfully.');
+                            } catch (err) {
+                              alert('Failed to disconnect: ' + err.message);
+                            }
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-red-650/20 hover:bg-red-600 text-red-400 hover:text-white font-bold rounded-lg text-xs transition border border-red-500/20 cursor-pointer"
+                      >
+                        🔌 Disconnect
+                      </button>
+                    ) : (
+                      <a
+                        href="/api/auth/quickbooks"
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-green-600/20 cursor-pointer"
+                      >
+                        🔗 Connect to QuickBooks
+                      </a>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={isSyncing}
+                      onClick={async () => {
+                        setIsSyncing(true);
+                        try {
+                          const res = await fetch('/api/sync-vendors', { method: 'POST' });
+                          const data = await res.json();
+                          if (data.success) {
+                            alert(data.message);
+                          } else {
+                            alert('Sync failed: ' + (data.error || 'Unknown error'));
+                          }
                       } catch (err) {
                         alert('Sync request failed: ' + err.message);
                       } finally {
@@ -1944,6 +2013,7 @@ export default function ContractorDashboard() {
                     {isSyncing ? '🔄 Syncing QBO...' : '🔄 Run Sync Script'}
                   </button>
                 </div>
+              </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-300">

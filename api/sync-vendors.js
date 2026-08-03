@@ -9,20 +9,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // QuickBooks Config
-  const accessToken = process.env.QBO_ACCESS_TOKEN;
-  const realmId = process.env.QBO_REALM_ID;
   const isSandbox = true; // Set to false for production QBO API
-
-  if (!accessToken || !realmId) {
-    return res.status(500).json({ 
-      error: 'QBO_ACCESS_TOKEN and QBO_REALM_ID environment variables must be configured.' 
-    });
-  }
-
-  const qboBaseUrl = isSandbox
-    ? `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`
-    : `https://quickbooks.api.intuit.com/v3/company/${realmId}`;
 
   try {
     // Load Firebase Config
@@ -32,9 +19,75 @@ export default async function handler(req, res) {
     }
     const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
 
-    // Initialize Firebase
+    // Initialize Firebase & Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+    // Fetch dynamic tokens from Firestore
+    let accessToken = process.env.QBO_ACCESS_TOKEN;
+    let realmId = process.env.QBO_REALM_ID;
+    let usingDatabaseCredentials = false;
+
+    try {
+      const { doc, getDoc, updateDoc } = await import('firebase/firestore');
+      const qboSettingDoc = doc(db, 'settings', 'quickbooks');
+      const qboSnap = await getDoc(qboSettingDoc);
+      
+      if (qboSnap.exists() && qboSnap.data().status === 'connected') {
+        const qboData = qboSnap.data();
+        accessToken = qboData.accessToken;
+        realmId = qboData.realmId;
+        usingDatabaseCredentials = true;
+
+        // Auto-refresh token if it expires in less than 60 seconds
+        if (qboData.accessTokenExpiresAt && Date.now() >= qboData.accessTokenExpiresAt - 60000) {
+          const clientId = process.env.QBO_CLIENT_ID;
+          const clientSecret = process.env.QBO_CLIENT_SECRET;
+
+          if (clientId && clientSecret && qboData.refreshToken) {
+            console.log('QBO token expired. Refreshing token...');
+            const refreshResponse = await fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+              },
+              body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: qboData.refreshToken
+              }).toString()
+            });
+
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              accessToken = refreshData.access_token;
+              
+              await updateDoc(qboSettingDoc, {
+                accessToken: refreshData.access_token,
+                refreshToken: refreshData.refresh_token,
+                accessTokenExpiresAt: Date.now() + (refreshData.expires_in * 1000),
+                refreshTokenExpiresAt: Date.now() + (refreshData.x_refresh_token_expires_in * 1000)
+              });
+              console.log('QBO token refreshed successfully.');
+            } else {
+              console.error('Failed to refresh QBO token:', await refreshResponse.text());
+            }
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.warn('Error reading QBO credentials from Firestore. Falling back to env variables:', dbErr);
+    }
+
+    if (!accessToken || !realmId) {
+      return res.status(401).json({ 
+        error: 'QuickBooks is not connected. Please click "Connect to QuickBooks" in the Admin panel.' 
+      });
+    }
+
+    const qboBaseUrl = isSandbox
+      ? `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`
+      : `https://quickbooks.api.intuit.com/v3/company/${realmId}`;
 
     // Query QBO Vendors
     const query = encodeURIComponent("select * from Vendor maxresults 500");
