@@ -87,6 +87,7 @@ export default function ContractorDashboard() {
   });
   // Listen to QuickBooks OAuth settings
   useEffect(() => {
+    if (!isAuthenticated) return;
     const unsubscribe = onSnapshot(doc(db, 'settings', 'quickbooks'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -98,7 +99,7 @@ export default function ContractorDashboard() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAuthenticated]);
 
   // Handle QuickBooks Connection Redirect Params
   useEffect(() => {
