@@ -272,6 +272,7 @@ export default function ContractorDashboard() {
   }, [activeShift.isClockedIn]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     const unsubscribe = onSnapshot(collection(db, 'contractors'), (snapshot) => {
       const list = [];
       snapshot.forEach((doc) => {
@@ -282,7 +283,7 @@ export default function ContractorDashboard() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     localStorage.setItem('tst_job_sites', JSON.stringify(jobSitesList));
