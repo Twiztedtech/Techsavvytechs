@@ -14,6 +14,8 @@ Last updated: 2026-08-03
 - The security work is published to both GitHub and the local Forgejo remote:
   - `1463854` — Secure Firebase and QuickBooks operations
   - `f5da7a1` — Configure Firestore rules deployment
+  - `5f8a5f1` — Keep QuickBooks tokens server-side
+  - `4b1cf49` — Fix stylesheet import ordering
 
 ## Confirm on the next session
 
