@@ -1,4 +1,5 @@
 import { adminDb } from '../../lib/firebase-admin.js';
+import { qboEnvironment } from '../../lib/quickbooks-config.js';
 
 export default async function handler(req, res) {
   const { code, realmId, error, state } = req.query;
@@ -58,6 +59,7 @@ export default async function handler(req, res) {
       realmId,
       accessTokenExpiresAt: Date.now() + (tokenData.expires_in * 1000),
       refreshTokenExpiresAt: Date.now() + (tokenData.x_refresh_token_expires_in * 1000),
+      environment: qboEnvironment,
       connectedAt: new Date().toISOString(),
       status: 'connected'
     });

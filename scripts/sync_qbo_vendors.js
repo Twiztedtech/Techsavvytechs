@@ -27,7 +27,7 @@ const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 // QuickBooks Config
 const accessToken = process.env.QBO_ACCESS_TOKEN;
 const realmId = process.env.QBO_REALM_ID;
-const isSandbox = true; // Set to false for production QBO API
+const isSandbox = process.env.QBO_ENVIRONMENT !== 'production';
 
 const qboBaseUrl = isSandbox
   ? `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`

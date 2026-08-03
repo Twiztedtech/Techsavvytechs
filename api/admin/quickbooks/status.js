@@ -1,4 +1,5 @@
 import { adminDb, requireAdmin } from '../../../lib/firebase-admin.js';
+import { qboEnvironment } from '../../../lib/quickbooks-config.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -12,6 +13,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       connected: data?.status === 'connected',
       realmId: data?.realmId || null,
+      environment: data?.environment || null,
+      configuredEnvironment: qboEnvironment,
     });
   } catch (error) {
     if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') {

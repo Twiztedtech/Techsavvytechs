@@ -1,4 +1,5 @@
 import { adminDb, requireAdmin } from './lib/firebase-admin.js';
+import { qboCompanyBaseUrl, qboEnvironment } from './lib/quickbooks-config.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -11,6 +12,12 @@ export default async function handler(req, res) {
     const qboSettingDoc = adminDb.collection('settings').doc('quickbooks');
     const qboSnap = await qboSettingDoc.get();
     const qboData = qboSnap.data();
+
+    if (qboData && qboData.environment !== qboEnvironment) {
+      return res.status(409).json({
+        error: `QuickBooks is connected to ${qboData.environment || 'an older, unknown'} environment. Disconnect it and reconnect to ${qboEnvironment}.`,
+      });
+    }
     let accessToken = qboData?.accessToken || process.env.QBO_ACCESS_TOKEN;
     const realmId = qboData?.realmId || process.env.QBO_REALM_ID;
 
@@ -53,9 +60,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const baseUrl = process.env.QBO_ENVIRONMENT === 'production'
-      ? `https://quickbooks.api.intuit.com/v3/company/${realmId}`
-      : `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`;
+    const baseUrl = qboCompanyBaseUrl(realmId);
     const query = encodeURIComponent('select * from Vendor maxresults 500');
     const response = await fetch(`${baseUrl}/query?query=${query}`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
