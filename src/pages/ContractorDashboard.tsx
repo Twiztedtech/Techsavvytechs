@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
@@ -18,6 +19,21 @@ export default function ContractorDashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
   const [loginPassword, setLoginPassword] = useState('••••••••');
+
+  useEffect(() => onAuthStateChanged(auth, async (user) => {
+    setIsAuthenticated(Boolean(user));
+    if (!user) return;
+    setLoginEmail(user.email || '');
+    let token = await user.getIdTokenResult();
+    if (token.claims.admin !== true) {
+      const response = await fetch('/api/admin/bootstrap', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+      });
+      if (response.ok) token = await user.getIdTokenResult(true);
+    }
+    setUserRole(token.claims.admin === true ? 'admin' : 'contractor');
+  }), []);
 
   // Password Reset Modal State
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -555,13 +571,13 @@ export default function ContractorDashboard() {
           </div>
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const code = Math.floor(100000 + Math.random() * 900000).toString();
-              setGeneratedMfaCode(code);
-              console.log("🔒 [Firebase MFA] Security verification code: " + code);
-              setMfaCodeInput('');
-              setIsMfaStep(true);
+              try {
+                await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+              } catch (error) {
+                alert(error instanceof Error ? error.message : 'Unable to sign in.');
+              }
             }}
             className="space-y-4"
           >
@@ -651,12 +667,16 @@ export default function ContractorDashboard() {
                 </div>
               ) : (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
                     setResetStatus('sending');
-                    setTimeout(() => {
+                    try {
+                      await sendPasswordResetEmail(auth, resetEmail);
                       setResetStatus('sent');
-                    }, 1000);
+                    } catch (error) {
+                      setResetStatus('idle');
+                      alert(error instanceof Error ? error.message : 'Unable to send the reset email.');
+                    }
                   }}
                   className="space-y-4"
                 >
@@ -711,7 +731,7 @@ export default function ContractorDashboard() {
           setSupportEmail(loginEmail || '');
           setIsSupportModalOpen(true);
         }}
-        onSignOut={() => setIsAuthenticated(false)}
+        onSignOut={() => void signOut(auth)}
       />
 
       {/* MAIN CONTAINER */}
