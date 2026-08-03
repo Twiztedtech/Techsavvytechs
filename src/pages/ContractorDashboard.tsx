@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
@@ -17,6 +17,7 @@ export default function ContractorDashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     setIsAuthenticated(Boolean(user));
@@ -507,8 +508,8 @@ export default function ContractorDashboard() {
             <div className="inline-block bg-amber-500 text-slate-950 font-black px-3 py-1 rounded text-sm tracking-tight mb-2">
               TECH SAVVY TECHS
             </div>
-            <h1 className="text-2xl font-black text-white">Contractor Portal</h1>
-            <p className="text-xs text-slate-400">Secure Industrial Infrastructure Login</p>
+            <h1 className="text-2xl font-black text-white">Log in to your account</h1>
+            <p className="text-xs text-slate-400">Use your work email or a connected sign-in provider.</p>
           </div>
 
           <form
@@ -523,7 +524,7 @@ export default function ContractorDashboard() {
             className="space-y-4"
           >
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Contractor Email</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Email address</label>
               <input
                 type="email"
                 value={loginEmail}
@@ -534,7 +535,7 @@ export default function ContractorDashboard() {
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold text-slate-300">Password</label>
+              <label className="block text-xs font-semibold text-slate-300">Password</label>
                 <button
                   type="button"
                   onClick={() => {
@@ -560,9 +561,47 @@ export default function ContractorDashboard() {
               type="submit"
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded text-sm transition shadow-lg shadow-amber-500/10"
             >
-              Sign In to Portal
+              Continue with Email
             </button>
           </form>
+
+          <div className="relative flex items-center py-1" aria-hidden="true">
+            <div className="flex-grow border-t border-slate-800" />
+            <span className="mx-4 text-[10px] font-bold tracking-[0.2em] text-slate-500">OR</span>
+            <div className="flex-grow border-t border-slate-800" />
+          </div>
+
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              disabled={isGoogleSigningIn}
+              onClick={async () => {
+                setIsGoogleSigningIn(true);
+                try {
+                  const provider = new GoogleAuthProvider();
+                  provider.setCustomParameters({ prompt: 'select_account' });
+                  await signInWithPopup(auth, provider);
+                } catch (error) {
+                  alert(error instanceof Error ? error.message : 'Unable to sign in with Google.');
+                } finally {
+                  setIsGoogleSigningIn(false);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-3 border border-slate-700 hover:border-amber-500/80 hover:bg-slate-800 disabled:opacity-60 text-slate-100 font-bold py-2.5 rounded text-sm transition"
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-xs font-black text-blue-600">G</span>
+              {isGoogleSigningIn ? 'Opening Google…' : 'Continue with Google'}
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Apple sign-in will be enabled after Apple account setup is complete."
+              className="w-full flex items-center justify-center gap-3 border border-slate-800 text-slate-500 font-bold py-2.5 rounded text-sm cursor-not-allowed"
+            >
+              <span className="text-base leading-none"></span>
+              Continue with Apple — coming soon
+            </button>
+          </div>
 
           <div className="text-center text-[11px] text-slate-500 border-t border-slate-800 pt-4">
             Protected by Firebase Authentication & Firestore Security Rules
