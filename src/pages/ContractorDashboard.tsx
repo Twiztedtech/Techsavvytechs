@@ -1736,6 +1736,20 @@ export default function ContractorDashboard() {
                       className="space-y-3"
                     >
                       <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assigned Technician</label>
+                        <select
+                          value={adminJobAssignedTech}
+                          onChange={(e) => setAdminJobAssignedTech(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="ALL">Anyone (All Techs)</option>
+                          {contractorsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Job Site Name *</label>
                         <input
                           type="text"
@@ -1755,20 +1769,6 @@ export default function ContractorDashboard() {
                           onChange={(e) => setAdminJobAddress(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
                         />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assigned Technician</label>
-                        <select
-                          value={adminJobAssignedTech}
-                          onChange={(e) => setAdminJobAssignedTech(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
-                        >
-                          <option value="ALL">Anyone (All Techs)</option>
-                          {contractorsList.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-                          ))}
-                        </select>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
