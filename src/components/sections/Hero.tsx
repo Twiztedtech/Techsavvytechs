@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Button } from '../ui/Button';
 import { ArrowRight, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Hero = () => {
   return (
@@ -33,13 +34,17 @@ export const Hero = () => {
           </p>
           
           <div className="flex flex-wrap gap-5">
-            <Button variant="orange" size="lg" className="group">
-              Request site survey
-              <ArrowRight className="w-4 h-4 ml-3 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button variant="glass" size="lg">
-              Our Capabilities
-            </Button>
+            <Link to="/contact">
+              <Button variant="orange" size="lg" className="group">
+                Request site survey
+                <ArrowRight className="w-4 h-4 ml-3 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <a href="#services">
+              <Button variant="glass" size="lg">
+                Our Capabilities
+              </Button>
+            </a>
           </div>
         </motion.div>
 
