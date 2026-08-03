@@ -38,10 +38,10 @@ export default function ContractorDashboard() {
   const [jobSitesList, setJobSitesList] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites');
     return saved ? JSON.parse(saved) : [
-      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly' },
-      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run' },
-      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels' },
-      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection' },
+      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly', hourlyRate: 75.00, travelRate: 35.00 },
+      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run', hourlyRate: 80.00, travelRate: 40.00 },
+      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels', hourlyRate: 85.00, travelRate: 50.00 },
+      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection', hourlyRate: 90.00, travelRate: 60.00 },
     ];
   });
 
@@ -55,8 +55,9 @@ export default function ContractorDashboard() {
   const [clockIn, setClockIn] = useState('07:00');
   const [clockOut, setClockOut] = useState('15:30');
   const [breakMinutes, setBreakMinutes] = useState(30);
-  const [contractorRate] = useState(75.00); // Admin-approved rate (read-only for tech)
+  const [contractorRate, setContractorRate] = useState(75.00); // Admin-approved rate (read-only for tech)
   const [suppliesCost, setSuppliesCost] = useState('0.00');
+  const [suppliesItems, setSuppliesItems] = useState([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
   const [travelCost, setTravelCost] = useState('0.00');
   const [notes, setNotes] = useState('');
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
@@ -73,11 +74,33 @@ export default function ContractorDashboard() {
   const [adminJobName, setAdminJobName] = useState('');
   const [adminJobAddress, setAdminJobAddress] = useState('');
   const [adminJobNotes, setAdminJobNotes] = useState('');
+  const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('75.00');
+  const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
   const [editingJobId, setEditingJobId] = useState(null);
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites_viewed_at');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Auto-fill contractor rates when selecting a predefined job site
+  useEffect(() => {
+    if (!isCustomJob) {
+      const job = jobSitesList.find(j => j.id === selectedJobId);
+      if (job) {
+        setContractorRate(job.hourlyRate !== undefined ? Number(job.hourlyRate) : 75.00);
+        setTravelCost(job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '0.00');
+      }
+    } else {
+      setContractorRate(75.00);
+      setTravelCost('0.00');
+    }
+  }, [selectedJobId, isCustomJob, jobSitesList]);
+
+  // Dynamically calculate supplies total cost based on item list
+  useEffect(() => {
+    const total = suppliesItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+    setSuppliesCost(total.toFixed(2));
+  }, [suppliesItems]);
 
   // Calendar Popover Modal State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -369,6 +392,7 @@ export default function ContractorDashboard() {
       totalHours: calculatedHours,
       rate: Number(contractorRate),
       suppliesCost: Number(suppliesCost || 0),
+      suppliesItems: suppliesItems.filter(item => item.description.trim() !== '' || item.cost.trim() !== ''),
       travelCost: Number(travelCost || 0),
       laborStatus: 'pending',
       suppliesStatus: 'pending',
@@ -386,7 +410,9 @@ export default function ContractorDashboard() {
         id: `j-${Date.now().toString().slice(-4)}`,
         name: customJobSite,
         address: customJobAddress || 'Site Location Unspecified',
-        notes: 'User added custom job site'
+        notes: 'User added custom job site',
+        hourlyRate: Number(contractorRate),
+        travelRate: Number(travelCost || 0)
       };
       setJobSitesList(prev => [...prev, newJobObj]);
       setSelectedJobId(newJobObj.id);
@@ -397,6 +423,7 @@ export default function ContractorDashboard() {
 
     setNotes('');
     setSuppliesCost('0.00');
+    setSuppliesItems([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
     setTravelCost('0.00');
     setUploadedPhotos([]);
     setActiveInvoice(newEntry);
@@ -1069,26 +1096,77 @@ export default function ContractorDashboard() {
                       </div>
                     </div>
 
-                    {/* EXPENSES & REIMBURSEMENTS SECTION (SUPPLIES & TRAVEL) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          📦 Supplies & Materials Purchased ($)
+                     {/* EXPENSES & REIMBURSEMENTS SECTION (SUPPLIES & TRAVEL) */}
+                    <div className="space-y-4 pt-2">
+                      <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <label className="block text-xs font-bold text-slate-300">
+                          📦 Supplies & Materials Purchases (Receipt Itemization)
                         </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={suppliesCost}
-                          onChange={(e) => setSuppliesCost(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                        />
-                        <span className="text-[10px] text-slate-500">Hardware, conduit, fittings, patch cords, etc.</span>
+                        
+                        <div className="space-y-2">
+                          {suppliesItems.map((item, index) => (
+                            <div key={item.id} className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                placeholder="e.g., 2x Junction Box, 50ft CAT6"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const updated = [...suppliesItems];
+                                  updated[index].description = e.target.value;
+                                  setSuppliesItems(updated);
+                                }}
+                                className="flex-grow bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                              />
+                              <div className="relative w-28 shrink-0">
+                                <span className="absolute left-2 top-1.5 text-[10px] text-slate-500">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={item.cost}
+                                  onChange={(e) => {
+                                    const updated = [...suppliesItems];
+                                    updated[index].cost = e.target.value;
+                                    setSuppliesItems(updated);
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded pl-5 pr-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                                />
+                              </div>
+                              {suppliesItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSuppliesItems(suppliesItems.filter(x => x.id !== item.id));
+                                  }}
+                                  className="p-1.5 bg-red-950/40 hover:bg-red-900/60 border border-red-900/40 text-red-400 rounded transition cursor-pointer"
+                                  title="Delete Item"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-800/60">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSuppliesItems([...suppliesItems, { id: `supply-${Date.now()}-${suppliesItems.length}`, description: '', cost: '' }]);
+                            }}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold rounded text-[10px] transition cursor-pointer"
+                          >
+                            + Add Line Item
+                          </button>
+                          <span className="text-xs font-mono font-bold text-slate-400">
+                            Supplies Total: <span className="text-amber-500">${Number(suppliesCost).toFixed(2)}</span>
+                          </span>
+                        </div>
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          🚗 Travel & Mileage Cost ($)
+                          🚗 Travel, Gas & Mileage Allowance ($)
                         </label>
                         <input
                           type="number"
@@ -1098,7 +1176,7 @@ export default function ContractorDashboard() {
                           onChange={(e) => setTravelCost(e.target.value)}
                           className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
                         />
-                        <span className="text-[10px] text-slate-500">Site travel allowance, toll fees, or mileage</span>
+                        <span className="text-[10px] text-slate-500 block mt-1">Pre-filled from the job site profile. You can override if travel duration changed.</span>
                       </div>
                     </div>
 
@@ -1505,8 +1583,27 @@ export default function ContractorDashboard() {
                             {/* LINE ITEM 2: SUPPLIES */}
                             <td className="p-3 bg-slate-950/30">
                               <div className="font-mono text-slate-200 font-semibold">${totals.supplies.toFixed(2)}</div>
-                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.supplies.toFixed(2)}</div>
-                              <div className="flex gap-1">
+                              
+                              {/* Display supply items if present */}
+                              {((entry.suppliesItems && entry.suppliesItems.length > 0) || (entry.suppliesCost > 0)) && (
+                                <div className="text-[10px] text-slate-500 font-mono space-y-0.5 my-1 max-w-[150px] truncate">
+                                  {entry.suppliesItems && entry.suppliesItems.length > 0 ? (
+                                    entry.suppliesItems.map((item, idx) => (
+                                      <div key={idx} className="flex justify-between gap-1 truncate">
+                                        <span className="truncate">↳ {item.description || 'Supply'}</span>
+                                        <span className="shrink-0 font-bold text-slate-400">${Number(item.cost || 0).toFixed(0)}</span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="flex justify-between gap-1 font-mono">
+                                      <span>↳ General</span>
+                                      <span className="font-bold text-slate-400">${Number(entry.suppliesCost || 0).toFixed(0)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex gap-1 mt-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')}
@@ -1597,7 +1694,15 @@ export default function ContractorDashboard() {
                           setJobSitesList(prev =>
                             prev.map(job =>
                               job.id === editingJobId
-                                ? { ...job, name: adminJobName, address: adminJobAddress || 'Address on file', notes: adminJobNotes || 'Site instructions unspecified', updatedAt: nowStr }
+                                ? { 
+                                    ...job, 
+                                    name: adminJobName, 
+                                    address: adminJobAddress || 'Address on file', 
+                                    notes: adminJobNotes || 'Site instructions unspecified',
+                                    hourlyRate: Number(adminJobHourlyRate || 0),
+                                    travelRate: Number(adminJobTravelRate || 0),
+                                    updatedAt: nowStr 
+                                  }
                                 : job
                             )
                           );
@@ -1608,6 +1713,8 @@ export default function ContractorDashboard() {
                             name: adminJobName,
                             address: adminJobAddress || 'Address on file',
                             notes: adminJobNotes || 'Site instructions unspecified',
+                            hourlyRate: Number(adminJobHourlyRate || 0),
+                            travelRate: Number(adminJobTravelRate || 0),
                             updatedAt: nowStr
                           };
                           setJobSitesList(prev => [...prev, newJob]);
@@ -1615,6 +1722,8 @@ export default function ContractorDashboard() {
                         setAdminJobName('');
                         setAdminJobAddress('');
                         setAdminJobNotes('');
+                        setAdminJobHourlyRate('75.00');
+                        setAdminJobTravelRate('35.00');
                       }}
                       className="space-y-3"
                     >
@@ -1639,6 +1748,34 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
                         />
                       </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Labor Rate ($/hr) *</label>
+                          <input
+                            type="number"
+                            required
+                            step="0.01"
+                            placeholder="75.00"
+                            value={adminJobHourlyRate}
+                            onChange={(e) => setAdminJobHourlyRate(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Travel Rate ($) *</label>
+                          <input
+                            type="number"
+                            required
+                            step="0.01"
+                            placeholder="35.00"
+                            value={adminJobTravelRate}
+                            onChange={(e) => setAdminJobTravelRate(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                          />
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Instructions / Notes</label>
                         <textarea
@@ -1658,6 +1795,8 @@ export default function ContractorDashboard() {
                               setAdminJobName('');
                               setAdminJobAddress('');
                               setAdminJobNotes('');
+                              setAdminJobHourlyRate('75.00');
+                              setAdminJobTravelRate('35.00');
                             }}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
                           >
@@ -1684,6 +1823,7 @@ export default function ContractorDashboard() {
                         <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
                           <tr>
                             <th className="p-3">Job Site / Project</th>
+                            <th className="p-3">Rates</th>
                             <th className="p-3">Address</th>
                             <th className="p-3">Instructions / Notes</th>
                             <th className="p-3 text-right">Actions</th>
@@ -1693,6 +1833,10 @@ export default function ContractorDashboard() {
                           {jobSitesList.map((job) => (
                             <tr key={job.id} className={`hover:bg-slate-950/40 ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
                               <td className="p-3 font-semibold text-slate-100">{job.name}</td>
+                              <td className="p-3 font-mono text-[11px] space-y-0.5">
+                                <div className="text-slate-200">🛠️ Labor: <span className="text-amber-400 font-bold">${job.hourlyRate !== undefined ? Number(job.hourlyRate).toFixed(2) : '75.00'}/hr</span></div>
+                                <div className="text-slate-400">🚗 Travel: <span className="text-slate-300">${job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '35.00'}</span></div>
+                              </td>
                               <td className="p-3 text-slate-400 font-mono text-[11px]">{job.address}</td>
                               <td className="p-3 text-slate-400">{job.notes}</td>
                               <td className="p-3 text-right space-x-2">
@@ -1703,6 +1847,8 @@ export default function ContractorDashboard() {
                                     setAdminJobName(job.name);
                                     setAdminJobAddress(job.address);
                                     setAdminJobNotes(job.notes);
+                                    setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
+                                    setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
                                   }}
                                   className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
@@ -1716,6 +1862,8 @@ export default function ContractorDashboard() {
                                       setAdminJobName('');
                                       setAdminJobAddress('');
                                       setAdminJobNotes('');
+                                      setAdminJobHourlyRate('75.00');
+                                      setAdminJobTravelRate('35.00');
                                     }
                                     setJobSitesList(prev => prev.filter(item => item.id !== job.id));
                                   }}
@@ -1934,21 +2082,42 @@ export default function ContractorDashboard() {
               </div>
 
               {/* LINE ITEM 2: SUPPLIES */}
-              <div className="flex justify-between text-xs py-1 border-b border-slate-900">
-                <div>
-                  <p className="font-semibold text-slate-200">2. Supplies & Materials</p>
-                  <p className="text-[10px] text-slate-400">Hardware & job site materials purchased</p>
+              <div className="py-1 border-b border-slate-900">
+                <div className="flex justify-between text-xs">
+                  <div>
+                    <p className="font-semibold text-slate-200">2. Supplies & Materials</p>
+                    <p className="text-[10px] text-slate-400">Hardware & job site materials purchased</p>
+                  </div>
+                  <div className="text-right font-mono font-bold">
+                    <span className={activeInvoice.suppliesStatus === 'rejected' ? 'line-through text-slate-500' : 'text-slate-100'}>
+                      ${getEntryTotals(activeInvoice).supplies.toFixed(2)}
+                    </span>
+                    <span className={`block text-[9px] uppercase font-bold ${
+                      activeInvoice.suppliesStatus === 'approved' ? 'text-green-400' : activeInvoice.suppliesStatus === 'rejected' ? 'text-red-400' : 'text-amber-400'
+                    }`}>
+                      {activeInvoice.suppliesStatus}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right font-mono font-bold">
-                  <span className={activeInvoice.suppliesStatus === 'rejected' ? 'line-through text-slate-500' : 'text-slate-100'}>
-                    ${getEntryTotals(activeInvoice).supplies.toFixed(2)}
-                  </span>
-                  <span className={`block text-[9px] uppercase font-bold ${
-                    activeInvoice.suppliesStatus === 'approved' ? 'text-green-400' : activeInvoice.suppliesStatus === 'rejected' ? 'text-red-400' : 'text-amber-400'
-                  }`}>
-                    {activeInvoice.suppliesStatus}
-                  </span>
-                </div>
+
+                {/* dynamic supplies breakdown list */}
+                {((activeInvoice.suppliesItems && activeInvoice.suppliesItems.length > 0) || (activeInvoice.suppliesCost > 0)) && (
+                  <div className="mt-2 pl-3 border-l border-slate-800 space-y-1 text-[10px]">
+                    {activeInvoice.suppliesItems && activeInvoice.suppliesItems.length > 0 ? (
+                      activeInvoice.suppliesItems.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-slate-400 font-mono">
+                          <span>↳ {item.description || 'Unnamed Supply Item'}</span>
+                          <span>${Number(item.cost || 0).toFixed(2)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex justify-between text-slate-400 font-mono">
+                        <span>↳ General Supplies</span>
+                        <span>${Number(activeInvoice.suppliesCost || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* LINE ITEM 3: TRAVEL */}
