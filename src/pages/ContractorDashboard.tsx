@@ -40,11 +40,6 @@ export default function ContractorDashboard() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
 
-  // MFA State
-  const [isMfaStep, setIsMfaStep] = useState(false);
-  const [mfaCodeInput, setMfaCodeInput] = useState('');
-  const [generatedMfaCode, setGeneratedMfaCode] = useState('');
-
   // Support Tickets State
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
     const saved = localStorage.getItem('tst_support_tickets');
@@ -107,7 +102,11 @@ export default function ContractorDashboard() {
   });
   // Listen to QuickBooks OAuth settings
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || userRole !== 'admin') {
+      setQboConnected(false);
+      setQboRealmId('');
+      return;
+    }
     const unsubscribe = onSnapshot(doc(db, 'settings', 'quickbooks'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -119,7 +118,7 @@ export default function ContractorDashboard() {
       }
     });
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   // Handle QuickBooks Connection Redirect Params
   useEffect(() => {
@@ -268,7 +267,7 @@ export default function ContractorDashboard() {
   }, [activeShift.isClockedIn]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || userRole !== 'admin') return;
     const unsubscribe = onSnapshot(collection(db, 'contractors'), (snapshot) => {
       const list = [];
       snapshot.forEach((doc) => {
@@ -279,7 +278,7 @@ export default function ContractorDashboard() {
       }
     });
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   useEffect(() => {
     localStorage.setItem('tst_job_sites', JSON.stringify(jobSitesList));
@@ -494,71 +493,6 @@ export default function ContractorDashboard() {
   };
 
   if (!isAuthenticated) {
-    if (isMfaStep) {
-      return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
-            <div className="text-center space-y-2">
-              <div className="inline-block bg-green-500/10 text-green-400 border border-green-500/20 font-bold px-3 py-0.5 rounded text-[10px] tracking-wider uppercase mb-2">
-                🔒 Firebase MFA Secured
-              </div>
-              <h1 className="text-2xl font-black text-white">Security Verification</h1>
-              <p className="text-xs text-slate-400">
-                A verification code has been dispatched. Enter the 6-digit code below to authorize this session.
-              </p>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (mfaCodeInput === generatedMfaCode) {
-                  setIsAuthenticated(true);
-                  setIsMfaStep(false);
-                } else {
-                  alert('Invalid verification code. Please try again.');
-                }
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 text-center font-mono">6-Digit Verification Code</label>
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  placeholder="e.g. 123456"
-                  value={mfaCodeInput}
-                  onChange={(e) => setMfaCodeInput(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-center text-lg font-mono tracking-[0.5em] text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-                <p className="text-[10px] text-slate-500 text-center mt-2 font-mono">
-                  * For test environments, the secure verification code has been printed to your **Developer Console** (Press <kbd className="bg-slate-800 px-1 rounded text-slate-300">F12</kbd> &rarr; Console).
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg text-xs transition uppercase cursor-pointer"
-              >
-                Verify & Log In
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMfaStep(false);
-                  setMfaCodeInput('');
-                }}
-                className="w-full text-xs text-slate-400 hover:text-white underline text-center block cursor-pointer"
-              >
-                Back to Login
-              </button>
-            </form>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
@@ -1934,12 +1868,26 @@ export default function ContractorDashboard() {
                         🔌 Disconnect
                       </button>
                     ) : (
-                      <a
-                        href="/api/auth/quickbooks"
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const idToken = await auth.currentUser?.getIdToken();
+                            const response = await fetch('/api/auth/quickbooks', {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${idToken}` },
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'Could not start QuickBooks connection.');
+                            window.location.assign(data.authorizationUrl);
+                          } catch (err) {
+                            alert('QuickBooks connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                          }
+                        }}
                         className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-green-600/20 cursor-pointer"
                       >
                         🔗 Connect to QuickBooks
-                      </a>
+                      </button>
                     )}
 
                     <button
@@ -1948,7 +1896,11 @@ export default function ContractorDashboard() {
                       onClick={async () => {
                         setIsSyncing(true);
                         try {
-                          const res = await fetch('/api/sync-vendors', { method: 'POST' });
+                          const idToken = await auth.currentUser?.getIdToken();
+                          const res = await fetch('/api/sync-vendors', {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${idToken}` },
+                          });
                           const data = await res.json();
                           if (data.success) {
                             alert(data.message);

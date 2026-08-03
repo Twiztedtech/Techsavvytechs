@@ -2,26 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Phone, MapPin, Send, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-  }
-}
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -32,62 +12,26 @@ const Contact = () => {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
-    const errInfo: FirestoreErrorInfo = {
-      error: error instanceof Error ? error.message : String(error),
-      authInfo: {
-        userId: null // Public form, no auth
-      },
-      operationType,
-      path
-    };
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
-    throw new Error(JSON.stringify(errInfo));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('submitting');
     setErrorMessage('');
 
     try {
-      const path = 'contacts';
-      // 1. Save the contact record
-      await addDoc(collection(db, path), {
-        ...formData,
-        createdAt: serverTimestamp()
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-
-      // 2. Trigger the email notification
-      // Replace 'willjac1@gmail.com' with your preferred notification email if different
-      await addDoc(collection(db, 'mail'), {
-        to: 'willjac1@gmail.com',
-        message: {
-          subject: `New Contact Submission from ${formData.name}`,
-          text: `You have a new message from your website.\n\nName: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`,
-          html: `
-            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-              <h2 style="color: #ff5722;">New Website Lead</h2>
-              <p><strong>Name:</strong> ${formData.name}</p>
-              <p><strong>Email:</strong> ${formData.email}</p>
-              <hr />
-              <p><strong>Message:</strong></p>
-              <p style="white-space: pre-wrap;">${formData.message}</p>
-            </div>
-          `,
-        }
-      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to send your message.');
 
       setStatus('success');
       setFormData({ name: '', email: '', message: '' });
     } catch (error) {
       console.error("Submission error:", error);
       setStatus('error');
-      try {
-        handleFirestoreError(error, OperationType.CREATE, 'contacts');
-      } catch (err) {
-        if (err instanceof Error) setErrorMessage(err.message);
-      }
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to send your message.');
     }
   };
 

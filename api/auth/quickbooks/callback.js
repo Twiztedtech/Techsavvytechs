@@ -1,17 +1,20 @@
-import fs from 'fs';
-import path from 'path';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { adminDb } from '../../lib/firebase-admin.js';
 
 export default async function handler(req, res) {
-  const { code, realmId, error } = req.query;
+  const { code, realmId, error, state } = req.query;
 
   if (error) {
     return res.redirect(`/contractor/dashboard?qbo_connect=error&details=${encodeURIComponent(error)}`);
   }
 
-  if (!code || !realmId) {
-    return res.status(400).json({ error: 'Missing code or realmId query parameters.' });
+  const expectedState = req.headers.cookie
+    ?.split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith('qbo_oauth_state='))
+    ?.slice('qbo_oauth_state='.length);
+
+  if (!code || !realmId || !state || state !== expectedState) {
+    return res.status(400).json({ error: 'QuickBooks authorization could not be verified. Please start the connection again.' });
   }
 
   const clientId = process.env.QBO_CLIENT_ID;
@@ -21,8 +24,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'QBO client credentials are not configured in environment variables.' });
   }
 
-  const protocol = req.headers.host.includes('localhost') ? 'http' : 'https';
-  const redirectUri = `${protocol}://${req.headers.host}/api/auth/quickbooks/callback`;
+  const appUrl = process.env.APP_URL?.replace(/\/$/, '');
+  if (!appUrl) {
+    return res.status(500).json({ error: 'APP_URL is not configured on the server.' });
+  }
+  const redirectUri = `${appUrl}/api/auth/quickbooks/callback`;
 
   try {
     // Exchange Auth Code for Access/Refresh Tokens
@@ -46,20 +52,7 @@ export default async function handler(req, res) {
 
     const tokenData = await tokenResponse.json();
 
-    // Load Firebase Config
-    const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (!fs.existsSync(firebaseConfigPath)) {
-      return res.status(500).json({ error: 'Firebase config file not found.' });
-    }
-    const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
-
-    // Initialize Firebase & Firestore
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-    // Save tokens in Firestore setting document
-    const qboSettingDoc = doc(db, 'settings', 'quickbooks');
-    await setDoc(qboSettingDoc, {
+    await adminDb.collection('settings').doc('quickbooks').set({
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       realmId,
@@ -68,11 +61,12 @@ export default async function handler(req, res) {
       connectedAt: new Date().toISOString(),
       status: 'connected'
     });
+    res.setHeader('Set-Cookie', 'qbo_oauth_state=; HttpOnly; SameSite=Lax; Path=/api/auth/quickbooks; Max-Age=0; Secure');
 
     // Redirect user back to the contractor dashboard with a success flag
     return res.redirect(`/contractor/dashboard?qbo_connect=success&realmId=${realmId}`);
   } catch (err) {
     console.error('QBO Callback Exception:', err);
-    return res.status(500).json({ error: `Internal Server Error: ${err.message}` });
+    return res.status(500).json({ error: 'QuickBooks connection could not be completed.' });
   }
 }
