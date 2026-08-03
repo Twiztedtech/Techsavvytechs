@@ -81,7 +81,10 @@ export default function ContractorDashboard() {
   const [editingJobId, setEditingJobId] = useState(null);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
-
+  const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
+    const saved = localStorage.getItem('tst_job_sites_viewed_at');
+    return saved ? JSON.parse(saved) : {};
+  });
   // Listen to QuickBooks OAuth settings
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'quickbooks'), (snapshot) => {
