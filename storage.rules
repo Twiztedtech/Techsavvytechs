@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+
+    // Admins upload work-order documents. Signed-in field technicians can open them.
+    match /work-order-documents/{jobId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin()
+        && request.resource.size < 25 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+  }
+}

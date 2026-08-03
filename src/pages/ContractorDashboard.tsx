@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { auth, db, storage } from '../lib/firebase';
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
@@ -96,12 +97,41 @@ export default function ContractorDashboard() {
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
   const [adminJobAssignedTech, setAdminJobAssignedTech] = useState('ALL');
   const [editingJobId, setEditingJobId] = useState(null);
+  const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
+  const [isSavingJob, setIsSavingJob] = useState(false);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites_viewed_at');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Work orders are shared through Firestore so admins and signed-in technicians
+  // see the same job details on every device. Local storage remains an offline
+  // fallback for the original demo work orders until an admin saves them.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    return onSnapshot(collection(db, 'jobs'), (snapshot) => {
+      if (!snapshot.empty) {
+        setJobSitesList(snapshot.docs.map((job) => ({ id: job.id, ...job.data() })));
+      }
+    }, (error) => console.error('Could not load shared work orders:', error));
+  }, [isAuthenticated]);
+
+  const uploadWorkOrderDocuments = async (jobId: string, files: File[]) => {
+    return Promise.all(files.map(async (file) => {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const fileRef = ref(storage, `work-order-documents/${jobId}/${Date.now()}-${safeName}`);
+      await uploadBytes(fileRef, file, { contentType: file.type || 'application/octet-stream' });
+      return {
+        name: file.name,
+        url: await getDownloadURL(fileRef),
+        size: file.size,
+        contentType: file.type || 'Document',
+        uploadedAt: new Date().toISOString(),
+      };
+    }));
+  };
   // Query the server for QuickBooks status; tokens never enter the browser.
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'admin') {
@@ -945,6 +975,28 @@ export default function ContractorDashboard() {
                             <span className="text-slate-400 block font-semibold uppercase tracking-wider text-[10px]">Site Instructions / Notes:</span>
                             <p className="text-slate-200 leading-relaxed font-mono">{selectedJobObj.notes || 'No special instructions recorded.'}</p>
                           </div>
+
+                          <div className="p-3 rounded-lg text-xs space-y-2 bg-slate-950/40 border border-slate-800">
+                            <span className="text-slate-400 block font-semibold uppercase tracking-wider text-[10px]">Work Order Documents</span>
+                            {selectedJobObj.attachments?.length ? (
+                              <div className="space-y-1.5">
+                                {selectedJobObj.attachments.map((attachment) => (
+                                  <a
+                                    key={attachment.url}
+                                    href={attachment.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between gap-3 rounded border border-slate-700 px-2.5 py-2 text-slate-200 hover:border-amber-500 hover:text-amber-300 transition"
+                                  >
+                                    <span className="truncate">📎 {attachment.name}</span>
+                                    <span className="shrink-0 text-[10px] text-slate-500">Open ↗</span>
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-slate-500">No documents attached to this work order.</p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1654,48 +1706,48 @@ export default function ContractorDashboard() {
                       <span>{editingJobId ? '📝' : '➕'}</span> {editingJobId ? 'Edit Job Site' : 'Add New Job Site'}
                     </h3>
                     <form
-                      onSubmit={(e) => {
+                      onSubmit={async (e) => {
                         e.preventDefault();
                         if (!adminJobName) return;
                         const nowStr = new Date().toISOString();
-
-                        if (editingJobId) {
-                          setJobSitesList(prev =>
-                            prev.map(job =>
-                              job.id === editingJobId
-                                ? { 
-                                    ...job, 
-                                    name: adminJobName, 
-                                    address: adminJobAddress || 'Address on file', 
-                                    notes: adminJobNotes || 'Site instructions unspecified',
-                                    hourlyRate: Number(adminJobHourlyRate || 0),
-                                    travelRate: Number(adminJobTravelRate || 0),
-                                    assignedTechId: adminJobAssignedTech,
-                                    updatedAt: nowStr 
-                                  }
-                                : job
-                            )
-                          );
-                          setEditingJobId(null);
-                        } else {
-                          const newJob = {
-                            id: `j-${Date.now().toString().slice(-4)}`,
+                        const jobId = editingJobId || `j-${Date.now().toString().slice(-6)}`;
+                        const existingJob = jobSitesList.find((job) => job.id === jobId);
+                        setIsSavingJob(true);
+                        try {
+                          const newAttachments = adminJobFiles.length
+                            ? await uploadWorkOrderDocuments(jobId, adminJobFiles)
+                            : [];
+                          const job = {
+                            ...existingJob,
+                            id: jobId,
                             name: adminJobName,
                             address: adminJobAddress || 'Address on file',
                             notes: adminJobNotes || 'Site instructions unspecified',
                             hourlyRate: Number(adminJobHourlyRate || 0),
                             travelRate: Number(adminJobTravelRate || 0),
                             assignedTechId: adminJobAssignedTech,
-                            updatedAt: nowStr
+                            attachments: [...(existingJob?.attachments || []), ...newAttachments],
+                            updatedAt: nowStr,
                           };
-                          setJobSitesList(prev => [...prev, newJob]);
+                          await setDoc(doc(db, 'jobs', jobId), job);
+                          setJobSitesList((previous) => {
+                            const exists = previous.some((item) => item.id === jobId);
+                            return exists ? previous.map((item) => item.id === jobId ? job : item) : [...previous, job];
+                          });
+                          setEditingJobId(null);
+                          setAdminJobName('');
+                          setAdminJobAddress('');
+                          setAdminJobNotes('');
+                          setAdminJobHourlyRate('75.00');
+                          setAdminJobTravelRate('35.00');
+                          setAdminJobAssignedTech('ALL');
+                          setAdminJobFiles([]);
+                        } catch (error) {
+                          console.error('Could not save work order:', error);
+                          alert('The work order could not be saved. Confirm Firebase Storage is enabled and the latest Firebase rules are published.');
+                        } finally {
+                          setIsSavingJob(false);
                         }
-                        setAdminJobName('');
-                        setAdminJobAddress('');
-                        setAdminJobNotes('');
-                        setAdminJobHourlyRate('75.00');
-                        setAdminJobTravelRate('35.00');
-                        setAdminJobAssignedTech('ALL');
                       }}
                       className="space-y-3"
                     >
@@ -1772,6 +1824,18 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
                         />
                       </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Work Order Documents</label>
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.doc,.docx,.txt,image/*"
+                          onChange={(e) => setAdminJobFiles(Array.from(e.target.files || []))}
+                          className="w-full text-[11px] text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-slate-800 file:px-2.5 file:py-1.5 file:text-xs file:font-bold file:text-amber-400 hover:file:bg-slate-700"
+                        />
+                        <p className="mt-1 text-[10px] text-slate-500">PDF, Word, text, or image files; up to 25 MB each. Uploads become available to signed-in technicians.</p>
+                        {adminJobFiles.length > 0 && <p className="mt-1 text-[10px] text-amber-400">{adminJobFiles.length} document{adminJobFiles.length === 1 ? '' : 's'} ready to upload.</p>}
+                      </div>
                       <div className="flex gap-2">
                         {editingJobId && (
                           <button
@@ -1784,6 +1848,7 @@ export default function ContractorDashboard() {
                               setAdminJobHourlyRate('75.00');
                               setAdminJobTravelRate('35.00');
                               setAdminJobAssignedTech('ALL');
+                              setAdminJobFiles([]);
                             }}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
                           >
@@ -1792,9 +1857,10 @@ export default function ContractorDashboard() {
                         )}
                         <button
                           type="submit"
-                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
+                          disabled={isSavingJob}
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60 text-slate-950 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
                         >
-                          {editingJobId ? 'Update Job Site' : 'Create Job Site'}
+                          {isSavingJob ? 'Saving Work Order…' : editingJobId ? 'Update Job Site' : 'Create Job Site'}
                         </button>
                       </div>
                     </form>
@@ -1831,7 +1897,10 @@ export default function ContractorDashboard() {
                                 <div className="text-slate-400">🚗 Travel: <span className="text-slate-300">${job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '35.00'}</span></div>
                               </td>
                               <td className="p-3 text-slate-400 font-mono text-[11px]">{job.address}</td>
-                              <td className="p-3 text-slate-400">{job.notes}</td>
+                              <td className="p-3 text-slate-400">
+                                <div>{job.notes}</div>
+                                {job.attachments?.length > 0 && <div className="mt-1 text-[10px] text-amber-400">📎 {job.attachments.length} document{job.attachments.length === 1 ? '' : 's'}</div>}
+                              </td>
                               <td className="p-3 text-right space-x-2">
                                 <button
                                   type="button"
@@ -1843,6 +1912,7 @@ export default function ContractorDashboard() {
                                     setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
                                     setAdminJobAssignedTech(job.assignedTechId || 'ALL');
+                                    setAdminJobFiles([]);
                                   }}
                                   className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
                                 >

@@ -31,7 +31,15 @@ export const NavItem: React.FC<NavItemProps> = ({ label, href, children }) => {
   );
 
   return (
-    <div className="relative h-full flex items-center">
+    <div
+      className="relative h-full flex items-center"
+      onMouseEnter={() => children && setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onFocus={() => children && setIsOpen(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setIsOpen(false);
+      }}
+    >
       {children ? (
         <button
           type="button"

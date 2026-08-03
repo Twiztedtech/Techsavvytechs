@@ -27,7 +27,10 @@ service cloud.firestore {
 
     // Job Sites
     match /jobs/{jobId} {
-      allow read, write: if isAdmin();
+      // Signed-in technicians can read their work-order details and attachments.
+      // Writes stay limited to the administrator account.
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     // Contractor Onboarding & Profiles
