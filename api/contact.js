@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   try {
     await adminDb.collection('contacts').add({ name, email, message, createdAt });
     await adminDb.collection('mail').add({
-      to: process.env.CONTACT_RECIPIENT_EMAIL || process.env.INITIAL_ADMIN_EMAIL,
+      to: process.env.CONTACT_RECIPIENT_EMAIL || 'support@techsavvytechs.com',
       message: {
         subject: `New website contact from ${name}`,
         text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,

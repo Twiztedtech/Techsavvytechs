@@ -16,10 +16,10 @@ export const Footer = () => {
             From the data center to the device, we ensure your tech is an asset, not a burden.
           </p>
           <div className="flex gap-4">
-            <a href="mailto:contact@techsavvytechs.com" className="p-3 glass-card rounded-sm text-slate-400 hover:text-tech-green hover:border-tech-green/50 transition-all">
+            <a href="mailto:support@techsavvytechs.com" aria-label="Email TechSavvy support" className="p-3 glass-card rounded-sm text-slate-400 hover:text-tech-green hover:border-tech-green/50 transition-all">
               <Mail className="w-5 h-5" />
             </a>
-            <a href="tel:7075558324" className="p-3 glass-card rounded-sm text-slate-400 hover:text-tech-green hover:border-tech-green/50 transition-all">
+            <a href="tel:+17076536702" aria-label="Call TechSavvy at 707-653-6702" className="p-3 glass-card rounded-sm text-slate-400 hover:text-tech-green hover:border-tech-green/50 transition-all">
               <Phone className="w-5 h-5" />
             </a>
           </div>

@@ -60,7 +60,7 @@ const Contact = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest leading-none mb-1">Response Line</p>
-                  <p className="text-lg font-bold text-brand-white uppercase leading-none">(707) 555-TECH</p>
+                  <a href="tel:+17076536702" className="text-lg font-bold text-brand-white uppercase leading-none hover:text-tech-green transition-colors">(707) 653-6702</a>
                 </div>
               </div>
 
@@ -70,7 +70,7 @@ const Contact = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest leading-none mb-1">Direct Email</p>
-                  <p className="text-lg font-bold text-brand-white uppercase leading-none">ops@techsavvy.io</p>
+                  <a href="mailto:support@techsavvytechs.com" className="text-lg font-bold text-brand-white uppercase leading-none hover:text-tech-green transition-colors">support@techsavvytechs.com</a>
                 </div>
               </div>
 

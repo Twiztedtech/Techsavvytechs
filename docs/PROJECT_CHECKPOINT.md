@@ -21,7 +21,7 @@ Last updated: 2026-08-03
 
 1. Confirm Vercel has `APP_URL` set to the production website URL. QuickBooks authorization uses it for its callback URL.
 2. Sign out and back into the portal, then confirm the administrator dashboard and QuickBooks vendor sync work.
-3. Submit a contact-form test and confirm delivery to `will.jackson@techsavvytechs.com` (or the configured `CONTACT_RECIPIENT_EMAIL`).
+3. Submit a contact-form test and confirm delivery to `support@techsavvytechs.com` (or the configured `CONTACT_RECIPIENT_EMAIL`).
 4. Publish the latest `firestore.rules` revision, which denies all browser access to `settings` and keeps QuickBooks OAuth tokens server-only.
 
 ## Next development milestone

@@ -33,8 +33,8 @@ export const ContactCTA = () => {
               <Phone className="w-4 h-4 text-tech-green" />
               <span>Direct Link</span>
             </div>
-            <a href="tel:7075558324" className="text-slate-500 font-mono text-xs hover:text-tech-green transition-colors leading-none tracking-widest">
-              (707) 555-TECH
+            <a href="tel:+17076536702" className="text-slate-500 font-mono text-xs hover:text-tech-green transition-colors leading-none tracking-widest">
+              (707) 653-6702
             </a>
           </div>
         </div>
