@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket } from '../features/contractor/types';
@@ -13,16 +13,17 @@ export default function ContractorDashboard() {
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
-  const [contractorsList, setContractorsList] = useState([
-    { id: 'qbo-1', name: 'Sinatra Monroe', email: 'contractor@techsavvytechs.com', rate: 75.00, status: 'Active', qboVendorId: '1' }
-  ]);
+  const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('contractor@techsavvytechs.com');
-  const [loginPassword, setLoginPassword] = useState('••••••••');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     setIsAuthenticated(Boolean(user));
-    if (!user) return;
+    if (!user) {
+      setUserRole('contractor');
+      return;
+    }
     setLoginEmail(user.email || '');
     let token = await user.getIdTokenResult();
     if (token.claims.admin !== true) {
@@ -100,24 +101,30 @@ export default function ContractorDashboard() {
     const saved = localStorage.getItem('tst_job_sites_viewed_at');
     return saved ? JSON.parse(saved) : {};
   });
-  // Listen to QuickBooks OAuth settings
+  // Query the server for QuickBooks status; tokens never enter the browser.
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'admin') {
       setQboConnected(false);
       setQboRealmId('');
       return;
     }
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'quickbooks'), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        setQboConnected(data.status === 'connected');
+    const loadStatus = async () => {
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        const response = await fetch('/api/admin/quickbooks/status', {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!response.ok) throw new Error('Could not load QuickBooks status.');
+        const data = await response.json();
+        setQboConnected(data.connected === true);
         setQboRealmId(data.realmId || '');
-      } else {
+      } catch (error) {
+        console.error('QuickBooks status check failed:', error);
         setQboConnected(false);
         setQboRealmId('');
       }
-    });
-    return () => unsubscribe();
+    };
+    void loadStatus();
   }, [isAuthenticated, userRole]);
 
   // Handle QuickBooks Connection Redirect Params
@@ -1856,10 +1863,18 @@ export default function ContractorDashboard() {
                         onClick={async () => {
                           if (confirm('Are you sure you want to disconnect QuickBooks? This will remove the authentication tokens.')) {
                             try {
-                              await deleteDoc(doc(db, 'settings', 'quickbooks'));
+                              const idToken = await auth.currentUser?.getIdToken();
+                              const response = await fetch('/api/admin/quickbooks/disconnect', {
+                                method: 'DELETE',
+                                headers: { Authorization: `Bearer ${idToken}` },
+                              });
+                              const data = await response.json();
+                              if (!response.ok) throw new Error(data.error || 'Could not disconnect QuickBooks.');
+                              setQboConnected(false);
+                              setQboRealmId('');
                               alert('QuickBooks disconnected successfully.');
                             } catch (err) {
-                              alert('Failed to disconnect: ' + err.message);
+                              alert('Failed to disconnect: ' + (err instanceof Error ? err.message : 'Unknown error'));
                             }
                           }
                         }}

@@ -7,7 +7,7 @@ Last updated: 2026-08-03
 - Firebase email/password authentication is the portal login mechanism.
 - `will.jackson@techsavvytechs.com` is bootstrapped as the initial administrator through a Firebase custom claim.
 - The old simulated six-digit login screen was removed.
-- QuickBooks credentials are handled by server-side Firebase Admin code and are protected by administrator access.
+- QuickBooks credentials are handled by server-side Firebase Admin code. The dashboard retrieves only connection status and never receives OAuth tokens.
 - QuickBooks vendor sync now requires an authenticated administrator token.
 - Contact submissions go through `/api/contact`; the browser no longer writes directly to `contacts` or `mail`.
 - Firestore rules were prepared, validated, and published manually in the Firebase Console for database `ai-studio-83a5034b-71ea-4903-9fe1-2934593887b1`.
@@ -20,7 +20,7 @@ Last updated: 2026-08-03
 1. Confirm Vercel has `APP_URL` set to the production website URL. QuickBooks authorization uses it for its callback URL.
 2. Sign out and back into the portal, then confirm the administrator dashboard and QuickBooks vendor sync work.
 3. Submit a contact-form test and confirm delivery to `will.jackson@techsavvytechs.com` (or the configured `CONTACT_RECIPIENT_EMAIL`).
-4. Confirm the Firestore Rules page shows the published administrator-only rules.
+4. Publish the latest `firestore.rules` revision, which denies all browser access to `settings` and keeps QuickBooks OAuth tokens server-only.
 
 ## Next development milestone
 
