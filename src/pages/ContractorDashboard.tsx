@@ -38,10 +38,10 @@ export default function ContractorDashboard() {
   const [jobSitesList, setJobSitesList] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites');
     return saved ? JSON.parse(saved) : [
-      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly', hourlyRate: 75.00, travelRate: 35.00 },
-      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run', hourlyRate: 80.00, travelRate: 40.00 },
-      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels', hourlyRate: 85.00, travelRate: 50.00 },
-      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection', hourlyRate: 90.00, travelRate: 60.00 },
+      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly', hourlyRate: 75.00, travelRate: 35.00, assignedTechId: 'ALL' },
+      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run', hourlyRate: 80.00, travelRate: 40.00, assignedTechId: 'qbo-1' },
+      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels', hourlyRate: 85.00, travelRate: 50.00, assignedTechId: 'qbo-1' },
+      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection', hourlyRate: 90.00, travelRate: 60.00, assignedTechId: 'ALL' },
     ];
   });
 
@@ -76,6 +76,7 @@ export default function ContractorDashboard() {
   const [adminJobNotes, setAdminJobNotes] = useState('');
   const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('75.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
+  const [adminJobAssignedTech, setAdminJobAssignedTech] = useState('ALL');
   const [editingJobId, setEditingJobId] = useState(null);
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
     const saved = localStorage.getItem('tst_job_sites_viewed_at');
@@ -888,7 +889,11 @@ export default function ContractorDashboard() {
                           }}
                           className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
                         >
-                          {jobSitesList.map((site) => (
+                          {jobSitesList.filter(job => 
+                            !job.assignedTechId || 
+                            job.assignedTechId === 'ALL' || 
+                            job.assignedTechId === contractorsList.find(c => c.email === loginEmail)?.id
+                          ).map((site) => (
                             <option key={site.id} value={site.id} className="bg-slate-900 text-slate-100 py-1">
                               {site.name}
                             </option>
@@ -1701,6 +1706,7 @@ export default function ContractorDashboard() {
                                     notes: adminJobNotes || 'Site instructions unspecified',
                                     hourlyRate: Number(adminJobHourlyRate || 0),
                                     travelRate: Number(adminJobTravelRate || 0),
+                                    assignedTechId: adminJobAssignedTech,
                                     updatedAt: nowStr 
                                   }
                                 : job
@@ -1715,6 +1721,7 @@ export default function ContractorDashboard() {
                             notes: adminJobNotes || 'Site instructions unspecified',
                             hourlyRate: Number(adminJobHourlyRate || 0),
                             travelRate: Number(adminJobTravelRate || 0),
+                            assignedTechId: adminJobAssignedTech,
                             updatedAt: nowStr
                           };
                           setJobSitesList(prev => [...prev, newJob]);
@@ -1724,6 +1731,7 @@ export default function ContractorDashboard() {
                         setAdminJobNotes('');
                         setAdminJobHourlyRate('75.00');
                         setAdminJobTravelRate('35.00');
+                        setAdminJobAssignedTech('ALL');
                       }}
                       className="space-y-3"
                     >
@@ -1749,6 +1757,20 @@ export default function ContractorDashboard() {
                         />
                       </div>
                       
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assigned Technician</label>
+                        <select
+                          value={adminJobAssignedTech}
+                          onChange={(e) => setAdminJobAssignedTech(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="ALL">Anyone (All Techs)</option>
+                          {contractorsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">Labor Rate ($/hr) *</label>
@@ -1797,6 +1819,7 @@ export default function ContractorDashboard() {
                               setAdminJobNotes('');
                               setAdminJobHourlyRate('75.00');
                               setAdminJobTravelRate('35.00');
+                              setAdminJobAssignedTech('ALL');
                             }}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
                           >
@@ -1823,6 +1846,7 @@ export default function ContractorDashboard() {
                         <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
                           <tr>
                             <th className="p-3">Job Site / Project</th>
+                            <th className="p-3">Assigned Tech</th>
                             <th className="p-3">Rates</th>
                             <th className="p-3">Address</th>
                             <th className="p-3">Instructions / Notes</th>
@@ -1833,6 +1857,11 @@ export default function ContractorDashboard() {
                           {jobSitesList.map((job) => (
                             <tr key={job.id} className={`hover:bg-slate-950/40 ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
                               <td className="p-3 font-semibold text-slate-100">{job.name}</td>
+                              <td className="p-3 font-semibold text-slate-300 text-[11px]">
+                                {job.assignedTechId === 'ALL' || !job.assignedTechId 
+                                  ? 'Anyone (All Techs)' 
+                                  : (contractorsList.find(c => c.id === job.assignedTechId)?.name || job.assignedTechId)}
+                              </td>
                               <td className="p-3 font-mono text-[11px] space-y-0.5">
                                 <div className="text-slate-200">🛠️ Labor: <span className="text-amber-400 font-bold">${job.hourlyRate !== undefined ? Number(job.hourlyRate).toFixed(2) : '75.00'}/hr</span></div>
                                 <div className="text-slate-400">🚗 Travel: <span className="text-slate-300">${job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '35.00'}</span></div>
@@ -1849,6 +1878,7 @@ export default function ContractorDashboard() {
                                     setAdminJobNotes(job.notes);
                                     setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
+                                    setAdminJobAssignedTech(job.assignedTechId || 'ALL');
                                   }}
                                   className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
@@ -1864,6 +1894,7 @@ export default function ContractorDashboard() {
                                       setAdminJobNotes('');
                                       setAdminJobHourlyRate('75.00');
                                       setAdminJobTravelRate('35.00');
+                                      setAdminJobAssignedTech('ALL');
                                     }
                                     setJobSitesList(prev => prev.filter(item => item.id !== job.id));
                                   }}
