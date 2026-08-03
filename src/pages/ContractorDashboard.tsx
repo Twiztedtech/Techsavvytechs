@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
+import type { SupportTicket } from '../features/contractor/types';
+import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
+import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 
 
 export default function ContractorDashboard() {
   // Authentication & View State
-  const [userRole, setUserRole] = useState('contractor'); // 'contractor' | 'admin'
+  const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
   const [contractorsList, setContractorsList] = useState([
@@ -26,7 +30,7 @@ export default function ContractorDashboard() {
   const [generatedMfaCode, setGeneratedMfaCode] = useState('');
 
   // Support Tickets State
-  const [supportTickets, setSupportTickets] = useState(() => {
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
     const saved = localStorage.getItem('tst_support_tickets');
     return saved ? JSON.parse(saved) : [];
   });
@@ -206,25 +210,6 @@ export default function ContractorDashboard() {
     ];
   });
 
-  const getEntryTotals = (entry) => {
-    const labor = (Number(entry.totalHours || 0) * (entry.rate || 75));
-    const supplies = Number(entry.suppliesCost || 0);
-    const travel = Number(entry.travelCost || 0);
-    
-    // Approved-only calculations
-    const approvedLabor = entry.laborStatus === 'approved' ? labor : 0;
-    const approvedSupplies = entry.suppliesStatus === 'approved' ? supplies : 0;
-    const approvedTravel = entry.travelStatus === 'approved' ? travel : 0;
-
-    return {
-      labor,
-      supplies,
-      travel,
-      totalGross: labor + supplies + travel,
-      totalApproved: approvedLabor + approvedSupplies + approvedTravel
-    };
-  };
-
   const totalLifetimeHours = timeEntries
     .reduce((acc, curr) => acc + Number(curr.totalHours || 0), 0)
     .toFixed(2);
@@ -243,11 +228,6 @@ export default function ContractorDashboard() {
 
   // Active Job Details
   const selectedJobObj = jobSitesList.find(j => j.id === selectedJobId) || jobSitesList[0];
-
-  // Helper for Google Maps Link
-  const getGoogleMapsUrl = (address) => {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  };
 
   // Filtered History Entries
   const filteredHistoryEntries = timeEntries.filter(entry => {
@@ -300,13 +280,6 @@ export default function ContractorDashboard() {
   useEffect(() => {
     localStorage.setItem('tst_support_tickets', JSON.stringify(supportTickets));
   }, [supportTickets]);
-
-  const formatElapsed = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const handleStartShift = () => {
     const now = new Date();
@@ -406,8 +379,8 @@ export default function ContractorDashboard() {
     );
   };
 
-  const handlePhotoUpload = (e) => {
-    const files = Array.from(e.target.files);
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.currentTarget.files ?? []) as File[];
     const filePreviews = files.map(file => URL.createObjectURL(file));
     setUploadedPhotos(prev => [...prev, ...filePreviews]);
   };
@@ -730,61 +703,16 @@ export default function ContractorDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* HEADER BAR */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-amber-500 text-slate-950 font-black px-2.5 py-1 rounded text-base tracking-tighter">
-              TST
-            </div>
-            <div>
-              <h1 className="font-bold text-sm leading-none text-slate-100">TECH SAVVY TECHS</h1>
-              <span className="text-[10px] uppercase font-semibold text-amber-500 tracking-wider">Industrial Contractor Portal</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            {/* ROLE TOGGLE */}
-            <div className="bg-slate-950 border border-slate-800 rounded p-1 flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setUserRole('contractor')}
-                className={`px-3 py-1 rounded text-xs font-bold transition ${userRole === 'contractor' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
-              >
-                Contractor Mode
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRole('admin')}
-                className={`px-3 py-1 rounded text-xs font-bold transition ${userRole === 'admin' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
-              >
-                Admin Mode
-              </button>
-            </div>
-
-            <button
-               type="button"
-               onClick={() => {
-                 setSupportSubject('QuickBooks Sync Error');
-                 setSupportEmail(loginEmail || '');
-                 setIsSupportModalOpen(true);
-               }}
-               className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/30 text-amber-400 rounded font-semibold transition cursor-pointer flex items-center gap-1"
-             >
-               <span>📞</span>
-               <span>Contact Admin</span>
-             </button>
-
-             <button
-               type="button"
-               onClick={() => setIsAuthenticated(false)}
-               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold transition cursor-pointer"
-             >
-               Sign Out
-             </button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader
+        role={userRole}
+        onRoleChange={setUserRole}
+        onContactAdmin={() => {
+          setSupportSubject('QuickBooks Sync Error');
+          setSupportEmail(loginEmail || '');
+          setIsSupportModalOpen(true);
+        }}
+        onSignOut={() => setIsAuthenticated(false)}
+      />
 
       {/* MAIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
@@ -2292,101 +2220,23 @@ export default function ContractorDashboard() {
         </div>
       )}
 
-      {/* SUPPORT / REPORT SYNC ERROR TICKET MODAL */}
-      {isSupportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100 space-y-4">
-            <div className="flex justify-between items-start border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
-                  <span>🛠️</span> Support & Sync Ticket
-                </h3>
-                <p className="text-xs text-slate-400">Submit error logs or request help from administrative support.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSupportModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const newTicket = {
-                  id: `ticket-${Date.now().toString().slice(-4)}`,
-                  subject: supportSubject,
-                  message: supportMessage,
-                  email: supportEmail || loginEmail || 'anonymous@techsavvytechs.com',
-                  timestamp: new Date().toLocaleString(),
-                  status: 'Open'
-                };
-                setSupportTickets(prev => [...prev, newTicket]);
-                setSupportMessage('');
-                setIsSupportModalOpen(false);
-                alert(`Support ticket #${newTicket.id} created successfully! The system administrator has been notified.`);
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Issue Category *</label>
-                <select
-                  value={supportSubject}
-                  onChange={(e) => setSupportSubject(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
-                >
-                  <option value="QuickBooks Sync Error">QuickBooks Sync Error (Credentials/API)</option>
-                  <option value="Timesheet Log Issue">Timesheet / Shift Logging Issue</option>
-                  <option value="Portal UI Display Error">Portal UI / Feature Display Issue</option>
-                  <option value="General Admin Question">General Administrative Inquiry</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Contact Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="support@techsavvytechs.com"
-                  value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Error Message / Problem Description *</label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Describe the issue, including error messages..."
-                  value={supportMessage}
-                  onChange={(e) => setSupportMessage(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSupportModalOpen(false)}
-                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition cursor-pointer"
-                >
-                  Submit Ticket
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SupportTicketModal
+        isOpen={isSupportModalOpen}
+        defaultEmail={loginEmail}
+        subject={supportSubject}
+        message={supportMessage}
+        email={supportEmail}
+        onClose={() => setIsSupportModalOpen(false)}
+        onSubjectChange={setSupportSubject}
+        onMessageChange={setSupportMessage}
+        onEmailChange={setSupportEmail}
+        onSubmit={(ticket) => {
+          setSupportTickets((currentTickets) => [...currentTickets, ticket]);
+          setSupportMessage('');
+          setIsSupportModalOpen(false);
+          alert(`Support ticket #${ticket.id} created successfully! The system administrator has been notified.`);
+        }}
+      />
     </div>
   );
 }
