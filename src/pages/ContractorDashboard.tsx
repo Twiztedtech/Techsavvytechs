@@ -104,6 +104,13 @@ export default function ContractorDashboard() {
   const [adminJobName, setAdminJobName] = useState('');
   const [adminJobAddress, setAdminJobAddress] = useState('');
   const [adminJobNotes, setAdminJobNotes] = useState('');
+  const [adminJobWorkOrderNumber, setAdminJobWorkOrderNumber] = useState(() => `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`);
+  const [adminJobVendorName, setAdminJobVendorName] = useState('');
+  const [adminJobSiteContact, setAdminJobSiteContact] = useState('');
+  const [adminJobDateIssued, setAdminJobDateIssued] = useState(() => new Date().toISOString().slice(0, 10));
+  const [adminJobTargetCompletion, setAdminJobTargetCompletion] = useState('');
+  const [adminJobTechnicianLeadId, setAdminJobTechnicianLeadId] = useState('');
+  const [adminJobWorkOrderTemplate, setAdminJobWorkOrderTemplate] = useState<'general' | 'nextivity' | 'security' | 'low-voltage' | 'network'>('general');
   const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('75.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
   const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
@@ -130,6 +137,24 @@ export default function ContractorDashboard() {
     return assignedIds
       .map((id) => contractorsList.find((contractor) => contractor.id === id)?.name || id)
       .join(', ');
+  };
+
+  const resetWorkOrderForm = () => {
+    setEditingJobId(null);
+    setAdminJobName('');
+    setAdminJobAddress('');
+    setAdminJobNotes('');
+    setAdminJobWorkOrderNumber(`WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`);
+    setAdminJobVendorName('');
+    setAdminJobSiteContact('');
+    setAdminJobDateIssued(new Date().toISOString().slice(0, 10));
+    setAdminJobTargetCompletion('');
+    setAdminJobTechnicianLeadId('');
+    setAdminJobWorkOrderTemplate('general');
+    setAdminJobHourlyRate('75.00');
+    setAdminJobTravelRate('35.00');
+    setAdminJobAssignedTechIds(['ALL']);
+    setAdminJobFiles([]);
   };
 
   // Work orders are shared through Firestore so admins and signed-in technicians
@@ -1753,6 +1778,13 @@ export default function ContractorDashboard() {
                             name: adminJobName,
                             address: adminJobAddress || 'Address on file',
                             notes: adminJobNotes || 'Site instructions unspecified',
+                            workOrderNumber: adminJobWorkOrderNumber,
+                            vendorName: adminJobVendorName,
+                            siteContact: adminJobSiteContact,
+                            dateIssued: adminJobDateIssued,
+                            targetCompletion: adminJobTargetCompletion,
+                            technicianLeadId: adminJobTechnicianLeadId,
+                            workOrderTemplate: adminJobWorkOrderTemplate,
                             hourlyRate: Number(adminJobHourlyRate || 0),
                             travelRate: Number(adminJobTravelRate || 0),
                             // Keep the original single-value field for backward
@@ -1769,14 +1801,7 @@ export default function ContractorDashboard() {
                             const exists = previous.some((item) => item.id === jobId);
                             return exists ? previous.map((item) => item.id === jobId ? job : item) : [...previous, job];
                           });
-                          setEditingJobId(null);
-                          setAdminJobName('');
-                          setAdminJobAddress('');
-                          setAdminJobNotes('');
-                          setAdminJobHourlyRate('75.00');
-                          setAdminJobTravelRate('35.00');
-                          setAdminJobAssignedTechIds(['ALL']);
-                          setAdminJobFiles([]);
+                          resetWorkOrderForm();
                         } catch (error) {
                           console.error('Could not save work order:', error);
                           alert('The work order could not be saved. Confirm Firebase Storage is enabled and the latest Firebase rules are published.');
@@ -1786,6 +1811,83 @@ export default function ContractorDashboard() {
                       }}
                       className="space-y-3"
                     >
+                      <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-green-400">Work Order Details</span>
+                          <span className="text-[10px] text-slate-500">Used for the signed customer PDF</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Work Order #</label>
+                            <input
+                              type="text"
+                              required
+                              value={adminJobWorkOrderNumber}
+                              onChange={(e) => setAdminJobWorkOrderNumber(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Work Order Type</label>
+                            <select
+                              value={adminJobWorkOrderTemplate}
+                              onChange={(e) => setAdminJobWorkOrderTemplate(e.target.value as typeof adminJobWorkOrderTemplate)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500"
+                            >
+                              <option value="general">General field service</option>
+                              <option value="nextivity">Nextivity / Cel-Fi</option>
+                              <option value="security">Security cameras</option>
+                              <option value="low-voltage">Low-voltage cabling</option>
+                              <option value="network">Network / Wi-Fi</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Vendor / Customer</label>
+                          <input
+                            list="work-order-vendors"
+                            placeholder="Choose a past vendor or enter a new one"
+                            value={adminJobVendorName}
+                            onChange={(e) => setAdminJobVendorName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500"
+                          />
+                          <datalist id="work-order-vendors">
+                            {[...new Set(jobSitesList.map((job) => job.vendorName).filter(Boolean))].map((vendor) => <option key={vendor} value={vendor} />)}
+                          </datalist>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Site Contact</label>
+                          <input
+                            list="work-order-contacts"
+                            placeholder="Name, phone, or email"
+                            value={adminJobSiteContact}
+                            onChange={(e) => setAdminJobSiteContact(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500"
+                          />
+                          <datalist id="work-order-contacts">
+                            {[...new Set(jobSitesList.map((job) => job.siteContact).filter(Boolean))].map((contact) => <option key={contact} value={contact} />)}
+                          </datalist>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Date Issued</label>
+                            <input type="date" required value={adminJobDateIssued} onChange={(e) => setAdminJobDateIssued(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Target Completion</label>
+                            <input type="date" value={adminJobTargetCompletion} onChange={(e) => setAdminJobTargetCompletion(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Technician Lead</label>
+                          <select value={adminJobTechnicianLeadId} onChange={(e) => setAdminJobTechnicianLeadId(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500">
+                            <option value="">Choose a technician lead</option>
+                            {contractorsList
+                              .filter((contractor) => adminJobAssignedTechIds.includes('ALL') || adminJobAssignedTechIds.includes(contractor.id))
+                              .map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assign Technicians</label>
                         <div className="rounded border border-slate-800 bg-slate-900 divide-y divide-slate-800 max-h-48 overflow-y-auto">
@@ -1898,14 +2000,7 @@ export default function ContractorDashboard() {
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingJobId(null);
-                              setAdminJobName('');
-                              setAdminJobAddress('');
-                              setAdminJobNotes('');
-                              setAdminJobHourlyRate('75.00');
-                              setAdminJobTravelRate('35.00');
-                              setAdminJobAssignedTechIds(['ALL']);
-                              setAdminJobFiles([]);
+                              resetWorkOrderForm();
                             }}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
                           >
@@ -1964,6 +2059,13 @@ export default function ContractorDashboard() {
                                     setAdminJobName(job.name);
                                     setAdminJobAddress(job.address);
                                     setAdminJobNotes(job.notes);
+                                    setAdminJobWorkOrderNumber(job.workOrderNumber || `WO-${new Date().getFullYear()}-${job.id.replace(/[^0-9]/g, '').slice(-5)}`);
+                                    setAdminJobVendorName(job.vendorName || '');
+                                    setAdminJobSiteContact(job.siteContact || '');
+                                    setAdminJobDateIssued(job.dateIssued || new Date().toISOString().slice(0, 10));
+                                    setAdminJobTargetCompletion(job.targetCompletion || '');
+                                    setAdminJobTechnicianLeadId(job.technicianLeadId || '');
+                                    setAdminJobWorkOrderTemplate(job.workOrderTemplate || 'general');
                                     setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
                                     setAdminJobAssignedTechIds(getAssignedTechIds(job));
@@ -1977,13 +2079,7 @@ export default function ContractorDashboard() {
                                   type="button"
                                   onClick={() => {
                                     if (editingJobId === job.id) {
-                                      setEditingJobId(null);
-                                      setAdminJobName('');
-                                      setAdminJobAddress('');
-                                      setAdminJobNotes('');
-                                      setAdminJobHourlyRate('75.00');
-                                      setAdminJobTravelRate('35.00');
-                                      setAdminJobAssignedTechIds(['ALL']);
+                                      resetWorkOrderForm();
                                     }
                                     setJobSitesList(prev => prev.filter(item => item.id !== job.id));
                                   }}

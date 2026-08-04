@@ -29,6 +29,13 @@ export interface JobSite {
   notes: string;
   hourlyRate: number;
   travelRate: number;
+  workOrderNumber?: string;
+  vendorName?: string;
+  siteContact?: string;
+  dateIssued?: string;
+  targetCompletion?: string;
+  technicianLeadId?: string;
+  workOrderTemplate?: 'general' | 'nextivity' | 'security' | 'low-voltage' | 'network';
   // assignedTechId is retained for existing work orders. New work orders use
   // assignedTechIds so one job can be shared with several technicians.
   assignedTechId?: string;
