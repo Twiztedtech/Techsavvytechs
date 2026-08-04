@@ -22,6 +22,7 @@ export default function ContractorDashboard() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -57,28 +58,17 @@ export default function ContractorDashboard() {
   const [resetStatus, setResetStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
 
   // Support Tickets State
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
-    const saved = localStorage.getItem('tst_support_tickets');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [supportSubject, setSupportSubject] = useState('QuickBooks Sync Error');
   const [supportMessage, setSupportMessage] = useState('');
   const [supportEmail, setSupportEmail] = useState('');
 
-  // Pre-loaded Job Sites with Address info for Google Maps Directions
-  const [jobSitesList, setJobSitesList] = useState(() => {
-    const saved = localStorage.getItem('tst_job_sites');
-    return saved ? JSON.parse(saved) : [
-      { id: 'j-101', name: 'Mars Davis - High Voltage', address: '1200 Industrial Pkwy, Fairfield, CA 94533', notes: 'High voltage junction box assembly', hourlyRate: 75.00, travelRate: 35.00, assignedTechId: 'ALL' },
-      { id: 'j-102', name: 'Substation Alpha - Conduit Run', address: '450 Energy Way, Sacramento, CA 95814', notes: 'North wall conduit run', hourlyRate: 80.00, travelRate: 40.00, assignedTechId: 'qbo-1' },
-      { id: 'j-103', name: 'Data Center B - Fiber Racks', address: '880 Silicon Blvd, San Jose, CA 95131', notes: 'Rack 4 patch panels', hourlyRate: 85.00, travelRate: 50.00, assignedTechId: 'qbo-1' },
-      { id: 'j-104', name: 'Solar Array Site 4 - Inverters', address: '3100 Sun Valley Rd, Fresno, CA 93706', notes: 'Inverter bank inspection', hourlyRate: 90.00, travelRate: 60.00, assignedTechId: 'ALL' },
-    ];
-  });
+  // Production work orders are loaded from Firestore. Never show seeded demo jobs.
+  const [jobSitesList, setJobSitesList] = useState([]);
 
   // Time Logger Form State
-  const [selectedJobId, setSelectedJobId] = useState('j-101');
+  const [selectedJobId, setSelectedJobId] = useState('');
   const [customJobSite, setCustomJobSite] = useState('');
   const [customJobAddress, setCustomJobAddress] = useState('');
   const [isCustomJob, setIsCustomJob] = useState(false);
@@ -123,10 +113,7 @@ export default function ContractorDashboard() {
   const [previewJob, setPreviewJob] = useState(null);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
-  const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
-    const saved = localStorage.getItem('tst_job_sites_viewed_at');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [jobSitesViewedAt, setJobSitesViewedAt] = useState({});
 
   const getAssignedTechIds = (job) => {
     if (Array.isArray(job.assignedTechIds) && job.assignedTechIds.length > 0) {
@@ -162,8 +149,7 @@ export default function ContractorDashboard() {
   };
 
   // Work orders are shared through Firestore so admins and signed-in technicians
-  // see the same job details on every device. Local storage remains an offline
-  // fallback for the original demo work orders until an admin saves them.
+  // see the same job details on every device.
   useEffect(() => {
     if (!isAuthenticated) return;
     return onSnapshot(collection(db, 'jobs'), (snapshot) => {
@@ -171,6 +157,36 @@ export default function ContractorDashboard() {
         setJobSitesList(snapshot.docs.map((job) => ({ id: job.id, ...job.data() })));
       }
     }, (error) => console.error('Could not load shared work orders:', error));
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (jobSitesList.length > 0 && !jobSitesList.some((job) => job.id === selectedJobId)) {
+      setSelectedJobId(jobSitesList[0].id);
+    }
+  }, [jobSitesList, selectedJobId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const loadTimeClock = async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const response = await fetch('/api/portal/time-clock', { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Could not load time entries.');
+        const data = await response.json();
+        if (cancelled) return;
+        setTimeEntries(data.entries || []);
+        setAssignedJobIds(data.assignedJobIds || []);
+        if (data.activeEntry) {
+          const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
+          setActiveShift({ isClockedIn: true, startTime: data.activeEntry.clockIn, jobName: data.activeEntry.jobSite, elapsedSeconds: Math.max(0, Math.floor((Date.now() - started) / 1000)) });
+        }
+      } catch (error) {
+        console.error('Could not load production time clock:', error);
+      }
+    };
+    void loadTimeClock();
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   const uploadWorkOrderDocuments = async (jobId: string, files: File[]) => {
@@ -256,7 +272,6 @@ export default function ContractorDashboard() {
 
   // QuickBooks & Invoice Review Modal State
   const [activeInvoice, setActiveInvoice] = useState(null);
-  const [qbSyncStatus, setQbSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced'
 
   // Admin Selection for Batch Approvals / Rejections
   const [selectedEntryIds, setSelectedEntryIds] = useState([]);
@@ -267,56 +282,7 @@ export default function ContractorDashboard() {
   const [historyFilterStatus, setHistoryFilterStatus] = useState('ALL');
 
   // Submissions Data
-  const [timeEntries, setTimeEntries] = useState(() => {
-    const saved = localStorage.getItem('tst_time_entries');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'te-101',
-        jobSite: 'Substation Alpha - Conduit Run',
-        address: '450 Energy Way, Sacramento, CA 95814',
-        date: '2026-07-31',
-        clockIn: '07:00',
-        clockOut: '15:30',
-        breakMinutes: 30,
-        totalHours: '8.00',
-        rate: 75.00,
-        suppliesCost: 45.50,
-        travelCost: 35.00,
-        laborStatus: 'approved',
-        suppliesStatus: 'approved',
-        travelStatus: 'approved',
-        notes: 'Completed conduit run on North wall and purchased 2x junction boxes.',
-        status: 'approved',
-        qbStatus: 'synced',
-        photos: [
-          'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=400&q=80',
-          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=400&q=80'
-        ],
-      },
-      {
-        id: 'te-102',
-        jobSite: 'Data Center B - Fiber Racks',
-        address: '880 Silicon Blvd, San Jose, CA 95131',
-        date: '2026-08-01',
-        clockIn: '08:00',
-        clockOut: '16:00',
-        breakMinutes: 30,
-        totalHours: '7.50',
-        rate: 85.00,
-        suppliesCost: 120.00,
-        travelCost: 50.00,
-        laborStatus: 'pending',
-        suppliesStatus: 'pending',
-        travelStatus: 'pending',
-        notes: 'Terminated fiber connections and purchased patch cords.',
-        status: 'pending',
-        qbStatus: 'pending',
-        photos: [
-          'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=400&q=80'
-        ],
-      }
-    ];
-  });
+  const [timeEntries, setTimeEntries] = useState([]);
 
   const totalLifetimeHours = timeEntries
     .reduce((acc, curr) => acc + Number(curr.totalHours || 0), 0)
@@ -373,42 +339,47 @@ export default function ContractorDashboard() {
     return () => unsubscribe();
   }, [isAuthenticated, userRole]);
 
+  // Clear browser-only sample data created by the early portal prototype.
+  // This deliberately leaves Firestore records and QuickBooks data untouched.
   useEffect(() => {
-    localStorage.setItem('tst_job_sites', JSON.stringify(jobSitesList));
-  }, [jobSitesList]);
+    ['tst_job_sites', 'tst_time_entries', 'tst_job_sites_viewed_at', 'tst_support_tickets'].forEach((key) => localStorage.removeItem(key));
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('tst_time_entries', JSON.stringify(timeEntries));
-  }, [timeEntries]);
-
-  useEffect(() => {
-    localStorage.setItem('tst_job_sites_viewed_at', JSON.stringify(jobSitesViewedAt));
-  }, [jobSitesViewedAt]);
-
-  useEffect(() => {
-    localStorage.setItem('tst_support_tickets', JSON.stringify(supportTickets));
-  }, [supportTickets]);
-
-  const handleStartShift = () => {
+  const handleStartShift = async () => {
     const now = new Date();
     const formattedTime = now.toTimeString().slice(0, 5);
-    const currentName = isCustomJob ? (customJobSite || 'Custom Job Site') : selectedJobObj.name;
+    const currentName = isCustomJob ? (customJobSite || 'Custom Job Site') : selectedJobObj?.name;
+    if (!currentName) {
+      alert('Choose an assigned work order before starting your shift.');
+      return;
+    }
 
-    setActiveShift({
-      isClockedIn: true,
-      startTime: formattedTime,
-      jobName: currentName,
-      elapsedSeconds: 0
-    });
-    setClockIn(formattedTime);
-    setLogDate(now.toISOString().split('T')[0]);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'start', jobId: selectedJobObj.id }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not start the time clock.');
+      setActiveShift({ isClockedIn: true, startTime: data.entry.clockIn, jobName: currentName, elapsedSeconds: 0 });
+      setClockIn(data.entry.clockIn || formattedTime);
+      setLogDate(now.toISOString().split('T')[0]);
+      setTimeEntries((current) => [data.entry, ...current]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not start the time clock.');
+    }
   };
 
-  const handleStopShift = () => {
-    const now = new Date();
-    const formattedTime = now.toTimeString().slice(0, 5);
-    setClockOut(formattedTime);
-    setActiveShift(prev => ({ ...prev, isClockedIn: false }));
+  const handleStopShift = async () => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'stop' }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not stop the time clock.');
+      setClockOut(data.entry.clockOut);
+      setActiveShift((current) => ({ ...current, isClockedIn: false }));
+      setTimeEntries((current) => current.map((entry) => entry.id === data.entry.id ? data.entry : entry));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not stop the time clock.');
+    }
   };
 
   const calculateHours = (start, end, breakMins) => {
@@ -456,7 +427,7 @@ export default function ContractorDashboard() {
               laborStatus: newStatus,
               suppliesStatus: newStatus,
               travelStatus: newStatus,
-              qbStatus: newStatus === 'approved' ? 'synced' : 'pending'
+              qbStatus: 'pending'
             }
           : entry
       )
@@ -476,7 +447,7 @@ export default function ContractorDashboard() {
         const statuses = [updated.laborStatus, updated.suppliesStatus, updated.travelStatus];
         if (statuses.every(s => s === 'approved')) {
           updated.status = 'approved';
-          updated.qbStatus = 'synced';
+          updated.qbStatus = 'pending';
         } else if (statuses.every(s => s === 'rejected')) {
           updated.status = 'rejected';
         } else {
@@ -495,8 +466,8 @@ export default function ContractorDashboard() {
 
   const handleSubmitLog = (e) => {
     e.preventDefault();
-    const finalJobName = isCustomJob ? customJobSite : selectedJobObj.name;
-    const finalAddress = isCustomJob ? customJobAddress : selectedJobObj.address;
+    const finalJobName = isCustomJob ? customJobSite : selectedJobObj?.name;
+    const finalAddress = isCustomJob ? customJobAddress : selectedJobObj?.address;
     if (!finalJobName) return;
 
     const newEntry = {
@@ -941,8 +912,7 @@ export default function ContractorDashboard() {
                         >
                           {jobSitesList.filter((job) => {
                             const assignedIds = getAssignedTechIds(job);
-                            const contractorId = contractorsList.find((contractor) => contractor.email === loginEmail)?.id;
-                            return assignedIds.includes('ALL') || assignedIds.includes(contractorId);
+                            return userRole === 'admin' || assignedIds.includes('ALL') || assignedJobIds.includes(job.id);
                           }).map((site) => (
                             <option key={site.id} value={site.id} className="bg-slate-900 text-slate-100 py-1">
                               {site.name}
@@ -980,7 +950,7 @@ export default function ContractorDashboard() {
                       )}
 
                       {/* GOOGLE MAPS ADDRESS LINK */}
-                      {!isCustomJob && selectedJobObj.address && (
+                      {!isCustomJob && selectedJobObj?.address && (
                         <div className="bg-slate-950/80 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs text-slate-300">
                           <div className="flex items-center gap-2 truncate mr-2">
                             <span className="text-amber-500">📍</span>
@@ -1397,7 +1367,7 @@ export default function ContractorDashboard() {
                             onClick={() => setActiveInvoice(entry)}
                             className="text-amber-400 hover:underline font-bold flex items-center gap-1"
                           >
-                            {entry.qbStatus === 'synced' ? '✓ QB Bill Synced' : 'Review QB Invoice'}
+                            Review time entry
                           </button>
                         </div>
                       </div>
@@ -1411,7 +1381,7 @@ export default function ContractorDashboard() {
                 <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-800 pb-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-100">Work & Earnings History Ledger</h3>
-                    <p className="text-xs text-slate-400">Complete itemized record of your submitted hours, supplies, travel reimbursements, and QuickBooks payout status.</p>
+                    <p className="text-xs text-slate-400">Complete itemized record of submitted hours, supplies, and travel reimbursements.</p>
                   </div>
 
                   {/* HISTORY FILTERS */}
@@ -1497,15 +1467,7 @@ export default function ContractorDashboard() {
                                 </span>
                               </td>
                               <td className="p-3">
-                                {entry.qbStatus === 'synced' ? (
-                                  <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-max">
-                                    ✓ Paid / QB Synced
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 w-max">
-                                    ⏳ Processing Payout
-                                  </span>
-                                )}
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 w-max">⏳ Accounting review</span>
                               </td>
                               <td className="p-3 text-right">
                                 <button
@@ -1635,7 +1597,7 @@ export default function ContractorDashboard() {
                         <th className="p-3">Item 2: Supplies</th>
                         <th className="p-3">Item 3: Travel</th>
                         <th className="p-3">Total Payable</th>
-                        <th className="p-3 text-right">QuickBooks Sync</th>
+                        <th className="p-3 text-right">Entry Review</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -1767,7 +1729,7 @@ export default function ContractorDashboard() {
                                 onClick={() => setActiveInvoice(entry)}
                                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded text-[11px] cursor-pointer"
                               >
-                                {entry.qbStatus === 'synced' ? 'QBO Bill ✓' : 'Sync QBO'}
+                                Review entry
                               </button>
                             </td>
                           </tr>
@@ -2406,7 +2368,7 @@ export default function ContractorDashboard() {
                 <h3 className="text-lg font-bold text-slate-100">{activeInvoice.jobSite}</h3>
               </div>
               <button 
-                onClick={() => { setActiveInvoice(null); setQbSyncStatus('idle'); }}
+                onClick={() => setActiveInvoice(null)}
                 className="text-slate-400 hover:text-white text-xl font-bold"
               >
                 ×
@@ -2509,33 +2471,16 @@ export default function ContractorDashboard() {
                 <div className="w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-400 font-black text-xs flex-shrink-0">
                   QB
                 </div>
-                <p>Antigravity's API will transmit a 3-line-item **Vendor Bill** to your QuickBooks Online account reflecting approved labor, supplies, and travel.</p>
+                <p>This is an internal review of submitted labor, supplies, and travel. QuickBooks bill posting is not enabled from this screen yet.</p>
               </div>
 
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => { setActiveInvoice(null); setQbSyncStatus('idle'); }}
+                  onClick={() => setActiveInvoice(null)}
                   className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition"
                 >
                   Close
-                </button>
-                <button
-                  type="button"
-                  disabled={qbSyncStatus === 'syncing' || activeInvoice.qbStatus === 'synced'}
-                  onClick={() => {
-                    setQbSyncStatus('syncing');
-                    setTimeout(() => {
-                      setQbSyncStatus('synced');
-                      setTimeEntries(timeEntries.map(e => e.id === activeInvoice.id ? { ...e, qbStatus: 'synced' } : e));
-                      setTimeout(() => setActiveInvoice(null), 1200);
-                    }, 1000);
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition flex items-center justify-center gap-2"
-                >
-                  {qbSyncStatus === 'syncing' ? 'Transmitting to QuickBooks...' : 
-                   activeInvoice.qbStatus === 'synced' || qbSyncStatus === 'synced' ? '✓ Synced to QuickBooks' : 
-                   'Send Bill to QuickBooks'}
                 </button>
               </div>
             </div>
