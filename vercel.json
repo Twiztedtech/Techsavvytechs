@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/portal/onboarding", "destination": "/api/portal/time-clock?portalOperation=onboarding" },
+    { "source": "/api/admin/contractors/onboarding", "destination": "/api/admin/contractors/invite?adminOperation=onboarding" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
