@@ -1,6 +1,6 @@
 # Contractor Portal Checkpoint
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 ## Completed
 
@@ -16,21 +16,27 @@ Last updated: 2026-08-03
   - `f5da7a1` — Configure Firestore rules deployment
   - `5f8a5f1` — Keep QuickBooks tokens server-side
   - `4b1cf49` — Fix stylesheet import ordering
+- Production QuickBooks is connected and vendor sync reads the production company. Sync removes only stale auto-created `qbo-*` vendor documents; manual contractor profiles are preserved.
+- Administrators can assign one job to multiple technicians, attach work-order documents, and preview the assigned technician experience.
+- Technicians can access assigned work orders, submitted documents, signed PDFs, per-day time entries, photos, and their agreed rate.
+- Contractor invitations use Firebase password-reset links generated server-side and a branded Resend email from `support@techsavvytechs.com`; Firebase's generic email template is no longer used.
+- The TechSavvy sending domain is verified in Resend. `support@techsavvytechs.com` is a Google Workspace alias that routes to the support inbox without a separate mailbox license.
+- Contact-form submissions are stored in Firestore and sent directly to the support inbox through Resend. The previous uninstalled Firebase email-extension dependency was removed.
+- Public navigation, client/contractor portal paths, phone number, support email, page-level metadata, robots file, and sitemap are current.
 
 ## Confirm on the next session
 
-1. Confirm Vercel has `APP_URL` set to the production website URL. QuickBooks authorization uses it for its callback URL.
-2. Sign out and back into the portal, then confirm the administrator dashboard and QuickBooks vendor sync work.
-3. Submit a contact-form test and confirm delivery to `support@techsavvytechs.com` (or the configured `CONTACT_RECIPIENT_EMAIL`).
-4. Publish the latest `firestore.rules` revision, which denies all browser access to `settings` and keeps QuickBooks OAuth tokens server-only.
+1. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock.
+2. Submit a contact-form test and confirm it arrives at `support@techsavvytechs.com` from the TechSavvy Resend sender.
+3. Keep Vercel `QBO_ENVIRONMENT=production`, `APP_URL=https://techsavvytechs.com`, and the Resend variables restricted to production.
+4. Before giving contractors broad access, publish the current Firestore and Storage rules and verify the assigned-work-order scope matches the intended access model.
 
 ## Next development milestone
 
-Move portal data from browser-local storage to secure, user-owned Firestore records:
+Complete contractor onboarding and operational hardening:
 
-- contractor profiles mapped to Firebase user IDs;
-- timesheets and job assignments tied to the logged-in contractor;
-- server-authorized photo uploads;
-- administrator approval and payroll/QuickBooks workflows.
-
-The current rules deliberately keep operational collections administrator-only until those per-user data models are implemented.
+- W-9 and agreement upload/acceptance workflow;
+- account activation and offboarding controls for inactive contractors;
+- administrator audit trail for edits, approvals, and invitation delivery;
+- final mobile field test with a real work order and customer signature;
+- periodic review of QuickBooks vendor status versus portal access.

@@ -50,8 +50,8 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
             />
             <div className="absolute inset-0 bg-brand-black/20 group-hover:bg-transparent transition-colors" />
             <div className="absolute bottom-6 left-6 glass-card p-4 border-l-2 border-tech-green">
-              <p className="font-mono text-[8px] text-tech-green uppercase tracking-widest font-bold">Project Ref: 00491-X</p>
-              <p className="text-xs text-brand-white font-medium">Standardized Deployment Hub</p>
+              <p className="font-mono text-[8px] text-tech-green uppercase tracking-widest font-bold">Plan • Install • Support</p>
+              <p className="text-xs text-brand-white font-medium">Built around your site, scope, and operating needs</p>
             </div>
           </div>
         </motion.div>
@@ -69,7 +69,7 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
               <CheckCircle className="w-8 h-8 text-tech-green mb-6" />
               <h3 className="text-xl font-bold uppercase tracking-tight text-brand-white mb-4">{feature}</h3>
               <p className="text-slate-400 text-sm font-light">
-                Enterprise-grade implementation ensuring peak performance and total reliability in mission-critical environments.
+                Practical planning and careful installation tailored to your site and project requirements.
               </p>
             </motion.div>
           ))}

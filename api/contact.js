@@ -4,6 +4,14 @@ const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;
 const MAX_MESSAGE_LENGTH = 5000;
 
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[character]));
+
 function isValidSubmission(value) {
   return typeof value?.name === 'string'
     && value.name.trim().length >= 2
@@ -31,14 +39,33 @@ export default async function handler(req, res) {
   const createdAt = new Date().toISOString();
   try {
     await adminDb.collection('contacts').add({ name, email, message, createdAt });
-    await adminDb.collection('mail').add({
-      to: process.env.CONTACT_RECIPIENT_EMAIL || 'support@techsavvytechs.com',
-      message: {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('Contact email delivery is not configured.');
+    }
+
+    const supportEmail = process.env.SUPPORT_EMAIL || process.env.CONTACT_RECIPIENT_EMAIL || 'support@techsavvytechs.com';
+    const sender = process.env.EMAIL_FROM || 'TechSavvy Website <support@techsavvytechs.com>';
+    const delivery = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: sender,
+        reply_to: email,
+        to: [supportEmail],
         subject: `New website contact from ${name}`,
         text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-      },
-      createdAt,
+        html: `<h1>New TechSavvy website contact</h1><p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p><p><strong>Message:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
+      }),
     });
+
+    if (!delivery.ok) {
+      console.error('Contact email delivery failed:', await delivery.text());
+      throw new Error('Contact email delivery failed.');
+    }
+
     return res.status(201).json({ success: true });
   } catch (error) {
     console.error('Contact submission failed:', error);

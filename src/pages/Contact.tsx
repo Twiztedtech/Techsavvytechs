@@ -117,8 +117,8 @@ const Contact = () => {
                   <div className="w-20 h-20 bg-tech-green/20 text-tech-green rounded-full flex items-center justify-center mx-auto mb-8">
                     <CheckCircle className="w-10 h-10" />
                   </div>
-                  <h3 className="text-3xl font-display font-bold text-white uppercase tracking-tight mb-4">Transmission Received</h3>
-                  <p className="text-slate-400 font-light mb-10">Our deployment units have been notified. Stand by for contact.</p>
+                  <h3 className="text-3xl font-display font-bold text-white uppercase tracking-tight mb-4">Message received</h3>
+                  <p className="text-slate-400 font-light mb-10">Thanks for reaching out. We will follow up about your project shortly.</p>
                   <Button variant="glass" onClick={() => setStatus('idle')}>Send Another Message</Button>
                 </motion.div>
               ) : (

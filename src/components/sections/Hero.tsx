@@ -70,7 +70,7 @@ export const Hero = () => {
               <span className="w-1 h-1 bg-tech-green rounded-full animate-ping" />
               <span>Diagnostic Feed: Active</span>
             </div>
-            <div>Secure Link: 256-bit AES</div>
+            <div>On-site planning • practical support</div>
           </div>
 
           <div className="absolute top-8 right-8 z-30 font-mono text-[8px] text-tech-green/60 uppercase tracking-[0.2em] text-right">
