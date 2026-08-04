@@ -8,6 +8,7 @@ import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { WorkOrderSigningModal } from '../features/contractor/workOrders/WorkOrderSigningModal';
+import { TechnicianWorkOrderPreview } from '../features/contractor/workOrders/TechnicianWorkOrderPreview';
 
 
 export default function ContractorDashboard() {
@@ -119,6 +120,7 @@ export default function ContractorDashboard() {
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
   const [isSavingJob, setIsSavingJob] = useState(false);
   const [isSigningWorkOrder, setIsSigningWorkOrder] = useState(false);
+  const [previewJob, setPreviewJob] = useState(null);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
@@ -690,14 +692,6 @@ export default function ContractorDashboard() {
             Protected by Firebase Authentication & Firestore Security Rules
       </div>
 
-      {isSigningWorkOrder && selectedJobObj && (
-        <WorkOrderSigningModal
-          job={selectedJobObj}
-          technicianName={loginEmail}
-          onClose={() => setIsSigningWorkOrder(false)}
-          onComplete={() => setIsSigningWorkOrder(false)}
-        />
-      )}
     </div>
 
         {/* PASSWORD RESET MODAL */}
@@ -2089,6 +2083,7 @@ export default function ContractorDashboard() {
                                 {job.attachments?.length > 0 && <div className="mt-1 text-[10px] text-amber-400">📎 {job.attachments.length} document{job.attachments.length === 1 ? '' : 's'}</div>}
                               </td>
                               <td className="p-3 text-right space-x-2">
+                                <button type="button" onClick={() => setPreviewJob(job)} className="text-green-400 hover:text-green-300 font-bold hover:underline text-[11px] cursor-pointer">Preview Tech View</button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2548,6 +2543,12 @@ export default function ContractorDashboard() {
         </div>
       )}
 
+      {isSigningWorkOrder && selectedJobObj && (
+        <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
+      )}
+      {previewJob && (
+        <TechnicianWorkOrderPreview job={previewJob} technicianName={contractorsList.find((contractor) => contractor.id === previewJob.technicianLeadId)?.name || 'Assigned Technician'} onClose={() => setPreviewJob(null)} />
+      )}
       <SupportTicketModal
         isOpen={isSupportModalOpen}
         defaultEmail={loginEmail}
