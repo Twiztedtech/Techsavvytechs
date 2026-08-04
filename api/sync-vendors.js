@@ -74,15 +74,18 @@ export default async function handler(req, res) {
     const data = await response.json();
     const vendors = data.QueryResponse?.Vendor || [];
     let syncCount = 0;
+    const liveVendorDocumentIds = new Set();
 
     for (const vendor of vendors) {
       const email = vendor.PrimaryEmailAddr?.Address?.toLowerCase();
       if (!email) continue;
 
       const id = vendor.Id;
+      const contractorId = `qbo-${id}`;
       const name = vendor.DisplayName || vendor.CompanyName || `${vendor.GivenName || ''} ${vendor.FamilyName || ''}`.trim();
+      liveVendorDocumentIds.add(contractorId);
       await adminDb.collection('contractors').doc(`qbo-${id}`).set({
-        id: `qbo-${id}`,
+        id: contractorId,
         name,
         email,
         rate: vendor.HourlyRate ? Number(vendor.HourlyRate) : 75,
@@ -93,7 +96,25 @@ export default async function handler(req, res) {
       syncCount += 1;
     }
 
-    return res.status(200).json({ success: true, message: `Successfully synced ${syncCount} contractors.` });
+    // Remove portal records created by an earlier QuickBooks connection (for
+    // example, the sandbox company) after the live vendor list has been fully
+    // written. Only auto-created qbo-* records are eligible; manual contractor
+    // profiles are left untouched.
+    const existingContractors = await adminDb.collection('contractors').get();
+    const staleVendorDocs = existingContractors.docs.filter((doc) => (
+      doc.id.startsWith('qbo-') && !liveVendorDocumentIds.has(doc.id)
+    ));
+
+    for (let index = 0; index < staleVendorDocs.length; index += 450) {
+      const batch = adminDb.batch();
+      staleVendorDocs.slice(index, index + 450).forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully synced ${syncCount} contractors and removed ${staleVendorDocs.length} obsolete QuickBooks records.`,
+    });
   } catch (error) {
     if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') {
       return res.status(403).json({ error: error.message });
