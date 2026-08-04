@@ -16,6 +16,10 @@ export interface Contractor {
   rate: number;
   status: string;
   qboVendorId?: string;
+  authUid?: string;
+  invitationStatus?: 'ready' | 'sent';
+  authProvisionedAt?: string;
+  invitedAt?: string;
 }
 
 export interface JobSite {

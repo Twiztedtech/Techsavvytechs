@@ -16,13 +16,14 @@ export default function ContractorDashboard() {
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
   const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [invitingContractorId, setInvitingContractorId] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
-    setIsAuthenticated(Boolean(user));
     if (!user) {
+      setIsAuthenticated(false);
       setUserRole('contractor');
       return;
     }
@@ -35,7 +36,17 @@ export default function ContractorDashboard() {
       });
       if (response.ok) token = await user.getIdTokenResult(true);
     }
-    setUserRole(token.claims.admin === true ? 'admin' : 'contractor');
+    const isAdmin = token.claims.admin === true;
+    const isContractor = token.claims.contractor === true;
+    if (!isAdmin && !isContractor) {
+      await signOut(auth);
+      setIsAuthenticated(false);
+      setLoginEmail('');
+      alert('This email has not been invited to the Contractor Portal. Please contact TechSavvy for access.');
+      return;
+    }
+    setUserRole(isAdmin ? 'admin' : 'contractor');
+    setIsAuthenticated(true);
   }), []);
 
   // Password Reset Modal State
@@ -2053,6 +2064,7 @@ export default function ContractorDashboard() {
                         <th className="p-3">Default Rate</th>
                         <th className="p-3">QBO Vendor ID</th>
                         <th className="p-3 text-right">Status</th>
+                        <th className="p-3 text-right">Portal Access</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -2068,6 +2080,49 @@ export default function ContractorDashboard() {
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
                               {cont.status}
                             </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              disabled={!cont.email || invitingContractorId === cont.id}
+                              onClick={async () => {
+                                if (!confirm(`Send a password-setup invitation to ${cont.email}?`)) return;
+                                setInvitingContractorId(cont.id);
+                                try {
+                                  const idToken = await auth.currentUser?.getIdToken();
+                                  const response = await fetch('/api/admin/contractors/invite', {
+                                    method: 'POST',
+                                    headers: {
+                                      Authorization: `Bearer ${idToken}`,
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({ contractorId: cont.id }),
+                                  });
+                                  const data = await response.json();
+                                  if (!response.ok) throw new Error(data.error || 'Could not prepare this invitation.');
+
+                                  // Firebase sends its secure, single-use password reset email.
+                                  // No temporary password is exposed to the administrator or technician.
+                                  await sendPasswordResetEmail(auth, data.email);
+                                  await setDoc(doc(db, 'contractors', cont.id), {
+                                    invitationStatus: 'sent',
+                                    invitedAt: new Date().toISOString(),
+                                  }, { merge: true });
+                                  alert(`Password-setup invitation sent to ${data.email}.`);
+                                } catch (error) {
+                                  alert(error instanceof Error ? error.message : 'Could not send the contractor invitation.');
+                                } finally {
+                                  setInvitingContractorId(null);
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded border border-amber-500/30 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {invitingContractorId === cont.id
+                                ? 'Sending…'
+                                : cont.invitationStatus === 'sent'
+                                  ? 'Resend Invite'
+                                  : 'Send Invite'}
+                            </button>
                           </td>
                         </tr>
                       ))}

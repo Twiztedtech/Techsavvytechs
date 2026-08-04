@@ -4,6 +4,7 @@ service cloud.firestore {
     // helpers
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+    function isContractor() { return isSignedIn() && request.auth.token.contractor == true; }
     
     // Default Deny
     match /{document=**} {
@@ -29,7 +30,7 @@ service cloud.firestore {
     match /jobs/{jobId} {
       // Signed-in technicians can read their work-order details and attachments.
       // Writes stay limited to the administrator account.
-      allow read: if isSignedIn();
+      allow read: if isAdmin() || isContractor();
       allow create, update, delete: if isAdmin();
     }
 
