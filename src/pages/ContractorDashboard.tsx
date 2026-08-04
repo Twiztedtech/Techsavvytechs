@@ -2220,7 +2220,7 @@ export default function ContractorDashboard() {
                               type="button"
                               disabled={!cont.email || invitingContractorId === cont.id}
                               onClick={async () => {
-                                if (!confirm(`Send a password-setup invitation to ${cont.email}?`)) return;
+                                if (!confirm(`Send a branded TechSavvy portal invitation to ${cont.email}?`)) return;
                                 setInvitingContractorId(cont.id);
                                 try {
                                   const idToken = await auth.currentUser?.getIdToken();
@@ -2233,16 +2233,8 @@ export default function ContractorDashboard() {
                                     body: JSON.stringify({ contractorId: cont.id }),
                                   });
                                   const data = await response.json();
-                                  if (!response.ok) throw new Error(data.error || 'Could not prepare this invitation.');
-
-                                  // Firebase sends its secure, single-use password reset email.
-                                  // No temporary password is exposed to the administrator or technician.
-                                  await sendPasswordResetEmail(auth, data.email);
-                                  await setDoc(doc(db, 'contractors', cont.id), {
-                                    invitationStatus: 'sent',
-                                    invitedAt: new Date().toISOString(),
-                                  }, { merge: true });
-                                  alert(`Password-setup invitation sent to ${data.email}.`);
+                                  if (!response.ok) throw new Error(data.error || 'Could not send this invitation.');
+                                  alert(`Branded portal invitation sent to ${data.email}.`);
                                 } catch (error) {
                                   alert(error instanceof Error ? error.message : 'Could not send the contractor invitation.');
                                 } finally {
@@ -2254,8 +2246,8 @@ export default function ContractorDashboard() {
                               {invitingContractorId === cont.id
                                 ? 'Sending…'
                                 : cont.invitationStatus === 'sent'
-                                  ? 'Resend Invite'
-                                  : 'Send Invite'}
+                                  ? 'Resend Branded Invite'
+                                  : 'Send Branded Invite'}
                             </button>
                           </td>
                         </tr>
