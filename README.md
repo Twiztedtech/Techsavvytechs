@@ -36,6 +36,7 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 | `APP_URL` | `https://techsavvytechs.com`; used for OAuth and setup links. |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase Admin service account JSON. |
 | `FIRESTORE_DATABASE_ID` | Firestore database ID. |
+| `FIREBASE_STORAGE_BUCKET` | Firebase Storage bucket used to validate contractor W-9 uploads. |
 | `INITIAL_ADMIN_EMAIL` | Initial Firebase administrator email. |
 | `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_REALM_ID` | QuickBooks production credentials and company ID. |
 | `QBO_ENVIRONMENT` | Must be `production` in Vercel. |
@@ -46,6 +47,7 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 ## Operational notes
 
 - **Contractor invitations:** Admins choose **Send Branded Invite** in Contractor Sync. The server creates the Firebase account when needed, sends a secure password-setup link, and marks the invite sent only after Resend accepts it.
+- **Contractor onboarding:** After first sign-in, a technician uploads a W-9 PDF and accepts the portal terms. The file is stored in a contractor-specific private Storage path. Contractor Sync shows the submission state; administrators can open, approve, or request an update. W-9s are never exposed through a public URL or regular Firestore reads.
 - **QuickBooks sync:** The sync writes the current production vendor list and removes only stale auto-created `qbo-*` documents that are no longer returned by QuickBooks. Manually created contractor records are never auto-deleted.
 - **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. No Firebase email extension is required.
 - **Rules:** Source-controlled Firestore and Storage rules are in [`firestore.rules`](firestore.rules) and [`storage.rules`](storage.rules). Deploy them with the Firebase CLI or publish them in Firebase Console after reviewing the diff.

@@ -9,6 +9,7 @@ import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { WorkOrderSigningModal } from '../features/contractor/workOrders/WorkOrderSigningModal';
 import { TechnicianWorkOrderPreview } from '../features/contractor/workOrders/TechnicianWorkOrderPreview';
+import { ContractorOnboardingCard, type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
 
 
 export default function ContractorDashboard() {
@@ -19,6 +20,8 @@ export default function ContractorDashboard() {
   const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [invitingContractorId, setInvitingContractorId] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
+  const [reviewingOnboardingId, setReviewingOnboardingId] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
@@ -51,6 +54,29 @@ export default function ContractorDashboard() {
     setUserRole(isAdmin ? 'admin' : 'contractor');
     setIsAuthenticated(true);
   }), []);
+
+  // A contractor's W-9 status is served by a protected API instead of exposing
+  // sensitive onboarding details through a broadly readable Firestore record.
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'contractor') {
+      setOnboarding(null);
+      return;
+    }
+    let cancelled = false;
+    const loadOnboarding = async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const response = await fetch('/api/portal/onboarding', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load onboarding status.');
+        if (!cancelled) setOnboarding(data.onboarding as OnboardingState);
+      } catch (error) {
+        console.error('Could not load contractor onboarding:', error);
+      }
+    };
+    void loadOnboarding();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, userRole]);
 
   // Password Reset Modal State
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -128,6 +154,47 @@ export default function ContractorDashboard() {
     return assignedIds
       .map((id) => contractorsList.find((contractor) => contractor.id === id)?.name || id)
       .join(', ');
+  };
+
+  const openContractorW9 = async (contractor) => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch(`/api/admin/contractors/onboarding-document?contractorId=${encodeURIComponent(contractor.id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not prepare this W-9 for review.');
+      const url = data.url;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Could not open contractor W-9:', error);
+      alert('Could not open this W-9. Confirm that the file is still available in secure storage.');
+    }
+  };
+
+  const reviewContractorOnboarding = async (contractor, status) => {
+    let reviewNote = '';
+    if (status === 'needs_update') {
+      const requestedNote = window.prompt('What needs to be corrected on this W-9? This note will be shown to the contractor.');
+      if (requestedNote === null) return;
+      reviewNote = requestedNote;
+    }
+    setReviewingOnboardingId(contractor.id);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/contractors/onboarding', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractorId: contractor.id, status, reviewNote }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save the onboarding review.');
+      alert(status === 'approved' ? 'W-9 onboarding approved.' : 'The contractor has been asked to update their W-9.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not save the onboarding review.');
+    } finally {
+      setReviewingOnboardingId(null);
+    }
   };
 
   const resetWorkOrderForm = () => {
@@ -776,6 +843,7 @@ export default function ContractorDashboard() {
         {userRole === 'contractor' ? (
           /* CONTRACTOR VIEW: TIME & PHOTO LOGGING + HISTORICAL EARNINGS LEDGER */
           <div className="space-y-6">
+            <ContractorOnboardingCard onboarding={onboarding} onUpdated={setOnboarding} />
             
             {/* CONTRACTOR LIFETIME EARNINGS OVERVIEW CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2198,6 +2266,7 @@ export default function ContractorDashboard() {
                         <th className="p-3">Default Rate</th>
                         <th className="p-3">QBO Vendor ID</th>
                         <th className="p-3 text-right">Status</th>
+                        <th className="p-3 text-right">W-9 Onboarding</th>
                         <th className="p-3 text-right">Portal Access</th>
                       </tr>
                     </thead>
@@ -2214,6 +2283,28 @@ export default function ContractorDashboard() {
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
                               {cont.status}
                             </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            {(() => {
+                              const onboardingStatus = cont.onboarding?.status || 'not_started';
+                              const isReviewing = reviewingOnboardingId === cont.id;
+                              const hasW9 = Boolean(cont.onboarding?.w9?.storagePath);
+                              const statusClass = onboardingStatus === 'approved'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : onboardingStatus === 'submitted'
+                                  ? 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+                                  : onboardingStatus === 'needs_update'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700';
+                              return <div className="flex min-w-[190px] flex-col items-end gap-1.5">
+                                <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${statusClass}`}>{onboardingStatus.replace('_', ' ')}</span>
+                                {hasW9 ? <div className="flex flex-wrap justify-end gap-1">
+                                  <button type="button" onClick={() => void openContractorW9(cont)} className="rounded border border-slate-600 px-2 py-1 text-[10px] font-bold text-slate-200 hover:border-slate-400">Open W-9</button>
+                                  {onboardingStatus !== 'approved' ? <button type="button" disabled={isReviewing} onClick={() => void reviewContractorOnboarding(cont, 'approved')} className="rounded border border-green-500/40 px-2 py-1 text-[10px] font-bold text-green-300 hover:bg-green-500 hover:text-slate-950 disabled:opacity-50">Approve</button> : null}
+                                  {onboardingStatus !== 'needs_update' ? <button type="button" disabled={isReviewing} onClick={() => void reviewContractorOnboarding(cont, 'needs_update')} className="rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 disabled:opacity-50">Request update</button> : null}
+                                </div> : <span className="text-[10px] text-slate-500">No W-9 submitted</span>}
+                              </div>;
+                            })()}
                           </td>
                           <td className="p-3 text-right">
                             <button

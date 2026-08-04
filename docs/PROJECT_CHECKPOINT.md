@@ -23,19 +23,19 @@ Last updated: 2026-08-04
 - The TechSavvy sending domain is verified in Resend. `support@techsavvytechs.com` is a Google Workspace alias that routes to the support inbox without a separate mailbox license.
 - Contact-form submissions are stored in Firestore and sent directly to the support inbox through Resend. The previous uninstalled Firebase email-extension dependency was removed.
 - Public navigation, client/contractor portal paths, phone number, support email, page-level metadata, robots file, and sitemap are current.
+- Contractor onboarding is implemented: technicians submit a PDF W-9 and terms acknowledgement through a protected endpoint; administrators review the submission in Contractor Sync. Storage rules are published and restrict each W-9 to its uploader and administrators; administrator review uses a five-minute signed link rather than a permanent download token.
 
 ## Confirm on the next session
 
 1. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock.
 2. Submit a contact-form test and confirm it arrives at `support@techsavvytechs.com` from the TechSavvy Resend sender.
 3. Keep Vercel `QBO_ENVIRONMENT=production`, `APP_URL=https://techsavvytechs.com`, and the Resend variables restricted to production.
-4. Before giving contractors broad access, publish the current Firestore and Storage rules and verify the assigned-work-order scope matches the intended access model.
+4. Test onboarding with a controlled contractor account: upload a sample PDF W-9, confirm the administrator can review it, request an update, and approve the replacement.
 
 ## Next development milestone
 
-Complete contractor onboarding and operational hardening:
+Continue operational hardening:
 
-- W-9 and agreement upload/acceptance workflow;
 - account activation and offboarding controls for inactive contractors;
 - administrator audit trail for edits, approvals, and invitation delivery;
 - final mobile field test with a real work order and customer signature;

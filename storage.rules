@@ -5,6 +5,18 @@ service firebase.storage {
     function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
     function isContractor() { return isSignedIn() && request.auth.token.contractor == true; }
 
+    // Contractors can submit only their own W-9 PDF. Administrators can review
+    // and remove the file; no other contractor can read it.
+    match /contractor-onboarding/{contractorUid}/w9/{fileName} {
+      allow read: if isAdmin() || (isContractor() && request.auth.uid == contractorUid);
+      allow create: if isContractor()
+        && request.auth.uid == contractorUid
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // Admins upload work-order documents. Signed-in field technicians can open them.
     match /work-order-documents/{jobId}/{fileName} {
       allow read: if isAdmin() || isContractor();
