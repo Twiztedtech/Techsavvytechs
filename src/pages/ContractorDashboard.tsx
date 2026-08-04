@@ -159,7 +159,7 @@ export default function ContractorDashboard() {
   const openContractorW9 = async (contractor) => {
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(`/api/admin/contractors/onboarding-document?contractorId=${encodeURIComponent(contractor.id)}`, {
+      const response = await fetch(`/api/admin/contractors/onboarding?contractorId=${encodeURIComponent(contractor.id)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
