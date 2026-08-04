@@ -35,13 +35,24 @@ const ScrollToTop = () => {
 export default function App() {
   return (
     <Router>
+      <AppShell />
+    </Router>
+  );
+}
+
+function AppShell() {
+  const { pathname } = useLocation();
+  const isContractorPortal = pathname.startsWith('/contractor/dashboard');
+
+  return (
+    <>
       <ScrollToTop />
       <Seo />
       <div className="min-h-screen flex flex-col selection:bg-safety-orange selection:text-white bg-brand-black text-brand-white">
         {/* Blueprint Grid Overlay */}
         <div className="fixed inset-0 blueprint-grid pointer-events-none z-0 opacity-40" />
 
-        <Navbar />
+        {!isContractorPortal && <Navbar />}
 
         <main className="flex-grow relative z-10">
           <Routes>
@@ -67,8 +78,8 @@ export default function App() {
           </Routes>
         </main>
 
-        <Footer />
+        {!isContractorPortal && <Footer />}
       </div>
-    </Router>
+    </>
   );
 }

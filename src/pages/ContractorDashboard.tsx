@@ -1317,7 +1317,7 @@ export default function ContractorDashboard() {
                       type="submit"
                       className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
                     >
-                      <span>Submit Hours & Review QuickBooks Invoice</span>
+                      <span>Submit Time Entry for Review</span>
                       <span>→</span>
                     </button>
                   </form>
