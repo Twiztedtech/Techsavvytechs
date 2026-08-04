@@ -7,6 +7,7 @@ import { SupportTicketModal } from '../features/contractor/support/SupportTicket
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
+import { WorkOrderSigningModal } from '../features/contractor/workOrders/WorkOrderSigningModal';
 
 
 export default function ContractorDashboard() {
@@ -85,7 +86,7 @@ export default function ContractorDashboard() {
   const [clockIn, setClockIn] = useState('07:00');
   const [clockOut, setClockOut] = useState('15:30');
   const [breakMinutes, setBreakMinutes] = useState(30);
-  const [contractorRate, setContractorRate] = useState(75.00); // Admin-approved rate (read-only for tech)
+  const [contractorRate, setContractorRate] = useState(55.00); // Admin-approved rate (read-only for tech)
   const [suppliesCost, setSuppliesCost] = useState('0.00');
   const [suppliesItems, setSuppliesItems] = useState([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
   const [travelCost, setTravelCost] = useState('0.00');
@@ -111,12 +112,13 @@ export default function ContractorDashboard() {
   const [adminJobTargetCompletion, setAdminJobTargetCompletion] = useState('');
   const [adminJobTechnicianLeadId, setAdminJobTechnicianLeadId] = useState('');
   const [adminJobWorkOrderTemplate, setAdminJobWorkOrderTemplate] = useState<'general' | 'nextivity' | 'security' | 'low-voltage' | 'network'>('general');
-  const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('75.00');
+  const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('55.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
   const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
   const [editingJobId, setEditingJobId] = useState(null);
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
   const [isSavingJob, setIsSavingJob] = useState(false);
+  const [isSigningWorkOrder, setIsSigningWorkOrder] = useState(false);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState(() => {
@@ -151,7 +153,7 @@ export default function ContractorDashboard() {
     setAdminJobTargetCompletion('');
     setAdminJobTechnicianLeadId('');
     setAdminJobWorkOrderTemplate('general');
-    setAdminJobHourlyRate('75.00');
+    setAdminJobHourlyRate('55.00');
     setAdminJobTravelRate('35.00');
     setAdminJobAssignedTechIds(['ALL']);
     setAdminJobFiles([]);
@@ -231,11 +233,11 @@ export default function ContractorDashboard() {
     if (!isCustomJob) {
       const job = jobSitesList.find(j => j.id === selectedJobId);
       if (job) {
-        setContractorRate(job.hourlyRate !== undefined ? Number(job.hourlyRate) : 75.00);
+        setContractorRate(job.hourlyRate !== undefined ? Number(job.hourlyRate) : 55.00);
         setTravelCost(job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '0.00');
       }
     } else {
-      setContractorRate(75.00);
+      setContractorRate(55.00);
       setTravelCost('0.00');
     }
   }, [selectedJobId, isCustomJob, jobSitesList]);
@@ -686,8 +688,17 @@ export default function ContractorDashboard() {
 
           <div className="text-center text-[11px] text-slate-500 border-t border-slate-800 pt-4">
             Protected by Firebase Authentication & Firestore Security Rules
-          </div>
-        </div>
+      </div>
+
+      {isSigningWorkOrder && selectedJobObj && (
+        <WorkOrderSigningModal
+          job={selectedJobObj}
+          technicianName={loginEmail}
+          onClose={() => setIsSigningWorkOrder(false)}
+          onComplete={() => setIsSigningWorkOrder(false)}
+        />
+      )}
+    </div>
 
         {/* PASSWORD RESET MODAL */}
         {isResetModalOpen && (
@@ -1026,6 +1037,32 @@ export default function ContractorDashboard() {
                             <span className="text-slate-400 block font-semibold uppercase tracking-wider text-[10px]">Site Instructions / Notes:</span>
                             <p className="text-slate-200 leading-relaxed font-mono">{selectedJobObj.notes || 'No special instructions recorded.'}</p>
                           </div>
+
+                          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 text-xs space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-green-400">Field Service Work Order</span>
+                              {selectedJobObj.workOrderNumber && <span className="font-mono text-[10px] text-slate-400">{selectedJobObj.workOrderNumber}</span>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-300">
+                              <span className="text-slate-500">Vendor</span><span>{selectedJobObj.vendorName || 'Not specified'}</span>
+                              <span className="text-slate-500">Site contact</span><span>{selectedJobObj.siteContact || 'Not specified'}</span>
+                              <span className="text-slate-500">Target completion</span><span>{selectedJobObj.targetCompletion || 'Not specified'}</span>
+                            </div>
+                            <button type="button" onClick={() => setIsSigningWorkOrder(true)} className="w-full mt-1 rounded bg-green-500 hover:bg-green-400 px-3 py-2 text-[11px] font-bold text-slate-950 transition">
+                              Complete & Sign Work Order
+                            </button>
+                          </div>
+
+                          {selectedJobObj.signedWorkOrders?.length ? (
+                            <div className="rounded-lg border border-green-500/20 bg-slate-950/40 p-3 text-xs space-y-2">
+                              <span className="block font-semibold uppercase tracking-wider text-[10px] text-green-400">Signed Work Orders</span>
+                              {selectedJobObj.signedWorkOrders.map((workOrder) => (
+                                <a key={workOrder.id} href={workOrder.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-3 rounded border border-slate-700 px-2.5 py-2 text-slate-200 hover:border-green-500 hover:text-green-300 transition">
+                                  <span className="truncate">✓ {workOrder.fileName}</span><span className="shrink-0 text-[10px] text-slate-500">Open ↗</span>
+                                </a>
+                              ))}
+                            </div>
+                          ) : null}
 
                           <div className="p-3 rounded-lg text-xs space-y-2 bg-slate-950/40 border border-slate-800">
                             <span className="text-slate-400 block font-semibold uppercase tracking-wider text-[10px]">Work Order Documents</span>
@@ -1953,7 +1990,7 @@ export default function ContractorDashboard() {
                             type="number"
                             required
                             step="0.01"
-                            placeholder="75.00"
+                            placeholder="55.00"
                             value={adminJobHourlyRate}
                             onChange={(e) => setAdminJobHourlyRate(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
@@ -2066,7 +2103,7 @@ export default function ContractorDashboard() {
                                     setAdminJobTargetCompletion(job.targetCompletion || '');
                                     setAdminJobTechnicianLeadId(job.technicianLeadId || '');
                                     setAdminJobWorkOrderTemplate(job.workOrderTemplate || 'general');
-                                    setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
+                                    setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 55.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
                                     setAdminJobAssignedTechIds(getAssignedTechIds(job));
                                     setAdminJobFiles([]);

@@ -12,5 +12,15 @@ service firebase.storage {
         && request.resource.size < 25 * 1024 * 1024;
       allow delete: if isAdmin();
     }
+
+    // A signed-in technician may upload the completed PDF created from an
+    // assigned job. The server verifies the assignment before saving metadata.
+    match /signed-work-orders/{jobId}/{fileName} {
+      allow read: if isAdmin() || isContractor();
+      allow create: if (isAdmin() || isContractor())
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow update, delete: if isAdmin();
+    }
   }
 }

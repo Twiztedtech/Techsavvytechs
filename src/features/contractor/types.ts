@@ -36,6 +36,14 @@ export interface JobSite {
   targetCompletion?: string;
   technicianLeadId?: string;
   workOrderTemplate?: 'general' | 'nextivity' | 'security' | 'low-voltage' | 'network';
+  signedWorkOrders?: Array<{
+    id: string;
+    fileName: string;
+    url: string;
+    completedAt: string;
+    technicianName: string;
+    customerName: string;
+  }>;
   // assignedTechId is retained for existing work orders. New work orders use
   // assignedTechIds so one job can be shared with several technicians.
   assignedTechId?: string;
