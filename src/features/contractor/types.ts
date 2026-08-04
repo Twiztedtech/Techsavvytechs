@@ -29,7 +29,10 @@ export interface JobSite {
   notes: string;
   hourlyRate: number;
   travelRate: number;
-  assignedTechId: string;
+  // assignedTechId is retained for existing work orders. New work orders use
+  // assignedTechIds so one job can be shared with several technicians.
+  assignedTechId?: string;
+  assignedTechIds?: string[];
 }
 
 export interface TimeEntry {

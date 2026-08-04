@@ -106,7 +106,7 @@ export default function ContractorDashboard() {
   const [adminJobNotes, setAdminJobNotes] = useState('');
   const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('75.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
-  const [adminJobAssignedTech, setAdminJobAssignedTech] = useState('ALL');
+  const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
   const [editingJobId, setEditingJobId] = useState(null);
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
   const [isSavingJob, setIsSavingJob] = useState(false);
@@ -116,6 +116,21 @@ export default function ContractorDashboard() {
     const saved = localStorage.getItem('tst_job_sites_viewed_at');
     return saved ? JSON.parse(saved) : {};
   });
+
+  const getAssignedTechIds = (job) => {
+    if (Array.isArray(job.assignedTechIds) && job.assignedTechIds.length > 0) {
+      return job.assignedTechIds;
+    }
+    return [job.assignedTechId || 'ALL'];
+  };
+
+  const getAssignmentLabel = (job) => {
+    const assignedIds = getAssignedTechIds(job);
+    if (assignedIds.includes('ALL')) return 'Anyone (All Techs)';
+    return assignedIds
+      .map((id) => contractorsList.find((contractor) => contractor.id === id)?.name || id)
+      .join(', ');
+  };
 
   // Work orders are shared through Firestore so admins and signed-in technicians
   // see the same job details on every device. Local storage remains an offline
@@ -894,11 +909,11 @@ export default function ContractorDashboard() {
                           }}
                           className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
                         >
-                          {jobSitesList.filter(job => 
-                            !job.assignedTechId || 
-                            job.assignedTechId === 'ALL' || 
-                            job.assignedTechId === contractorsList.find(c => c.email === loginEmail)?.id
-                          ).map((site) => (
+                          {jobSitesList.filter((job) => {
+                            const assignedIds = getAssignedTechIds(job);
+                            const contractorId = contractorsList.find((contractor) => contractor.email === loginEmail)?.id;
+                            return assignedIds.includes('ALL') || assignedIds.includes(contractorId);
+                          }).map((site) => (
                             <option key={site.id} value={site.id} className="bg-slate-900 text-slate-100 py-1">
                               {site.name}
                             </option>
@@ -1720,6 +1735,10 @@ export default function ContractorDashboard() {
                       onSubmit={async (e) => {
                         e.preventDefault();
                         if (!adminJobName) return;
+                        if (!adminJobAssignedTechIds.includes('ALL') && adminJobAssignedTechIds.length === 0) {
+                          alert('Assign at least one technician, or choose anyone.');
+                          return;
+                        }
                         const nowStr = new Date().toISOString();
                         const jobId = editingJobId || `j-${Date.now().toString().slice(-6)}`;
                         const existingJob = jobSitesList.find((job) => job.id === jobId);
@@ -1736,7 +1755,12 @@ export default function ContractorDashboard() {
                             notes: adminJobNotes || 'Site instructions unspecified',
                             hourlyRate: Number(adminJobHourlyRate || 0),
                             travelRate: Number(adminJobTravelRate || 0),
-                            assignedTechId: adminJobAssignedTech,
+                            // Keep the original single-value field for backward
+                            // compatibility while the array drives multi-tech access.
+                            assignedTechId: adminJobAssignedTechIds.includes('ALL')
+                              ? 'ALL'
+                              : adminJobAssignedTechIds[0],
+                            assignedTechIds: adminJobAssignedTechIds,
                             attachments: [...(existingJob?.attachments || []), ...newAttachments],
                             updatedAt: nowStr,
                           };
@@ -1751,7 +1775,7 @@ export default function ContractorDashboard() {
                           setAdminJobNotes('');
                           setAdminJobHourlyRate('75.00');
                           setAdminJobTravelRate('35.00');
-                          setAdminJobAssignedTech('ALL');
+                          setAdminJobAssignedTechIds(['ALL']);
                           setAdminJobFiles([]);
                         } catch (error) {
                           console.error('Could not save work order:', error);
@@ -1763,17 +1787,39 @@ export default function ContractorDashboard() {
                       className="space-y-3"
                     >
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assigned Technician</label>
-                        <select
-                          value={adminJobAssignedTech}
-                          onChange={(e) => setAdminJobAssignedTech(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
-                        >
-                          <option value="ALL">Anyone (All Techs)</option>
-                          {contractorsList.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Assign Technicians</label>
+                        <div className="rounded border border-slate-800 bg-slate-900 divide-y divide-slate-800 max-h-48 overflow-y-auto">
+                          <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-300 cursor-pointer hover:bg-slate-800/70">
+                            <input
+                              type="checkbox"
+                              checked={adminJobAssignedTechIds.includes('ALL')}
+                              onChange={(event) => setAdminJobAssignedTechIds(event.target.checked ? ['ALL'] : [])}
+                              className="accent-amber-500"
+                            />
+                            Anyone (all technicians)
+                          </label>
+                          {contractorsList.map((contractor) => (
+                            <label key={contractor.id} className="flex items-center gap-2 px-3 py-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/70">
+                              <input
+                                type="checkbox"
+                                checked={!adminJobAssignedTechIds.includes('ALL') && adminJobAssignedTechIds.includes(contractor.id)}
+                                disabled={adminJobAssignedTechIds.includes('ALL')}
+                                onChange={(event) => setAdminJobAssignedTechIds((current) => {
+                                  const withoutAll = current.filter((id) => id !== 'ALL');
+                                  return event.target.checked
+                                    ? [...withoutAll, contractor.id]
+                                    : withoutAll.filter((id) => id !== contractor.id);
+                                })}
+                                className="accent-amber-500 disabled:opacity-40"
+                              />
+                              <span>{contractor.name}</span>
+                              <span className="text-slate-500">({contractor.email})</span>
+                            </label>
                           ))}
-                        </select>
+                        </div>
+                        {!adminJobAssignedTechIds.includes('ALL') && adminJobAssignedTechIds.length === 0 && (
+                          <p className="mt-1 text-[10px] text-red-400">Select at least one technician or choose anyone.</p>
+                        )}
                       </div>
 
                       <div>
@@ -1858,7 +1904,7 @@ export default function ContractorDashboard() {
                               setAdminJobNotes('');
                               setAdminJobHourlyRate('75.00');
                               setAdminJobTravelRate('35.00');
-                              setAdminJobAssignedTech('ALL');
+                              setAdminJobAssignedTechIds(['ALL']);
                               setAdminJobFiles([]);
                             }}
                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-xs transition cursor-pointer"
@@ -1899,9 +1945,7 @@ export default function ContractorDashboard() {
                             <tr key={job.id} className={`hover:bg-slate-950/40 ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
                               <td className="p-3 font-semibold text-slate-100">{job.name}</td>
                               <td className="p-3 font-semibold text-slate-300 text-[11px]">
-                                {job.assignedTechId === 'ALL' || !job.assignedTechId 
-                                  ? 'Anyone (All Techs)' 
-                                  : (contractorsList.find(c => c.id === job.assignedTechId)?.name || job.assignedTechId)}
+                                {getAssignmentLabel(job)}
                               </td>
                               <td className="p-3 font-mono text-[11px] space-y-0.5">
                                 <div className="text-slate-200">🛠️ Labor: <span className="text-amber-400 font-bold">${job.hourlyRate !== undefined ? Number(job.hourlyRate).toFixed(2) : '75.00'}/hr</span></div>
@@ -1922,7 +1966,7 @@ export default function ContractorDashboard() {
                                     setAdminJobNotes(job.notes);
                                     setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 75.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
-                                    setAdminJobAssignedTech(job.assignedTechId || 'ALL');
+                                    setAdminJobAssignedTechIds(getAssignedTechIds(job));
                                     setAdminJobFiles([]);
                                   }}
                                   className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
@@ -1939,7 +1983,7 @@ export default function ContractorDashboard() {
                                       setAdminJobNotes('');
                                       setAdminJobHourlyRate('75.00');
                                       setAdminJobTravelRate('35.00');
-                                      setAdminJobAssignedTech('ALL');
+                                      setAdminJobAssignedTechIds(['ALL']);
                                     }
                                     setJobSitesList(prev => prev.filter(item => item.id !== job.id));
                                   }}
