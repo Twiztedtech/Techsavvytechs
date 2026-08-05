@@ -102,11 +102,16 @@ const templates: Record<NonNullable<JobSite['workOrderTemplate']>, string> = {
 };
 
 export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete }: Props) {
+  const scopeTasks = job.scopeTasks?.filter(Boolean) ?? [];
+  const checklistItems = job.qaChecklist?.filter(Boolean).length
+    ? job.qaChecklist.filter(Boolean)
+    : ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'];
+  const equipment = job.equipment?.filter((item) => item.description.trim()) ?? [];
   const [leadName, setLeadName] = useState(technicianName);
   const [customerName, setCustomerName] = useState('');
   const [technicianSignature, setTechnicianSignature] = useState('');
   const [customerSignature, setCustomerSignature] = useState('');
-  const [checks, setChecks] = useState([false, false, false]);
+  const [checks, setChecks] = useState(() => checklistItems.map(() => false));
   const [customerAccepted, setCustomerAccepted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -124,6 +129,17 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
       const dark: [number, number, number] = [15, 23, 42];
       const margin = 44;
       let y = 54;
+      const ensureSpace = (height: number) => {
+        if (y + height <= 730) return;
+        document.addPage();
+        y = 54;
+        document.setTextColor(...green);
+        document.setFont('helvetica', 'bold');
+        document.setFontSize(12);
+        document.text(`TECHSAVVY FIELD WORK ORDER · ${job.workOrderNumber || job.id}`, margin, y);
+        y += 28;
+        document.setTextColor(...dark);
+      };
 
       document.setFillColor(...dark);
       document.rect(0, 0, 612, 82, 'F');
@@ -151,6 +167,7 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
       document.setTextColor(...dark);
       document.setFontSize(11);
       details.forEach(([label, value]) => {
+        ensureSpace(32);
         document.setFont('helvetica', 'bold');
         document.text(`${label}:`, margin, y);
         document.setFont('helvetica', 'normal');
@@ -171,10 +188,36 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
       document.setTextColor(...dark);
       document.setFont('helvetica', 'normal');
       document.setFontSize(10);
-      const scopeLines = document.splitTextToSize(job.notes || 'Scope confirmed at the job site.', 520);
-      document.text(scopeLines, margin, y);
-      y += scopeLines.length * 13 + 22;
+      const scopeEntries = scopeTasks.length ? scopeTasks : [job.notes || 'Scope confirmed at the job site.'];
+      scopeEntries.forEach((task, index) => {
+        const scopeLines = document.splitTextToSize(`${index + 1}. ${task}`, 510);
+        ensureSpace(scopeLines.length * 13 + 5);
+        document.text(scopeLines, margin, y);
+        y += scopeLines.length * 13 + 5;
+      });
+      y += 17;
 
+      if (equipment.length) {
+        ensureSpace(45);
+        document.setTextColor(...green);
+        document.setFont('helvetica', 'bold');
+        document.setFontSize(15);
+        document.text('Equipment & Materials', margin, y);
+        y += 20;
+        document.setTextColor(...dark);
+        document.setFont('helvetica', 'normal');
+        document.setFontSize(10);
+        equipment.forEach((item) => {
+          const description = `${item.quantity ? `${item.quantity} × ` : ''}${item.description}${item.notes ? ` — ${item.notes}` : ''}`;
+          const lines = document.splitTextToSize(`• ${description}`, 510);
+          ensureSpace(lines.length * 13 + 4);
+          document.text(lines, margin, y);
+          y += lines.length * 13 + 4;
+        });
+        y += 15;
+      }
+
+      ensureSpace(95);
       document.setTextColor(...green);
       document.setFont('helvetica', 'bold');
       document.setFontSize(15);
@@ -183,13 +226,15 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
       document.setTextColor(...dark);
       document.setFont('helvetica', 'normal');
       document.setFontSize(10);
-      ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'].forEach((item) => {
+      checklistItems.forEach((item) => {
+        ensureSpace(22);
         document.text('✓', margin + 4, y);
         document.text(item, margin + 20, y);
         y += 17;
       });
 
       y += 16;
+      ensureSpace(150);
       document.setDrawColor(...green);
       document.line(margin, y, 568, y);
       y += 23;
@@ -256,8 +301,9 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
           </div>
         </div>
         <div className="space-y-5 p-5 text-slate-900 sm:p-7">
-          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-slate-700"><strong className="text-green-800">Scope:</strong> {job.notes || 'Scope confirmed at the job site.'}</div>
-          <div className="space-y-2"><p className="text-sm font-bold">Completion checklist</p>{['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'].map((label, index) => <label key={label} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={checks[index]} onChange={(event) => setChecks((current) => current.map((value, itemIndex) => itemIndex === index ? event.target.checked : value))} className="h-4 w-4 accent-green-600" />{label}</label>)}</div>
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-slate-700"><strong className="text-green-800">Scope:</strong>{scopeTasks.length ? <ol className="mt-2 list-decimal space-y-1 pl-4">{scopeTasks.map((task, index) => <li key={`${index}-${task}`}>{task}</li>)}</ol> : <span> {job.notes || 'Scope confirmed at the job site.'}</span>}</div>
+          {equipment.length ? <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><p className="font-bold text-slate-900">Equipment & materials</p><ul className="mt-2 space-y-1">{equipment.map((item, index) => <li key={`${index}-${item.description}`}><strong>{item.quantity ? `${item.quantity} × ` : ''}{item.description}</strong>{item.notes ? ` — ${item.notes}` : ''}</li>)}</ul></div> : null}
+          <div className="space-y-2"><p className="text-sm font-bold">Completion checklist</p>{checklistItems.map((label, index) => <label key={label} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={checks[index]} onChange={(event) => setChecks((current) => current.map((value, itemIndex) => itemIndex === index ? event.target.checked : value))} className="h-4 w-4 accent-green-600" />{label}</label>)}</div>
           <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-700">Lead technician<input value={leadName} onChange={(event) => setLeadName(event.target.value)} className="mt-1.5 w-full rounded border border-slate-300 px-3 py-2 text-sm" /></label><label className="text-xs font-semibold text-slate-700">Site representative<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer's printed name" className="mt-1.5 w-full rounded border border-slate-300 px-3 py-2 text-sm" /></label></div>
           <SignaturePad label="Lead technician signature" onChange={setTechnicianSignature} />
           <SignaturePad label="Site representative signature" onChange={setCustomerSignature} />

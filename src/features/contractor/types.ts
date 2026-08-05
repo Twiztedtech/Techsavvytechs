@@ -36,6 +36,9 @@ export interface JobSite {
   targetCompletion?: string;
   technicianLeadId?: string;
   workOrderTemplate?: 'general' | 'nextivity' | 'security' | 'low-voltage' | 'network';
+  equipment?: Array<{ description: string; quantity?: string; notes?: string }>;
+  scopeTasks?: string[];
+  qaChecklist?: string[];
   signedWorkOrders?: Array<{
     id: string;
     fileName: string;

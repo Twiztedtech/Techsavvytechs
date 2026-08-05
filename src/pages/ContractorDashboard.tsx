@@ -136,6 +136,9 @@ export default function ContractorDashboard() {
   const [adminJobWorkOrderTemplate, setAdminJobWorkOrderTemplate] = useState<'general' | 'nextivity' | 'security' | 'low-voltage' | 'network'>('general');
   const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('55.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
+  const [adminJobEquipment, setAdminJobEquipment] = useState([{ description: '', quantity: '', notes: '' }]);
+  const [adminJobScopeTasks, setAdminJobScopeTasks] = useState(['']);
+  const [adminJobQaChecklist, setAdminJobQaChecklist] = useState(['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
   const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
   const [editingJobId, setEditingJobId] = useState(null);
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
@@ -216,6 +219,9 @@ export default function ContractorDashboard() {
     setAdminJobWorkOrderTemplate('general');
     setAdminJobHourlyRate('55.00');
     setAdminJobTravelRate('35.00');
+    setAdminJobEquipment([{ description: '', quantity: '', notes: '' }]);
+    setAdminJobScopeTasks(['']);
+    setAdminJobQaChecklist(['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
     setAdminJobAssignedTechIds(['ALL']);
     setAdminJobFiles([]);
   };
@@ -1859,6 +1865,13 @@ export default function ContractorDashboard() {
                             workOrderTemplate: adminJobWorkOrderTemplate,
                             hourlyRate: Number(adminJobHourlyRate || 0),
                             travelRate: Number(adminJobTravelRate || 0),
+                            equipment: adminJobEquipment.filter((item) => item.description.trim()).map((item) => ({
+                              description: item.description.trim(),
+                              quantity: item.quantity.trim(),
+                              notes: item.notes.trim(),
+                            })),
+                            scopeTasks: adminJobScopeTasks.map((task) => task.trim()).filter(Boolean),
+                            qaChecklist: adminJobQaChecklist.map((item) => item.trim()).filter(Boolean),
                             // Keep the original single-value field for backward
                             // compatibility while the array drives multi-tech access.
                             assignedTechId: adminJobAssignedTechIds.includes('ALL')
@@ -2055,6 +2068,18 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
                         />
                       </div>
+                      <div className="space-y-2 rounded border border-green-500/20 bg-green-500/5 p-3">
+                        <div className="flex items-center justify-between gap-3"><label className="text-[11px] font-bold uppercase tracking-wider text-green-400">Equipment / materials</label><button type="button" onClick={() => setAdminJobEquipment((items) => [...items, { description: '', quantity: '', notes: '' }])} className="text-[10px] font-bold text-green-300 hover:text-green-200">+ Add item</button></div>
+                        {adminJobEquipment.map((item, index) => <div key={`equipment-${index}`} className="grid grid-cols-[1fr_68px_24px] gap-1.5"><input value={item.description} onChange={(event) => setAdminJobEquipment((items) => items.map((current, itemIndex) => itemIndex === index ? { ...current, description: event.target.value } : current))} placeholder="Equipment or material" className="min-w-0 rounded bg-slate-900 border border-slate-800 px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-green-500" /><input value={item.quantity} onChange={(event) => setAdminJobEquipment((items) => items.map((current, itemIndex) => itemIndex === index ? { ...current, quantity: event.target.value } : current))} placeholder="Qty" className="rounded bg-slate-900 border border-slate-800 px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-green-500" />{adminJobEquipment.length > 1 ? <button type="button" onClick={() => setAdminJobEquipment((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="text-red-400 hover:text-red-300">×</button> : <span />}</div>)}
+                      </div>
+                      <div className="space-y-2 rounded border border-green-500/20 bg-green-500/5 p-3">
+                        <div className="flex items-center justify-between gap-3"><label className="text-[11px] font-bold uppercase tracking-wider text-green-400">Scope of work</label><button type="button" onClick={() => setAdminJobScopeTasks((tasks) => [...tasks, ''])} className="text-[10px] font-bold text-green-300 hover:text-green-200">+ Add task</button></div>
+                        {adminJobScopeTasks.map((task, index) => <div key={`scope-${index}`} className="flex gap-1.5"><input value={task} onChange={(event) => setAdminJobScopeTasks((tasks) => tasks.map((current, taskIndex) => taskIndex === index ? event.target.value : current))} placeholder="Task or installation step" className="min-w-0 flex-1 rounded bg-slate-900 border border-slate-800 px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-green-500" />{adminJobScopeTasks.length > 1 && <button type="button" onClick={() => setAdminJobScopeTasks((tasks) => tasks.filter((_, taskIndex) => taskIndex !== index))} className="px-1 text-red-400 hover:text-red-300">×</button>}</div>)}
+                      </div>
+                      <div className="space-y-2 rounded border border-green-500/20 bg-green-500/5 p-3">
+                        <div className="flex items-center justify-between gap-3"><label className="text-[11px] font-bold uppercase tracking-wider text-green-400">Customer sign-off checklist</label><button type="button" onClick={() => setAdminJobQaChecklist((items) => [...items, ''])} className="text-[10px] font-bold text-green-300 hover:text-green-200">+ Add check</button></div>
+                        {adminJobQaChecklist.map((item, index) => <div key={`qa-${index}`} className="flex gap-1.5"><input value={item} onChange={(event) => setAdminJobQaChecklist((items) => items.map((current, itemIndex) => itemIndex === index ? event.target.value : current))} placeholder="Customer confirmation item" className="min-w-0 flex-1 rounded bg-slate-900 border border-slate-800 px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-green-500" />{adminJobQaChecklist.length > 1 && <button type="button" onClick={() => setAdminJobQaChecklist((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="px-1 text-red-400 hover:text-red-300">×</button>}</div>)}
+                      </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Work Order Documents</label>
                         <input
@@ -2141,6 +2166,9 @@ export default function ContractorDashboard() {
                                     setAdminJobWorkOrderTemplate(job.workOrderTemplate || 'general');
                                     setAdminJobHourlyRate((job.hourlyRate !== undefined ? job.hourlyRate : 55.00).toString());
                                     setAdminJobTravelRate((job.travelRate !== undefined ? job.travelRate : 35.00).toString());
+                                    setAdminJobEquipment(job.equipment?.length ? job.equipment : [{ description: '', quantity: '', notes: '' }]);
+                                    setAdminJobScopeTasks(job.scopeTasks?.length ? job.scopeTasks : [job.notes || '']);
+                                    setAdminJobQaChecklist(job.qaChecklist?.length ? job.qaChecklist : ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
                                     setAdminJobAssignedTechIds(getAssignedTechIds(job));
                                     setAdminJobFiles([]);
                                   }}
