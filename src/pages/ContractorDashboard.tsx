@@ -1323,13 +1323,12 @@ export default function ContractorDashboard() {
                         </label>
                         <input
                           type="number"
-                          step="0.01"
-                          placeholder="0.00"
                           value={travelCost}
-                          onChange={(e) => setTravelCost(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                          readOnly
+                          aria-label="Admin-assigned travel allowance"
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-300 font-mono cursor-not-allowed"
                         />
-                        <span className="text-[10px] text-slate-500 block mt-1">Pre-filled from the job site profile. You can override if travel duration changed.</span>
+                        <span className="text-[10px] text-slate-500 block mt-1">Fixed allowance set by TechSavvy administration for this work order.</span>
                       </div>
                     </div>
 
