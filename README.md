@@ -46,7 +46,7 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 
 ## Operational notes
 
-- **Contractor invitations:** Admins choose **Send Branded Invite** in Contractor Sync. The server creates the Firebase account when needed, sends a secure password-setup link, and marks the invite sent only after Resend accepts it.
+- **Contractor invitations:** Admins choose **Send Branded Invite** in Contractor Sync. The server creates the Firebase account when needed, sends a secure password-setup link, stores Resend's delivery ID, and marks the invite sent only after Resend accepts it. Admins can check the current provider delivery event from the dashboard.
 - **Contractor onboarding:** After first sign-in, a technician uploads a W-9 PDF and accepts the portal terms. The file is stored in a contractor-specific private Storage path. Contractor Sync shows the submission state; administrators can open, approve, or request an update. W-9s are never exposed through a public URL or regular Firestore reads.
 - **QuickBooks sync:** The sync writes the current production vendor list and removes only stale auto-created `qbo-*` documents that are no longer returned by QuickBooks. Manually created contractor records are never auto-deleted.
 - **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. No Firebase email extension is required.

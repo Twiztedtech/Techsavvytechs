@@ -27,6 +27,7 @@ async function sendBrandedInvitation({ email, name, resetLink }) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'User-Agent': 'TechSavvy-Contractor-Portal/1.0',
     },
     body: JSON.stringify({
       from: sender,
@@ -44,6 +45,29 @@ async function sendBrandedInvitation({ email, name, resetLink }) {
     error.statusCode = 502;
     throw error;
   }
+  return response.json();
+}
+
+async function refreshInvitationDelivery(req, res) {
+  await requireAdmin(req);
+  const contractorId = typeof req.query.contractorId === 'string' ? req.query.contractorId : '';
+  if (!contractorId) return res.status(400).json({ error: 'A contractor is required.' });
+  const ref = adminDb.collection('contractors').doc(contractorId);
+  const snapshot = await ref.get();
+  const delivery = snapshot.data()?.invitationDelivery;
+  if (!snapshot.exists || !delivery?.emailId) return res.status(404).json({ error: 'This contractor has no tracked portal invitation yet.' });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'Branded invitation email is not configured yet.' });
+
+  const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(delivery.emailId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}`, 'User-Agent': 'TechSavvy-Contractor-Portal/1.0' },
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || 'Could not check the invitation delivery status.');
+  const status = typeof data.last_event === 'string' ? data.last_event : 'accepted';
+  const checkedAt = new Date().toISOString();
+  await ref.set({ invitationDelivery: { ...delivery, status, checkedAt } }, { merge: true });
+  return res.status(200).json({ success: true, status, checkedAt });
 }
 
 async function handleOnboardingReview(req, res) {
@@ -80,6 +104,16 @@ export default async function handler(req, res) {
       if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') return res.status(403).json({ error: error.message });
       console.error('Contractor onboarding review failed:', error);
       return res.status(500).json({ error: 'Could not save the onboarding review.' });
+    }
+  }
+  if (req.query?.adminOperation === 'invite-status') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
+    try {
+      return await refreshInvitationDelivery(req, res);
+    } catch (error) {
+      if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') return res.status(403).json({ error: error.message });
+      console.error('Contractor invitation delivery check failed:', error);
+      return res.status(500).json({ error: error.message || 'Could not check the invitation delivery status.' });
     }
   }
   if (req.method !== 'POST') {
@@ -138,7 +172,7 @@ export default async function handler(req, res) {
     const passwordResetLink = await adminAuth.generatePasswordResetLink(email, {
       url: `${appUrl}/contractor/dashboard`,
     });
-    await sendBrandedInvitation({
+    const emailDelivery = await sendBrandedInvitation({
       email,
       name: contractor.name || email,
       resetLink: passwordResetLink,
@@ -150,6 +184,12 @@ export default async function handler(req, res) {
       invitationStatus: 'sent',
       invitationSentAt: now,
       authProvisionedAt: now,
+      invitationDelivery: {
+        emailId: emailDelivery.id,
+        status: 'accepted',
+        acceptedAt: now,
+        checkedAt: now,
+      },
     }, { merge: true });
 
     return res.status(200).json({

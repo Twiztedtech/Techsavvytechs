@@ -20,6 +20,7 @@ export default function ContractorDashboard() {
   const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [invitingContractorId, setInvitingContractorId] = useState<string | null>(null);
+  const [checkingInvitationId, setCheckingInvitationId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
   const [reviewingOnboardingId, setReviewingOnboardingId] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState('');
@@ -2307,6 +2308,7 @@ export default function ContractorDashboard() {
                             })()}
                           </td>
                           <td className="p-3 text-right">
+                            <div className="flex min-w-[165px] flex-col items-end gap-1.5">
                             <button
                               type="button"
                               disabled={!cont.email || invitingContractorId === cont.id}
@@ -2340,6 +2342,32 @@ export default function ContractorDashboard() {
                                   ? 'Resend Branded Invite'
                                   : 'Send Branded Invite'}
                             </button>
+                            {cont.invitationDelivery?.emailId ? <button
+                              type="button"
+                              disabled={checkingInvitationId === cont.id}
+                              onClick={async () => {
+                                setCheckingInvitationId(cont.id);
+                                try {
+                                  const idToken = await auth.currentUser?.getIdToken();
+                                  const response = await fetch(`/api/admin/contractors/invitation-status?contractorId=${encodeURIComponent(cont.id)}`, {
+                                    headers: { Authorization: `Bearer ${idToken}` },
+                                  });
+                                  const data = await response.json();
+                                  if (!response.ok) throw new Error(data.error || 'Could not check invitation delivery.');
+                                  alert(`Email provider status: ${String(data.status).replace('_', ' ')}.`);
+                                } catch (error) {
+                                  alert(error instanceof Error ? error.message : 'Could not check invitation delivery.');
+                                } finally {
+                                  setCheckingInvitationId(null);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-sky-300 underline underline-offset-2 hover:text-sky-200 disabled:opacity-50"
+                            >
+                              {checkingInvitationId === cont.id
+                                ? 'Checking delivery…'
+                                : `Delivery: ${String(cont.invitationDelivery.status || 'accepted').replace('_', ' ')}`}
+                            </button> : null}
+                            </div>
                           </td>
                         </tr>
                       ))}

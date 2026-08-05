@@ -20,6 +20,7 @@ Last updated: 2026-08-04
 - Administrators can assign one job to multiple technicians, attach work-order documents, and preview the assigned technician experience.
 - Technicians can access assigned work orders, submitted documents, signed PDFs, per-day time entries, photos, and their agreed rate.
 - Contractor invitations use Firebase password-reset links generated server-side and a branded Resend email from `support@techsavvytechs.com`; Firebase's generic email template is no longer used.
+- Invitation records store the Resend message ID and latest provider event, so an administrator can distinguish accepted, delivered, bounced, and failed delivery instead of assuming a portal confirmation means inbox delivery.
 - The TechSavvy sending domain is verified in Resend. `support@techsavvytechs.com` is a Google Workspace alias that routes to the support inbox without a separate mailbox license.
 - Contact-form submissions are stored in Firestore and sent directly to the support inbox through Resend. The previous uninstalled Firebase email-extension dependency was removed.
 - Public navigation, client/contractor portal paths, phone number, support email, page-level metadata, robots file, and sitemap are current.
