@@ -50,6 +50,11 @@ const contractorProfileFor = async (user) => {
   return contractor.docs[0];
 };
 
+const signatureFor = (contractor) => {
+  const signature = contractor.data().signature || {};
+  return typeof signature.dataUrl === 'string' ? signature.dataUrl : '';
+};
+
 const handleOnboarding = async (req, res, user) => {
   const contractor = await contractorProfileFor(user);
   if (req.method === 'GET') return res.status(200).json({ onboarding: onboardingFor(contractor.data()) });
@@ -85,6 +90,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const entries = await entriesFor(user);
       const assignedJobs = await workOrdersFor(user);
+      const contractor = user.contractor === true ? await contractorProfileFor(user) : null;
       return res.status(200).json({
         entries,
         assignedJobIds: assignedJobs.map((job) => job.id),
@@ -92,11 +98,26 @@ export default async function handler(req, res) {
         // server endpoint. Do not expose the whole jobs collection to them.
         jobs: assignedJobs.map((job) => ({ id: job.id, ...job.data() })),
         activeEntry: entries.find((entry) => entry.active === true) || null,
+        technicianSignature: contractor ? signatureFor(contractor) : '',
       });
     }
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
     const action = req.body?.action;
+    if (action === 'save_signature') {
+      const contractor = await contractorProfileFor(user);
+      const signatureDataUrl = req.body?.signatureDataUrl;
+      if (typeof signatureDataUrl !== 'string' || !signatureDataUrl.startsWith('data:image/png;base64,') || signatureDataUrl.length > 400000) {
+        return res.status(422).json({ error: 'Please provide a valid PNG signature smaller than 300 KB.' });
+      }
+      await contractor.ref.set({ signature: { dataUrl: signatureDataUrl, updatedAt: new Date().toISOString() } }, { merge: true });
+      return res.status(200).json({ success: true, technicianSignature: signatureDataUrl });
+    }
+    if (action === 'clear_signature') {
+      const contractor = await contractorProfileFor(user);
+      await contractor.ref.set({ signature: { dataUrl: '', updatedAt: new Date().toISOString() } }, { merge: true });
+      return res.status(200).json({ success: true, technicianSignature: '' });
+    }
     const existingEntries = await entriesFor(user);
     const activeEntry = existingEntries.find((entry) => entry.active === true);
     if (action === 'start') {

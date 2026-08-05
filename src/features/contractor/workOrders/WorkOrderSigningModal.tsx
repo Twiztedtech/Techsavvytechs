@@ -89,6 +89,8 @@ function SignaturePad({ label, onChange }: SignaturePadProps) {
 type Props = {
   job: JobSite;
   technicianName: string;
+  savedTechnicianSignature?: string;
+  onSaveTechnicianSignature?: (signatureDataUrl: string) => Promise<void>;
   onClose: () => void;
   onComplete: () => void;
 };
@@ -101,7 +103,7 @@ const templates: Record<NonNullable<JobSite['workOrderTemplate']>, string> = {
   network: 'Network / Wi-Fi service',
 };
 
-export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete }: Props) {
+export function WorkOrderSigningModal({ job, technicianName, savedTechnicianSignature = '', onSaveTechnicianSignature, onClose, onComplete }: Props) {
   const scopeTasks = job.scopeTasks?.filter(Boolean) ?? [];
   const checklistItems = job.qaChecklist?.filter(Boolean).length
     ? job.qaChecklist.filter(Boolean)
@@ -109,10 +111,12 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
   const equipment = job.equipment?.filter((item) => item.description.trim()) ?? [];
   const [leadName, setLeadName] = useState(technicianName);
   const [customerName, setCustomerName] = useState('');
-  const [technicianSignature, setTechnicianSignature] = useState('');
+  const [technicianSignature, setTechnicianSignature] = useState(savedTechnicianSignature);
   const [customerSignature, setCustomerSignature] = useState('');
   const [checks, setChecks] = useState(() => checklistItems.map(() => false));
   const [customerAccepted, setCustomerAccepted] = useState(false);
+  const [useSavedTechnicianSignature, setUseSavedTechnicianSignature] = useState(Boolean(savedTechnicianSignature));
+  const [saveTechnicianSignature, setSaveTechnicianSignature] = useState(!savedTechnicianSignature && Boolean(onSaveTechnicianSignature));
   const [isSaving, setIsSaving] = useState(false);
 
   const complete = async () => {
@@ -123,6 +127,9 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
 
     setIsSaving(true);
     try {
+      if (!useSavedTechnicianSignature && saveTechnicianSignature && onSaveTechnicianSignature) {
+        await onSaveTechnicianSignature(technicianSignature);
+      }
       const completedAt = new Date().toISOString();
       const document = new jsPDF({ unit: 'pt', format: 'letter' });
       const green: [number, number, number] = [22, 163, 74];
@@ -305,7 +312,7 @@ export function WorkOrderSigningModal({ job, technicianName, onClose, onComplete
           {equipment.length ? <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><p className="font-bold text-slate-900">Equipment & materials</p><ul className="mt-2 space-y-1">{equipment.map((item, index) => <li key={`${index}-${item.description}`}><strong>{item.quantity ? `${item.quantity} × ` : ''}{item.description}</strong>{item.notes ? ` — ${item.notes}` : ''}</li>)}</ul></div> : null}
           <div className="space-y-2"><p className="text-sm font-bold">Completion checklist</p>{checklistItems.map((label, index) => <label key={label} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={checks[index]} onChange={(event) => setChecks((current) => current.map((value, itemIndex) => itemIndex === index ? event.target.checked : value))} className="h-4 w-4 accent-green-600" />{label}</label>)}</div>
           <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-700">Lead technician<input value={leadName} onChange={(event) => setLeadName(event.target.value)} className="mt-1.5 w-full rounded border border-slate-300 px-3 py-2 text-sm" /></label><label className="text-xs font-semibold text-slate-700">Site representative<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer's printed name" className="mt-1.5 w-full rounded border border-slate-300 px-3 py-2 text-sm" /></label></div>
-          <SignaturePad label="Lead technician signature" onChange={setTechnicianSignature} />
+          {useSavedTechnicianSignature && savedTechnicianSignature ? <div className="rounded border border-green-200 bg-green-50 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold text-green-900">Saved technician signature</p><p className="mt-0.5 text-[10px] text-green-800">This signature will be applied to this work order.</p></div><button type="button" onClick={() => { setUseSavedTechnicianSignature(false); setTechnicianSignature(''); }} className="rounded border border-green-700 px-2.5 py-1.5 text-[10px] font-bold text-green-800 hover:bg-green-100">Replace</button></div><img src={savedTechnicianSignature} alt="Saved technician signature" className="mt-3 h-20 w-full rounded border border-green-200 bg-white object-contain" /></div> : <><SignaturePad label="Lead technician signature" onChange={setTechnicianSignature} />{onSaveTechnicianSignature ? <label className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={saveTechnicianSignature} onChange={(event) => setSaveTechnicianSignature(event.target.checked)} className="h-4 w-4 accent-green-600" />Save this as my signature for future work orders</label> : null}</>}
           <SignaturePad label="Site representative signature" onChange={setCustomerSignature} />
           <label className="flex gap-2 rounded border border-green-200 bg-green-50 p-3 text-xs text-slate-700"><input type="checkbox" checked={customerAccepted} onChange={(event) => setCustomerAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-green-600" /><span>I confirm that I am authorized to accept this work on behalf of the site and that the scope above has been reviewed.</span></label>
           <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} disabled={isSaving} className="rounded px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={complete} disabled={isSaving} className="rounded bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-wait disabled:opacity-60">{isSaving ? 'Generating signed PDF…' : 'Generate & Save Signed PDF'}</button></div>

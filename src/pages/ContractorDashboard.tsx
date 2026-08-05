@@ -28,6 +28,7 @@ export default function ContractorDashboard() {
   const [loginPassword, setLoginPassword] = useState('');
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
+  const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -258,6 +259,7 @@ export default function ContractorDashboard() {
         if (cancelled) return;
         setTimeEntries(data.entries || []);
         setAssignedJobIds(data.assignedJobIds || []);
+        setSavedTechnicianSignature(data.technicianSignature || '');
         if (userRole === 'contractor') setJobSitesList(data.jobs || []);
         if (data.activeEntry) {
           const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
@@ -462,6 +464,18 @@ export default function ContractorDashboard() {
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not stop the time clock.');
     }
+  };
+
+  const saveTechnicianSignature = async (signatureDataUrl: string) => {
+    const token = await auth.currentUser?.getIdToken();
+    const response = await fetch('/api/portal/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'save_signature', signatureDataUrl }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not save your signature.');
+    setSavedTechnicianSignature(data.technicianSignature || signatureDataUrl);
   };
 
   const calculateHours = (start, end, breakMins) => {
@@ -2638,7 +2652,7 @@ export default function ContractorDashboard() {
       )}
 
       {isSigningWorkOrder && selectedJobObj && (
-        <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
+        <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
       )}
       {previewJob && (
         <TechnicianWorkOrderPreview job={previewJob} technicianName={contractorsList.find((contractor) => contractor.id === previewJob.technicianLeadId)?.name || 'Assigned Technician'} onClose={() => setPreviewJob(null)} />
