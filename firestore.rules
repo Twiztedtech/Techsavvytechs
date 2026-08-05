@@ -35,6 +35,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Reusable customer directory for administrator work-order creation.
+    match /customers/{customerId} {
+      allow read, write: if isAdmin();
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();

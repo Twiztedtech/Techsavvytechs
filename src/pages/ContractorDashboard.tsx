@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, db, storage } from '../lib/firebase';
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
@@ -150,6 +150,7 @@ export default function ContractorDashboard() {
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState('');
   const [jobSitesViewedAt, setJobSitesViewedAt] = useState({});
+  const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
 
   const getAssignedTechIds = (job) => {
     if (Array.isArray(job.assignedTechIds) && job.assignedTechIds.length > 0) {
@@ -241,6 +242,39 @@ export default function ContractorDashboard() {
       }
     }, (error) => console.error('Could not load shared work orders:', error));
   }, [isAuthenticated, userRole]);
+
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'admin') {
+      setCustomersList([]);
+      return;
+    }
+    return onSnapshot(collection(db, 'customers'), (snapshot) => {
+      setCustomersList(snapshot.docs
+        .map((customer) => ({ id: customer.id, name: String(customer.data().name || '').trim() }))
+        .filter((customer) => customer.name)
+        .sort((left, right) => left.name.localeCompare(right.name)));
+    });
+  }, [isAuthenticated, userRole]);
+
+  const addCustomer = async () => {
+    const requestedName = window.prompt('Customer name');
+    const name = requestedName?.trim();
+    if (!name) return;
+
+    const existing = customersList.find((customer) => customer.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0);
+    if (existing) {
+      setAdminJobVendorName(existing.name);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'customers'), { name, createdAt: serverTimestamp() });
+      setAdminJobVendorName(name);
+    } catch (error) {
+      console.error('Could not add customer:', error);
+      alert('Could not add the customer. Please try again.');
+    }
+  };
 
   useEffect(() => {
     if (jobSitesList.length > 0 && !jobSitesList.some((job) => job.id === selectedJobId)) {
@@ -1943,17 +1977,20 @@ export default function ContractorDashboard() {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Vendor / Customer</label>
-                          <input
-                            list="work-order-vendors"
-                            placeholder="Choose a past vendor or enter a new one"
+                          <div className="mb-1 flex items-center justify-between gap-3">
+                            <label className="block text-[11px] font-semibold text-slate-400">Vendor / Customer</label>
+                            <button type="button" onClick={addCustomer} className="text-[10px] font-bold text-green-300 hover:text-green-200">+ Add customer</button>
+                          </div>
+                          <select
                             value={adminJobVendorName}
                             onChange={(e) => setAdminJobVendorName(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500"
-                          />
-                          <datalist id="work-order-vendors">
-                            {[...new Set(jobSitesList.map((job) => job.vendorName).filter(Boolean))].map((vendor) => <option key={vendor} value={vendor} />)}
-                          </datalist>
+                          >
+                            <option value="">Select a customer</option>
+                            {[...new Set([...customersList.map((customer) => customer.name), ...jobSitesList.map((job) => job.vendorName).filter(Boolean)])]
+                              .sort((left, right) => left.localeCompare(right))
+                              .map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">Site Contact</label>
