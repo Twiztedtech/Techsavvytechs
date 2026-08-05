@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowRight, BriefcaseBusiness, LockKeyhole, UserCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button } from '../components/ui/Button';
 
 const Portal = () => {

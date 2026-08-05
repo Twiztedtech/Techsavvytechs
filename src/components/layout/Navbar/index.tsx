@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Logo } from '../../Logo';
 import { Button } from '../../ui/Button';
 import { NavItem, NavDropdownItem } from './NavItem';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Menu, X } from 'lucide-react';
 
 export const Navbar = () => {

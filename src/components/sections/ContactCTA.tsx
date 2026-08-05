@@ -1,7 +1,7 @@
 import React from 'react';
 import { Server, Phone } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 export const ContactCTA = () => {
   return (

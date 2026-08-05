@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Shield, CheckCircle, Zap, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 interface ServicePageProps {
   title: string;

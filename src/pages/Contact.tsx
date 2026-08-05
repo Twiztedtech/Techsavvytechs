@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Phone, MapPin, Send, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 const Contact = () => {
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    message: ''
+    message: '',
+    company: '',
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -37,7 +38,7 @@ const Contact = () => {
       if (!response.ok) throw new Error(result.error || 'Unable to send your message.');
 
       setStatus('success');
-      setFormData({ name: '', email: '', message: '' });
+      setFormData({ name: '', email: '', message: '', company: '' });
     } catch (error) {
       console.error("Submission error:", error);
       setStatus('error');
@@ -136,8 +137,10 @@ const Contact = () => {
                     </p>
                   )}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Full Name</label>
+                    <label htmlFor="contact-name" className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Full Name</label>
                     <input 
+                      id="contact-name"
+                      name="name"
                       required
                       type="text"
                       value={formData.name}
@@ -147,9 +150,24 @@ const Contact = () => {
                     />
                   </div>
 
+                  <div className="hidden" aria-hidden="true">
+                    <label htmlFor="company">Company</label>
+                    <input
+                      id="company"
+                      name="company"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={formData.company}
+                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    />
+                  </div>
+
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Email Address</label>
+                    <label htmlFor="contact-email" className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Email Address</label>
                     <input 
+                      id="contact-email"
+                      name="email"
                       required
                       type="email"
                       value={formData.email}
@@ -160,8 +178,10 @@ const Contact = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Project Scope / Message</label>
+                    <label htmlFor="contact-message" className="text-[10px] font-mono text-tech-green uppercase tracking-[0.3em] font-bold">Project Scope / Message</label>
                     <textarea 
+                      id="contact-message"
+                      name="message"
                       required
                       rows={6}
                       value={formData.message}

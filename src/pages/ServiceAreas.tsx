@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { MapPin, ArrowRight, Shield, Globe } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 const regions = [
   {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, db, storage } from '../lib/firebase';
 import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
@@ -7,9 +7,10 @@ import { SupportTicketModal } from '../features/contractor/support/SupportTicket
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
-import { WorkOrderSigningModal } from '../features/contractor/workOrders/WorkOrderSigningModal';
-import { TechnicianWorkOrderPreview } from '../features/contractor/workOrders/TechnicianWorkOrderPreview';
 import { ContractorOnboardingCard, type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
+
+const WorkOrderSigningModal = lazy(() => import('../features/contractor/workOrders/WorkOrderSigningModal').then(({ WorkOrderSigningModal }) => ({ default: WorkOrderSigningModal })));
+const TechnicianWorkOrderPreview = lazy(() => import('../features/contractor/workOrders/TechnicianWorkOrderPreview').then(({ TechnicianWorkOrderPreview }) => ({ default: TechnicianWorkOrderPreview })));
 
 
 export default function ContractorDashboard() {
@@ -2652,10 +2653,14 @@ export default function ContractorDashboard() {
       )}
 
       {isSigningWorkOrder && selectedJobObj && (
-        <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
+        <Suspense fallback={null}>
+          <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
+        </Suspense>
       )}
       {previewJob && (
-        <TechnicianWorkOrderPreview job={previewJob} technicianName={contractorsList.find((contractor) => contractor.id === previewJob.technicianLeadId)?.name || 'Assigned Technician'} onClose={() => setPreviewJob(null)} />
+        <Suspense fallback={null}>
+          <TechnicianWorkOrderPreview job={previewJob} technicianName={contractorsList.find((contractor) => contractor.id === previewJob.technicianLeadId)?.name || 'Assigned Technician'} onClose={() => setPreviewJob(null)} />
+        </Suspense>
       )}
       <SupportTicketModal
         isOpen={isSupportModalOpen}
