@@ -15,6 +15,7 @@ import { ContractorOnboardingCard, type OnboardingState } from '../features/cont
 export default function ContractorDashboard() {
   // Authentication & View State
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
+  const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
   const [contractorsList, setContractorsList] = useState([]);
@@ -32,6 +33,7 @@ export default function ContractorDashboard() {
     if (!user) {
       setIsAuthenticated(false);
       setUserRole('contractor');
+      setCanAccessAdmin(false);
       return;
     }
     setLoginEmail(user.email || '');
@@ -49,9 +51,11 @@ export default function ContractorDashboard() {
       await signOut(auth);
       setIsAuthenticated(false);
       setLoginEmail('');
+      setCanAccessAdmin(false);
       alert('This email has not been invited to the Contractor Portal. Please contact TechSavvy for access.');
       return;
     }
+    setCanAccessAdmin(isAdmin);
     setUserRole(isAdmin ? 'admin' : 'contractor');
     setIsAuthenticated(true);
   }), []);
@@ -216,16 +220,19 @@ export default function ContractorDashboard() {
     setAdminJobFiles([]);
   };
 
-  // Work orders are shared through Firestore so admins and signed-in technicians
-  // see the same job details on every device.
+  // Admins manage the shared job collection directly. Contractors get only
+  // their assigned jobs from the authenticated portal API below.
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || userRole !== 'admin') {
+      setJobSitesList([]);
+      return;
+    }
     return onSnapshot(collection(db, 'jobs'), (snapshot) => {
       if (!snapshot.empty) {
         setJobSitesList(snapshot.docs.map((job) => ({ id: job.id, ...job.data() })));
       }
     }, (error) => console.error('Could not load shared work orders:', error));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   useEffect(() => {
     if (jobSitesList.length > 0 && !jobSitesList.some((job) => job.id === selectedJobId)) {
@@ -245,6 +252,7 @@ export default function ContractorDashboard() {
         if (cancelled) return;
         setTimeEntries(data.entries || []);
         setAssignedJobIds(data.assignedJobIds || []);
+        if (userRole === 'contractor') setJobSitesList(data.jobs || []);
         if (data.activeEntry) {
           const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
           setActiveShift({ isClockedIn: true, startTime: data.activeEntry.clockIn, jobName: data.activeEntry.jobSite, elapsedSeconds: Math.max(0, Math.floor((Date.now() - started) / 1000)) });
@@ -255,7 +263,7 @@ export default function ContractorDashboard() {
     };
     void loadTimeClock();
     return () => { cancelled = true; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   const uploadWorkOrderDocuments = async (jobId: string, files: File[]) => {
     return Promise.all(files.map(async (file) => {
@@ -830,7 +838,10 @@ export default function ContractorDashboard() {
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       <DashboardHeader
         role={userRole}
-        onRoleChange={setUserRole}
+        canAccessAdmin={canAccessAdmin}
+        onRoleChange={(role) => {
+          if (canAccessAdmin) setUserRole(role);
+        }}
         onContactAdmin={() => {
           setSupportSubject('QuickBooks Sync Error');
           setSupportEmail(loginEmail || '');

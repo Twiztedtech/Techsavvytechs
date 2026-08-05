@@ -28,9 +28,10 @@ service cloud.firestore {
 
     // Job Sites
     match /jobs/{jobId} {
-      // Signed-in technicians can read their work-order details and attachments.
-      // Writes stay limited to the administrator account.
-      allow read: if isAdmin() || isContractor();
+      // Work orders are returned to technicians only by the authenticated
+      // server endpoint after it verifies their assignment. This prevents a
+      // client-side query from exposing every contractor's jobs.
+      allow read: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 

@@ -85,7 +85,14 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const entries = await entriesFor(user);
       const assignedJobs = await workOrdersFor(user);
-      return res.status(200).json({ entries, assignedJobIds: assignedJobs.map((job) => job.id), activeEntry: entries.find((entry) => entry.active === true) || null });
+      return res.status(200).json({
+        entries,
+        assignedJobIds: assignedJobs.map((job) => job.id),
+        // Contractors receive their work orders through this authenticated
+        // server endpoint. Do not expose the whole jobs collection to them.
+        jobs: assignedJobs.map((job) => ({ id: job.id, ...job.data() })),
+        activeEntry: entries.find((entry) => entry.active === true) || null,
+      });
     }
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
