@@ -163,6 +163,52 @@ export default async function handler(req, res) {
       await adminDb.collection('time_entries').doc(activeEntry.id).set(update, { merge: true });
       return res.status(200).json({ entry: { ...activeEntry, ...update } });
     }
+    if (action === 'submit_manual_log') {
+      const jobId = req.body?.jobId;
+      const jobSite = req.body?.jobSite;
+      const address = req.body?.address;
+      const date = req.body?.date;
+      const clockIn = req.body?.clockIn;
+      const clockOut = req.body?.clockOut;
+      const breakMinutes = Number(req.body?.breakMinutes) || 0;
+      const totalHours = req.body?.totalHours;
+      const rate = Number(req.body?.rate) || 55;
+      const suppliesCost = Number(req.body?.suppliesCost) || 0;
+      const suppliesItems = Array.isArray(req.body?.suppliesItems) ? req.body.suppliesItems : [];
+      const travelCost = Number(req.body?.travelCost) || 0;
+      const notes = req.body?.notes || '';
+      const photos = Array.isArray(req.body?.photos) ? req.body.photos : [];
+
+      const now = new Date();
+      const entry = {
+        jobId: jobId || '',
+        jobSite: jobSite || 'Custom Job Site',
+        address: address || 'Address on file',
+        date: date || now.toISOString().slice(0, 10),
+        clockIn: clockIn || '07:00',
+        clockOut: clockOut || '15:30',
+        breakMinutes,
+        totalHours: totalHours || '8.50',
+        rate,
+        suppliesCost,
+        suppliesItems,
+        travelCost,
+        laborStatus: 'pending',
+        suppliesStatus: 'pending',
+        travelStatus: 'pending',
+        notes,
+        status: 'pending',
+        qbStatus: 'pending',
+        photos,
+        technicianUid: user.uid,
+        active: false,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+
+      const created = await adminDb.collection('time_entries').add(entry);
+      return res.status(201).json({ entry: { id: created.id, ...entry } });
+    }
     return res.status(400).json({ error: 'Unsupported time-clock action.' });
   } catch (error) {
     const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.'].includes(error.message) ? 403 : 500;

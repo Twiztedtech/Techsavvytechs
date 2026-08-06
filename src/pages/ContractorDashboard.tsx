@@ -643,58 +643,72 @@ export default function ContractorDashboard() {
     setUploadedPhotos(prev => [...prev, ...filePreviews]);
   };
 
-  const handleSubmitLog = (e) => {
+  const handleSubmitLog = async (e) => {
     e.preventDefault();
     const finalJobName = isCustomJob ? customJobSite : selectedJobObj?.name;
     const finalAddress = isCustomJob ? customJobAddress : selectedJobObj?.address;
     if (!finalJobName) return;
 
-    const newEntry = {
-      id: `te-${Date.now().toString().slice(-4)}`,
-      jobSite: finalJobName,
-      address: finalAddress || 'Address on file',
-      date: logDate,
-      clockIn,
-      clockOut,
-      breakMinutes: Number(breakMinutes),
-      totalHours: calculatedHours,
-      rate: Number(contractorRate),
-      suppliesCost: Number(suppliesCost || 0),
-      suppliesItems: suppliesItems.filter(item => item.description.trim() !== '' || item.cost.trim() !== ''),
-      travelCost: Number(travelCost || 0),
-      laborStatus: 'pending',
-      suppliesStatus: 'pending',
-      travelStatus: 'pending',
-      notes,
-      status: 'pending',
-      qbStatus: 'pending',
-      photos: [...uploadedPhotos],
-    };
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'submit_manual_log',
+          jobId: isCustomJob ? '' : selectedJobId,
+          jobSite: finalJobName,
+          address: finalAddress || 'Address on file',
+          date: logDate,
+          clockIn,
+          clockOut,
+          breakMinutes: Number(breakMinutes),
+          totalHours: calculatedHours,
+          rate: Number(contractorRate),
+          suppliesCost: Number(suppliesCost || 0),
+          suppliesItems: suppliesItems.filter(item => item.description.trim() !== '' || item.cost.trim() !== ''),
+          travelCost: Number(travelCost || 0),
+          notes,
+          photos: [...uploadedPhotos]
+        })
+      });
 
-    setTimeEntries([newEntry, ...timeEntries]);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not submit timesheet.');
 
-    if (isCustomJob && customJobSite) {
-      const newJobObj = {
-        id: `j-${Date.now().toString().slice(-4)}`,
-        name: customJobSite,
-        address: customJobAddress || 'Site Location Unspecified',
-        notes: 'User added custom job site',
-        hourlyRate: Number(contractorRate),
-        travelRate: Number(travelCost || 0)
-      };
-      setJobSitesList(prev => [...prev, newJobObj]);
-      setSelectedJobId(newJobObj.id);
-      setIsCustomJob(false);
-      setCustomJobSite('');
-      setCustomJobAddress('');
+      const newEntry = data.entry;
+      setTimeEntries([newEntry, ...timeEntries]);
+
+      if (isCustomJob && customJobSite) {
+        const newJobObj = {
+          id: `j-${Date.now().toString().slice(-4)}`,
+          name: customJobSite,
+          address: customJobAddress || 'Site Location Unspecified',
+          notes: 'User added custom job site',
+          hourlyRate: Number(contractorRate),
+          travelRate: Number(travelCost || 0)
+        };
+        setJobSitesList(prev => [...prev, newJobObj]);
+        setSelectedJobId(newJobObj.id);
+        setIsCustomJob(false);
+        setCustomJobSite('');
+        setCustomJobAddress('');
+      }
+
+      setNotes('');
+      setSuppliesCost('0.00');
+      setSuppliesItems([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
+      setTravelCost('0.00');
+      setUploadedPhotos([]);
+      setActiveInvoice(newEntry);
+      alert('Timesheet entry submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting timesheet:', error);
+      alert(error instanceof Error ? error.message : 'Could not submit timesheet.');
     }
-
-    setNotes('');
-    setSuppliesCost('0.00');
-    setSuppliesItems([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
-    setTravelCost('0.00');
-    setUploadedPhotos([]);
-    setActiveInvoice(newEntry);
   };
 
   const renderCalendarDays = () => {
