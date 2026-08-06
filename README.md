@@ -4,12 +4,13 @@ Production source for [techsavvytechs.com](https://techsavvytechs.com): the publ
 
 ## What this project includes
 
-- Public service pages, contact form, local-service SEO, sitemap, and responsive navigation.
+- Public service pages, protected contact form, local-service SEO, sitemap, and responsive navigation.
 - Contractor portal for work-order assignments, documents, signed work orders, on-site time entries, photos, and technician previews.
 - Administrator dashboard for job sites, contractor assignments, approvals, and QuickBooks Online vendor sync.
 - Firebase Authentication, Firestore, and Storage security rules.
 - Server-side QuickBooks OAuth and vendor synchronization; browser code never receives QuickBooks tokens.
 - Branded contractor invitations and contact notifications delivered through Resend from `support@techsavvytechs.com`.
+- Security headers on every Vercel response, including a content security policy, clickjacking protection, and referrer controls.
 
 ## Local development
 
@@ -49,11 +50,13 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 - **Contractor invitations:** Admins choose **Send Branded Invite** in Contractor Sync. The server creates the Firebase account when needed, sends a secure password-setup link, stores Resend's delivery ID, and marks the invite sent only after Resend accepts it. Admins can check the current provider delivery event from the dashboard.
 - **Contractor onboarding:** After first sign-in, a technician uploads a W-9 PDF and accepts the portal terms. The file is stored in a contractor-specific private Storage path. Contractor Sync shows the submission state; administrators can open, approve, or request an update. W-9s are never exposed through a public URL or regular Firestore reads.
 - **QuickBooks sync:** The sync writes the current production vendor list and removes only stale auto-created `qbo-*` documents that are no longer returned by QuickBooks. Manually created contractor records are never auto-deleted.
-- **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. No Firebase email extension is required.
+- **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. It includes a honeypot and per-instance request throttling to reduce automated abuse. If email delivery fails after the submission is saved, the visitor still receives a successful confirmation and the Firestore record is marked with its delivery status to prevent duplicate submissions. No Firebase email extension is required.
+- **Portal performance:** The public website already defers the contractor portal route. Within the portal, document-signing and technician-preview modules now load only when their workflow opens, keeping the initial dashboard download smaller.
+- **Security headers:** Vercel applies `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, a strict referrer policy, and a restrictive permissions policy. Review the policy whenever adding a new third-party service, font, media host, or browser connection.
 - **Rules:** Source-controlled Firestore and Storage rules are in [`firestore.rules`](firestore.rules) and [`storage.rules`](storage.rules). Deploy them with the Firebase CLI or publish them in Firebase Console after reviewing the diff.
 
 ## Deployment
 
-Pushing `main` to GitHub triggers the Vercel production deployment. The same push is mirrored to the self-hosted Forgejo remote.
+Pushing `main` to GitHub triggers the Vercel production deployment. The same push is mirrored to the self-hosted Forgejo remote. The production deployment was verified after the latest hardening and performance updates.
 
-Before a live deployment, run lint and build. After changing any Vercel environment value, redeploy the production deployment so it receives the new configuration.
+Before a live deployment, run lint, build, and `npm audit --omit=dev --audit-level=high`. After changing any Vercel environment value, redeploy the production deployment so it receives the new configuration.

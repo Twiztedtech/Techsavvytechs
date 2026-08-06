@@ -31,6 +31,14 @@ export default function ContractorDashboard() {
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
 
+  // Add Contractor Modal State
+  const [isAddContractorOpen, setIsAddContractorOpen] = useState(false);
+  const [newContractorName, setNewContractorName] = useState('');
+  const [newContractorEmail, setNewContractorEmail] = useState('');
+  const [newContractorRate, setNewContractorRate] = useState('75');
+  const [newContractorSpecialty, setNewContractorSpecialty] = useState('');
+  const [isSavingContractor, setIsSavingContractor] = useState(false);
+
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     if (!user) {
       setIsAuthenticated(false);
@@ -273,6 +281,45 @@ export default function ContractorDashboard() {
     } catch (error) {
       console.error('Could not add customer:', error);
       alert('Could not add the customer. Please try again.');
+    }
+  };
+
+  const handleAddContractor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContractorName.trim()) {
+      alert('Please enter a contractor name.');
+      return;
+    }
+    if (!newContractorEmail.trim()) {
+      alert('Please enter a contractor email.');
+      return;
+    }
+
+    setIsSavingContractor(true);
+    try {
+      await addDoc(collection(db, 'contractors'), {
+        name: newContractorName.trim(),
+        email: newContractorEmail.trim().toLowerCase(),
+        rate: Number(newContractorRate) || 75,
+        specialty: newContractorSpecialty.trim(),
+        status: 'active',
+        createdAt: serverTimestamp(),
+        onboarding: {
+          status: 'not_started'
+        }
+      });
+
+      setNewContractorName('');
+      setNewContractorEmail('');
+      setNewContractorRate('75');
+      setNewContractorSpecialty('');
+      setIsAddContractorOpen(false);
+      alert('Contractor added successfully!');
+    } catch (error) {
+      console.error('Error adding contractor:', error);
+      alert('Failed to add contractor: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsSavingContractor(false);
     }
   };
 
@@ -2270,6 +2317,13 @@ export default function ContractorDashboard() {
                   </div>
 
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddContractorOpen(true)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 cursor-pointer animate-fade-in"
+                    >
+                      ➕ Add Contractor
+                    </button>
                     {qboConnected ? (
                       <button
                         type="button"
@@ -2716,6 +2770,98 @@ export default function ContractorDashboard() {
           alert(`Support ticket #${ticket.id} created successfully! The system administrator has been notified.`);
         }}
       />
+
+      {isAddContractorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl p-6 relative overflow-hidden backdrop-blur-md">
+            {/* Background Glow */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                <span>➕</span> Add New Tech to Contractors Pool
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddContractorOpen(false)}
+                className="w-8 h-8 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-slate-200 transition flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddContractor} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={newContractorName}
+                  onChange={(e) => setNewContractorName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. john@tech5avvy.com"
+                  value={newContractorEmail}
+                  onChange={(e) => setNewContractorEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Hourly Rate ($/hr)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="75"
+                    value={newContractorRate}
+                    onChange={(e) => setNewContractorRate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Tech Specialty</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Network, DevOps"
+                    value={newContractorSpecialty}
+                    onChange={(e) => setNewContractorSpecialty(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddContractorOpen(false)}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingContractor}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-650 to-violet-650 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+                >
+                  {isSavingContractor ? 'Saving...' : 'Add Contractor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

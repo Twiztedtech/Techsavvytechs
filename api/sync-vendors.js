@@ -83,9 +83,26 @@ export default async function handler(req, res) {
       const id = vendor.Id;
       const contractorId = `qbo-${id}`;
       const name = vendor.DisplayName || vendor.CompanyName || `${vendor.GivenName || ''} ${vendor.FamilyName || ''}`.trim();
-      liveVendorDocumentIds.add(contractorId);
-      await adminDb.collection('contractors').doc(`qbo-${id}`).set({
-        id: contractorId,
+      
+      // Look for any existing manual contractor profile with the same email
+      const existingQuery = await adminDb.collection('contractors')
+        .where('email', '==', email)
+        .get();
+
+      let targetDocRef = adminDb.collection('contractors').doc(contractorId);
+      
+      if (!existingQuery.empty) {
+        // If we find a manually added record (ID does not start with 'qbo-'), we update that record instead
+        const manualDoc = existingQuery.docs.find(doc => !doc.id.startsWith('qbo-'));
+        if (manualDoc) {
+          targetDocRef = manualDoc.ref;
+        }
+      }
+
+      liveVendorDocumentIds.add(targetDocRef.id);
+      
+      await targetDocRef.set({
+        id: targetDocRef.id,
         name,
         email,
         rate: vendor.HourlyRate ? Number(vendor.HourlyRate) : 75,
@@ -93,6 +110,7 @@ export default async function handler(req, res) {
         qboVendorId: id,
         syncedAt: new Date().toISOString(),
       }, { merge: true });
+      
       syncCount += 1;
     }
 
