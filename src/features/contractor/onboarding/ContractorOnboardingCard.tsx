@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type RefObject } from 'react';
 import { auth, storage } from '../../../lib/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
 import html2canvas from 'html2canvas-pro';
@@ -221,7 +221,7 @@ export function ContractorOnboardingCard({ onboarding, onUpdated }: { onboarding
   const label = labels[current.status];
   const border = label.color === 'green' ? 'border-green-500/30 bg-green-500/5' : label.color === 'blue' ? 'border-sky-500/30 bg-sky-500/5' : 'border-amber-500/30 bg-amber-500/5';
 
-  const renderW9Form = (refVar?: React.RefObject<HTMLDivElement | null>) => (
+  const renderW9Form = (refVar?: RefObject<HTMLDivElement | null>) => (
     <div ref={refVar} className="bg-white p-6 rounded text-[8.5px] text-slate-950 font-sans leading-tight shadow-md w-[500px] shrink-0 space-y-2 select-none border border-slate-300">
       {/* Header */}
       <div className="flex border-b-2 border-black pb-1.5">

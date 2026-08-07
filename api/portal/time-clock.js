@@ -25,8 +25,28 @@ const entriesFor = async (user) => {
   const snapshot = user.admin === true
     ? await adminDb.collection('time_entries').limit(100).get()
     : await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).limit(100).get();
+  const contractorByUid = new Map();
+  if (user.admin === true) {
+    const contractors = await adminDb.collection('contractors').get();
+    contractors.docs.forEach((contractor) => {
+      const data = contractor.data();
+      if (typeof data.authUid === 'string' && data.authUid) {
+        contractorByUid.set(data.authUid, { id: contractor.id, name: data.name || '', email: data.email || '' });
+      }
+    });
+  }
   return snapshot.docs
-    .map((entry) => ({ id: entry.id, ...entry.data() }))
+    .map((entry) => {
+      const data = entry.data();
+      const contractor = contractorByUid.get(data.technicianUid);
+      return {
+        id: entry.id,
+        ...data,
+        contractorId: contractor?.id || data.contractorId || '',
+        technicianName: contractor?.name || data.technicianName || '',
+        technicianEmail: contractor?.email || data.technicianEmail || '',
+      };
+    })
     .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
 };
 

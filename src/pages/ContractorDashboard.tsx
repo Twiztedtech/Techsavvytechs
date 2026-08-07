@@ -354,7 +354,15 @@ export default function ContractorDashboard() {
       }
     };
     void loadTimeClock();
-    return () => { cancelled = true; };
+    // Keep the approval view current while technicians are clocking time in
+    // the field, without requiring the administrator to refresh the browser.
+    const refreshTimer = userRole === 'admin'
+      ? window.setInterval(() => { void loadTimeClock(); }, 30000)
+      : null;
+    return () => {
+      cancelled = true;
+      if (refreshTimer) window.clearInterval(refreshTimer);
+    };
   }, [isAuthenticated, userRole]);
 
   const uploadWorkOrderDocuments = async (jobId: string, files: File[]) => {
@@ -1856,10 +1864,10 @@ export default function ContractorDashboard() {
                             </td>
                             <td className="p-3">
                               <span className="font-semibold text-slate-200 block">
-                                {contractorsList.find(c => c.authUid === entry.technicianUid)?.name || 'Unknown Tech'}
+                                {entry.technicianName || contractorsList.find(c => c.authUid === entry.technicianUid)?.name || 'Unknown Tech'}
                               </span>
                               <span className="text-[10px] text-slate-500 block font-mono">
-                                {contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email'}
+                                {entry.technicianEmail || contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email'}
                               </span>
                             </td>
                             <td className="p-3">
