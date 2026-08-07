@@ -110,7 +110,12 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const entries = await entriesFor(user);
       const assignedJobs = await workOrdersFor(user);
-      const contractor = user.contractor === true ? await contractorProfileFor(user) : null;
+      // Admin accounts are bootstrapped with both admin and contractor claims.
+      // They do not necessarily have a linked contractor document, and the
+      // admin timecard response must not depend on one existing.
+      const contractor = user.admin !== true && user.contractor === true
+        ? await contractorProfileFor(user)
+        : null;
       return res.status(200).json({
         entries,
         assignedJobIds: assignedJobs.map((job) => job.id),
