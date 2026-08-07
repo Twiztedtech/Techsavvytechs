@@ -9,7 +9,7 @@ service firebase.storage {
     // and remove the file; no other contractor can read it.
     match /contractor-onboarding/{contractorUid}/w9/{fileName} {
       allow read: if isAdmin() || (isContractor() && request.auth.uid == contractorUid);
-      allow create: if isContractor()
+      allow create: if (isContractor() || isAdmin())
         && request.auth.uid == contractorUid
         && request.resource.size < 25 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';

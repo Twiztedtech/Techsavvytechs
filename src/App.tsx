@@ -1,4 +1,5 @@
 /**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +23,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
+const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -42,7 +44,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor/dashboard');
+  const isContractorPortal = pathname.startsWith('/contractor');
 
   return (
     <>
@@ -69,6 +71,11 @@ function AppShell() {
             <Route path="/contractor/dashboard" element={
               <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
                 <ContractorDashboard />
+              </Suspense>
+            } />
+            <Route path="/contractor/onboarding" element={
+              <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
+                <ContractorOnboarding />
               </Suspense>
             } />
             <Route path="/privacy" element={<PrivacyPolicy />} />

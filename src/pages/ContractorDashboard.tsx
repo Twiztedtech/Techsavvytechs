@@ -3,11 +3,12 @@ import { auth, db, storage } from '../lib/firebase';
 import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { Link } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
-import { ContractorOnboardingCard, type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
+import { type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
 
 const WorkOrderSigningModal = lazy(() => import('../features/contractor/workOrders/WorkOrderSigningModal').then(({ WorkOrderSigningModal }) => ({ default: WorkOrderSigningModal })));
 const TechnicianWorkOrderPreview = lazy(() => import('../features/contractor/workOrders/TechnicianWorkOrderPreview').then(({ TechnicianWorkOrderPreview }) => ({ default: TechnicianWorkOrderPreview })));
@@ -972,7 +973,49 @@ export default function ContractorDashboard() {
         {userRole === 'contractor' ? (
           /* CONTRACTOR VIEW: TIME & PHOTO LOGGING + HISTORICAL EARNINGS LEDGER */
           <div className="space-y-6">
-            <ContractorOnboardingCard onboarding={onboarding} onUpdated={setOnboarding} />
+            {onboarding?.status !== 'approved' && (
+              <div className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-4 transition-all ${
+                onboarding?.status === 'submitted'
+                  ? 'border-sky-500/30 bg-sky-500/5 text-sky-400'
+                  : onboarding?.status === 'needs_update'
+                  ? 'border-red-500/30 bg-red-500/5 text-red-400'
+                  : 'border-amber-500/30 bg-amber-500/5 text-amber-400'
+              }`}>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-400">Action Required</p>
+                  <h3 className="text-sm font-black text-white">
+                    {onboarding?.status === 'submitted'
+                      ? 'W-9 Onboarding Under Review'
+                      : onboarding?.status === 'needs_update'
+                      ? 'W-9 Onboarding Needs Update'
+                      : 'W-9 Onboarding Required'}
+                  </h3>
+                  <p className="text-xs text-slate-355 max-w-2xl leading-relaxed">
+                    {onboarding?.status === 'submitted'
+                      ? 'Thank you! Your W-9 documentation is being reviewed by TechSavvy administrators.'
+                      : onboarding?.status === 'needs_update'
+                      ? `Attention: Your submission requires correction. Reason: ${onboarding.reviewNote || 'Please update your details.'}`
+                      : 'Complete and sign your secure digital W-9 tax form and accept the portal terms to finalize your portal onboarding.'}
+                  </p>
+                </div>
+                <Link
+                  to="/contractor/onboarding"
+                  className={`rounded-xl px-5 py-2.5 text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                    onboarding?.status === 'submitted'
+                      ? 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+                      : onboarding?.status === 'needs_update'
+                      ? 'bg-red-500 hover:bg-red-400 text-slate-950'
+                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  }`}
+                >
+                  {onboarding?.status === 'submitted'
+                    ? 'Check Status'
+                    : onboarding?.status === 'needs_update'
+                    ? 'Update W-9'
+                    : 'Get Started'}
+                </Link>
+              </div>
+            )}
             
             {/* CONTRACTOR LIFETIME EARNINGS OVERVIEW CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
