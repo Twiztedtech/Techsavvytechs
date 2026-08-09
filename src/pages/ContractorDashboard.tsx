@@ -1895,6 +1895,21 @@ export default function ContractorDashboard() {
                               <span className="text-[10px] text-slate-500 block font-mono">
                                 {entry.technicianEmail || contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email'}
                               </span>
+                              <div className="flex gap-2 items-center mt-1">
+                                {entry.qbStatus === 'synced' ? (
+                                  <span className="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-bold rounded">
+                                    QBO Synced #{entry.qboBillId}
+                                  </span>
+                                ) : entry.qbStatus === 'failed' ? (
+                                  <span className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-bold rounded cursor-help" title={entry.qboSyncError}>
+                                    QBO Failed
+                                  </span>
+                                ) : entry.qbStatus === 'pending' ? (
+                                  <span className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-bold rounded">
+                                    QBO Pending
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                             <td className="p-3">
                               <span className="font-bold text-slate-100 block">{entry.jobSite}</span>
