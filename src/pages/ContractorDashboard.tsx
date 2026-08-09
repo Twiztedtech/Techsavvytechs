@@ -623,7 +623,8 @@ export default function ContractorDashboard() {
     setSelectedEntryIds([]);
   };
 
-  const handleLineItemStatusChange = (entryId, itemType, newStatus) => {
+  const handleLineItemStatusChange = async (entryId, itemType, newStatus) => {
+    // 1. Optimistic UI update
     setTimeEntries(prev =>
       prev.map(entry => {
         if (entry.id !== entryId) return entry;
@@ -632,18 +633,42 @@ export default function ContractorDashboard() {
           [`${itemType}Status`]: newStatus
         };
 
-        const statuses = [updated.laborStatus, updated.suppliesStatus, updated.travelStatus];
+        const statuses = [updated.laborStatus || 'pending', updated.suppliesStatus || 'pending', updated.travelStatus || 'pending'];
         if (statuses.every(s => s === 'approved')) {
           updated.status = 'approved';
           updated.qbStatus = 'pending';
         } else if (statuses.every(s => s === 'rejected')) {
           updated.status = 'rejected';
-        } else {
+        } else if (statuses.some(s => s === 'approved')) {
           updated.status = 'approved';
         }
         return updated;
       })
     );
+
+    // 2. Persist to backend
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/approve-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          timecardId: entryId,
+          itemType,
+          status: newStatus
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+    } catch (err) {
+      console.error('Failed to update line item status on server:', err);
+      alert('Could not update status on server. Please try again.');
+    }
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
