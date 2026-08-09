@@ -1,5 +1,5 @@
-import { adminAuth, adminDb, adminStorage } from '../lib/firebase-admin.js';
-import { createQBOBillForTimecard } from '../lib/qbo-helper.js';
+import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
+import { createQBOBillForTimecard } from '../_lib/qbo-helper.js';
 
 const getUser = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');

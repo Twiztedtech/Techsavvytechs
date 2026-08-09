@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { requireAdmin } from '../lib/firebase-admin.js';
+import { requireAdmin } from '../_lib/firebase-admin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

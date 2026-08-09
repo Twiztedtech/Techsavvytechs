@@ -1,4 +1,4 @@
-import { adminDb, requireAdmin } from '../../lib/firebase-admin.js';
+import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'DELETE') {

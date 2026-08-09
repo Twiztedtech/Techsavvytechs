@@ -1,4 +1,4 @@
-import { adminDb } from './lib/firebase-admin.js';
+import { adminDb } from './_lib/firebase-admin.js';
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;

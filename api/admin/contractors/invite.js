@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { adminAuth, adminDb, adminStorage, requireAdmin } from '../../lib/firebase-admin.js';
+import { adminAuth, adminDb, adminStorage, requireAdmin } from '../../_lib/firebase-admin.js';
 
 const temporaryPassword = () => randomBytes(32).toString('base64url');
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({

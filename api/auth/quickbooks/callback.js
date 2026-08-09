@@ -1,5 +1,5 @@
-import { adminDb } from '../../lib/firebase-admin.js';
-import { qboEnvironment } from '../../lib/quickbooks-config.js';
+import { adminDb } from '../../_lib/firebase-admin.js';
+import { qboEnvironment } from '../../_lib/quickbooks-config.js';
 
 export default async function handler(req, res) {
   const { code, realmId, error, state } = req.query;

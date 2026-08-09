@@ -1,5 +1,5 @@
-import { adminDb, requireAdmin } from '../../lib/firebase-admin.js';
-import { qboEnvironment } from '../../lib/quickbooks-config.js';
+import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
+import { qboEnvironment } from '../../_lib/quickbooks-config.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
