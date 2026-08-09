@@ -649,13 +649,14 @@ export default function ContractorDashboard() {
     // 2. Persist to backend
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/admin/approve-item', {
+      const response = await fetch('/api/portal/time-clock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          action: 'approve_item',
           timecardId: entryId,
           itemType,
           status: newStatus
