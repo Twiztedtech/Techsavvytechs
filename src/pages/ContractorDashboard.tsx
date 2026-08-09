@@ -20,6 +20,8 @@ export default function ContractorDashboard() {
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
+  const [rejectionTarget, setRejectionTarget] = useState<{ id: string; type: string } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [invitingContractorId, setInvitingContractorId] = useState<string | null>(null);
@@ -624,6 +626,11 @@ export default function ContractorDashboard() {
   };
 
   const handleLineItemStatusChange = async (entryId, itemType, newStatus) => {
+    if (newStatus === 'rejected') {
+      setRejectionTarget({ id: entryId, type: itemType });
+      return;
+    }
+
     // 1. Optimistic UI update
     setTimeEntries(prev =>
       prev.map(entry => {
@@ -660,6 +667,63 @@ export default function ContractorDashboard() {
           timecardId: entryId,
           itemType,
           status: newStatus
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+    } catch (err) {
+      console.error('Failed to update line item status on server:', err);
+      alert('Could not update status on server. Please try again.');
+    }
+  };
+
+  const submitRejection = async () => {
+    if (!rejectionTarget || !rejectionReason.trim()) return;
+    const { id: entryId, type: itemType } = rejectionTarget;
+    const feedback = rejectionReason.trim();
+
+    // 1. Optimistic UI update
+    setTimeEntries(prev =>
+      prev.map(entry => {
+        if (entry.id !== entryId) return entry;
+        const updated = {
+          ...entry,
+          [`${itemType}Status`]: 'rejected',
+          [`${itemType}Feedback`]: feedback
+        };
+
+        const statuses = [updated.laborStatus || 'pending', updated.suppliesStatus || 'pending', updated.travelStatus || 'pending'];
+        if (statuses.every(s => s === 'approved')) {
+          updated.status = 'approved';
+        } else if (statuses.every(s => s === 'rejected')) {
+          updated.status = 'rejected';
+        } else if (statuses.some(s => s === 'approved')) {
+          updated.status = 'approved';
+        }
+        return updated;
+      })
+    );
+
+    setRejectionTarget(null);
+    setRejectionReason('');
+
+    // 2. Persist to backend
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'approve_item',
+          timecardId: entryId,
+          itemType,
+          status: 'rejected',
+          feedback
         })
       });
 
@@ -1834,206 +1898,164 @@ export default function ContractorDashboard() {
 
             {activeAdminTab === 'timecards' && (
               <>
-                <div className="flex justify-end gap-2 mb-2">
-                  <button
-                    type="button"
-                    disabled={selectedEntryIds.length === 0}
-                    onClick={() => handleBulkStatusChange('approved')}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
-                  >
-                    ✓ Approve All Selected ({selectedEntryIds.length})
-                  </button>
-                  <button
-                    type="button"
-                    disabled={selectedEntryIds.length === 0}
-                    onClick={() => handleBulkStatusChange('rejected')}
-                    className="px-3 py-1.5 bg-red-600/90 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
-                  >
-                    ✕ Reject All Selected ({selectedEntryIds.length})
-                  </button>
+                {/* Overview Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                  <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending Timecards</div>
+                    <div className="text-2xl font-bold mt-1 text-amber-500">
+                      {timeEntries.filter(tc => tc.status !== 'approved').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Fully Approved</div>
+                    <div className="text-2xl font-bold mt-1 text-green-400">
+                      {timeEntries.filter(tc => tc.status === 'approved').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">QBO Sync Queue</div>
+                    <div className="text-2xl font-bold mt-1 text-blue-400">
+                      {timeEntries.filter(tc => tc.qbStatus === 'synced').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sync Failures</div>
+                    <div className="text-2xl font-bold mt-1 text-red-500">
+                      {timeEntries.filter(tc => tc.qbStatus === 'failed').length}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
-                      <tr>
-                        <th className="p-3 w-10">
-                          <input
-                            type="checkbox"
-                            checked={timeEntries.length > 0 && selectedEntryIds.length === timeEntries.length}
-                            onChange={toggleSelectAll}
-                            className="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
-                          />
-                        </th>
-                        <th className="p-3">Technician</th>
-                        <th className="p-3">Job Site & Date</th>
-                        <th className="p-3">Item 1: Labor Hours</th>
-                        <th className="p-3">Item 2: Supplies</th>
-                        <th className="p-3">Item 3: Travel</th>
-                        <th className="p-3">Total Payable</th>
-                        <th className="p-3 text-right">Entry Review</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {timeEntries.map((entry) => {
-                        const isSelected = selectedEntryIds.includes(entry.id);
-                        const totals = getEntryTotals(entry);
-                        return (
-                          <tr key={entry.id} className={`hover:bg-slate-950/40 ${isSelected ? 'bg-amber-500/5' : ''}`}>
-                            <td className="p-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleSelectEntry(entry.id)}
-                                className="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <span className="font-semibold text-slate-200 block">
-                                {entry.technicianName || contractorsList.find(c => c.authUid === entry.technicianUid)?.name || 'Unknown Tech'}
+                <div className="space-y-4">
+                  {timeEntries.map((entry) => {
+                    const totals = getEntryTotals(entry);
+                    const isFullyApproved = entry.status === 'approved';
+                    const techName = entry.technicianName || contractorsList.find(c => c.authUid === entry.technicianUid)?.name || 'Unknown Tech';
+                    const techEmail = entry.technicianEmail || contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email';
+                    
+                    return (
+                      <div key={entry.id} className={`p-6 border border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition ${isFullyApproved ? 'bg-slate-900/10' : 'bg-slate-900/20'}`}>
+                        <div className="space-y-1.5 max-w-md">
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-100">{techName}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{entry.date}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ${
+                              entry.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                              entry.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                              'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}>{entry.status}</span>
+                          </div>
+                          <div className="text-sm font-semibold text-slate-200">{entry.jobSite}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{techEmail}</div>
+                          <div className="flex gap-2 items-center mt-1">
+                            <span className="text-[10px] text-slate-500">QBO status:</span>
+                            {entry.qbStatus === 'synced' ? (
+                              <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-semibold rounded">
+                                QBO Synced #{entry.qboBillId}
                               </span>
-                              <span className="text-[10px] text-slate-500 block font-mono">
-                                {entry.technicianEmail || contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email'}
+                            ) : entry.qbStatus === 'failed' ? (
+                              <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-semibold rounded cursor-help" title={entry.qboSyncError}>
+                                QBO Sync Failed
                               </span>
-                              <div className="flex gap-2 items-center mt-1">
-                                {entry.qbStatus === 'synced' ? (
-                                  <span className="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-bold rounded">
-                                    QBO Synced #{entry.qboBillId}
-                                  </span>
-                                ) : entry.qbStatus === 'failed' ? (
-                                  <span className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-bold rounded cursor-help" title={entry.qboSyncError}>
-                                    QBO Failed
-                                  </span>
-                                ) : entry.qbStatus === 'pending' ? (
-                                  <span className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-bold rounded">
-                                    QBO Pending
-                                  </span>
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              <span className="font-bold text-slate-100 block">{entry.jobSite}</span>
-                              <span className="text-[11px] font-mono text-amber-400 block">{entry.date}</span>
-                            </td>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
+                                Pending QBO Sync
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                            {/* LINE ITEM 1: LABOR */}
-                            <td className="p-3 bg-slate-950/30">
-                              <div className="font-mono text-slate-200 font-semibold">{entry.totalHours} hrs @ ${entry.rate || 75}</div>
-                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.labor.toFixed(2)}</div>
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.laborStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.laborStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✕ Reject
-                                </button>
-                              </div>
-                            </td>
-
-                            {/* LINE ITEM 2: SUPPLIES */}
-                            <td className="p-3 bg-slate-950/30">
-                              <div className="font-mono text-slate-200 font-semibold">${totals.supplies.toFixed(2)}</div>
-                              
-                              {/* Display supply items if present */}
-                              {((entry.suppliesItems && entry.suppliesItems.length > 0) || (entry.suppliesCost > 0)) && (
-                                <div className="text-[10px] text-slate-500 font-mono space-y-0.5 my-1 max-w-[150px] truncate">
-                                  {entry.suppliesItems && entry.suppliesItems.length > 0 ? (
-                                    entry.suppliesItems.map((item, idx) => (
-                                      <div key={idx} className="flex justify-between gap-1 truncate">
-                                        <span className="truncate">↳ {item.description || 'Supply'}</span>
-                                        <span className="shrink-0 font-bold text-slate-400">${Number(item.cost || 0).toFixed(0)}</span>
-                                      </div>
-                                    ))
+                        {/* Line items approval controls */}
+                        <div className="flex-1 max-w-lg space-y-2">
+                          {/* Labor Item */}
+                          {entry.totalHours && Number(entry.totalHours) > 0 && (
+                            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-300">Labor:</span>
+                                  <span className="text-slate-400 ml-1 font-mono">{entry.totalHours} hrs @ ${entry.rate || 75}/hr</span>
+                                </div>
+                                <div className="flex gap-1.5 ml-4">
+                                  {entry.laborStatus !== 'approved' && entry.laborStatus !== 'rejected' ? (
+                                    <>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
+                                    </>
                                   ) : (
-                                    <div className="flex justify-between gap-1 font-mono">
-                                      <span>↳ General</span>
-                                      <span className="font-bold text-slate-400">${Number(entry.suppliesCost || 0).toFixed(0)}</span>
-                                    </div>
+                                    <span className={`text-[9px] font-bold uppercase ${entry.laborStatus === 'approved' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {entry.laborStatus === 'approved' ? '✓ Approved' : '✕ Rejected'}
+                                    </span>
                                   )}
                                 </div>
-                              )}
-
-                              <div className="flex gap-1 mt-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.suppliesStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.suppliesStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✕ Reject
-                                </button>
                               </div>
-                            </td>
-
-                            {/* LINE ITEM 3: TRAVEL */}
-                            <td className="p-3 bg-slate-950/30">
-                              <div className="font-mono text-slate-200 font-semibold">${totals.travel.toFixed(2)}</div>
-                              <div className="text-[11px] font-mono text-green-400 mb-1">${totals.travel.toFixed(2)}</div>
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.travelStatus === 'approved' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    entry.travelStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  ✕ Reject
-                                </button>
-                              </div>
-                            </td>
-
-                            <td className="p-3 font-mono font-bold">
-                              <span className="text-amber-400 block">${totals.totalApproved.toFixed(2)}</span>
-                              {totals.totalGross !== totals.totalApproved && (
-                                <span className="text-[9px] text-slate-500 line-through block">${totals.totalGross.toFixed(2)} claimed</span>
+                              {entry.laborStatus === 'rejected' && entry.laborFeedback && (
+                                <div className="text-[10px] text-rose-500 italic">Reason: "{entry.laborFeedback}"</div>
                               )}
-                            </td>
+                            </div>
+                          )}
 
-                            <td className="p-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => setActiveInvoice(entry)}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded text-[11px] cursor-pointer"
-                              >
-                                Review entry
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          {/* Supplies Item */}
+                          {entry.suppliesCost && Number(entry.suppliesCost) > 0 && (
+                            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-300">Supplies:</span>
+                                  <span className="text-slate-400 ml-1 font-mono">${Number(entry.suppliesCost).toFixed(2)}</span>
+                                </div>
+                                <div className="flex gap-1.5 ml-4">
+                                  {entry.suppliesStatus !== 'approved' && entry.suppliesStatus !== 'rejected' ? (
+                                    <>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
+                                    </>
+                                  ) : (
+                                    <span className={`text-[9px] font-bold uppercase ${entry.suppliesStatus === 'approved' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {entry.suppliesStatus === 'approved' ? '✓ Approved' : '✕ Rejected'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {entry.suppliesStatus === 'rejected' && entry.suppliesFeedback && (
+                                <div className="text-[10px] text-rose-500 italic">Reason: "{entry.suppliesFeedback}"</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Travel Item */}
+                          {entry.travelCost && Number(entry.travelCost) > 0 && (
+                            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-300">Travel:</span>
+                                  <span className="text-slate-400 ml-1 font-mono">${Number(entry.travelCost).toFixed(2)}</span>
+                                </div>
+                                <div className="flex gap-1.5 ml-4">
+                                  {entry.travelStatus !== 'approved' && entry.travelStatus !== 'rejected' ? (
+                                    <>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
+                                    </>
+                                  ) : (
+                                    <span className={`text-[9px] font-bold uppercase ${entry.travelStatus === 'approved' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {entry.travelStatus === 'approved' ? '✓ Approved' : '✕ Rejected'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {entry.travelStatus === 'rejected' && entry.travelFeedback && (
+                                <div className="text-[10px] text-rose-500 italic">Reason: "{entry.travelFeedback}"</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-right min-w-[120px]">
+                          <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Total Payable</span>
+                          <span className="text-xl font-bold text-slate-100 font-mono">${totals.totalGross.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -3068,6 +3090,41 @@ export default function ContractorDashboard() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-lg text-rose-500">Reject Line Item</h3>
+            <p className="text-sm text-slate-300">Please provide a reason for rejecting this item. An email request for revision will be sent to the contractor.</p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={3}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 text-sm focus:border-rose-500 focus:outline-none placeholder-slate-600 font-sans"
+              placeholder="e.g. Missing travel receipt, Incorrect hourly rate"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectionTarget(null);
+                  setRejectionReason('');
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitRejection}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-xl transition cursor-pointer"
+              >
+                Submit Rejection
               </button>
             </div>
           </div>
