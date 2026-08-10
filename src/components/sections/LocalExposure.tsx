@@ -18,18 +18,16 @@ export const LocalExposure = () => {
       
       <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-24 items-center">
         <div className="order-2 lg:order-1 relative">
-          <div className="glass-card p-8 aspect-[4/3] relative flex items-center justify-center overflow-hidden group">
-            <div className="absolute inset-0 opacity-20 blueprint-grid pointer-events-none" />
-            
-            <svg viewBox="0 0 400 300" className="w-full h-full text-tech-green/40">
-              <path d="M50,50 Q200,20 350,50 T350,250 Q200,280 50,250 T50,50" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="5 5" />
-              <circle cx="150" cy="120" r="4" fill="currentColor" className="animate-pulse" />
-              <circle cx="250" cy="180" r="4" fill="currentColor" />
-              <line x1="150" y1="120" x2="250" y2="180" stroke="currentColor" strokeWidth="0.5" />
-            </svg>
+          <div className="glass-card p-0 aspect-[4/3] relative flex items-center justify-center overflow-hidden group">
+            <img 
+              src="/technician-server-install.jpg" 
+              alt="Enterprise Infrastructure Installation" 
+              className="object-cover w-full h-full transition-transform duration-1000 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-black/50 via-transparent to-transparent pointer-events-none" />
 
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-              <div className="glass-card px-4 py-2 border-l-2 border-tech-green bg-brand-black/40 backdrop-blur-sm -translate-x-10">
+              <div className="glass-card px-4 py-2 border-l-2 border-tech-green bg-brand-black/60 backdrop-blur-sm -translate-x-10">
                 <span className="text-[10px] font-bold text-brand-white uppercase leading-none">Regional Grid Coverage</span>
               </div>
             </div>
