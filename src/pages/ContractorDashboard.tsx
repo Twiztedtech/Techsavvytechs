@@ -640,13 +640,27 @@ export default function ContractorDashboard() {
           [`${itemType}Status`]: newStatus
         };
 
-        const statuses = [updated.laborStatus || 'pending', updated.suppliesStatus || 'pending', updated.travelStatus || 'pending'];
-        if (statuses.every(s => s === 'approved')) {
+        const isLaborActive = updated.totalHours && Number(updated.totalHours) > 0;
+        const isSuppliesActive = updated.suppliesCost && Number(updated.suppliesCost) > 0;
+        const isTravelActive = updated.travelCost && Number(updated.travelCost) > 0;
+        const isBonusActive = updated.bonusCost && Number(updated.bonusCost) > 0;
+
+        const isLaborApproved = !isLaborActive || updated.laborStatus === 'approved';
+        const isSuppliesApproved = !isSuppliesActive || updated.suppliesStatus === 'approved';
+        const isTravelApproved = !isTravelActive || updated.travelStatus === 'approved';
+        const isBonusApproved = !isBonusActive || updated.bonusStatus === 'approved';
+
+        const isLaborRejected = isLaborActive && updated.laborStatus === 'rejected';
+        const isSuppliesRejected = isSuppliesActive && updated.suppliesStatus === 'rejected';
+        const isTravelRejected = isTravelActive && updated.travelStatus === 'rejected';
+        const isBonusRejected = isBonusActive && updated.bonusStatus === 'rejected';
+
+        if (isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved) {
           updated.status = 'approved';
           updated.qbStatus = 'pending';
-        } else if (statuses.every(s => s === 'rejected')) {
+        } else if (isLaborRejected || isSuppliesRejected || isTravelRejected || isBonusRejected) {
           updated.status = 'rejected';
-        } else if (statuses.some(s => s === 'approved')) {
+        } else if (updated.laborStatus === 'approved' || updated.suppliesStatus === 'approved' || updated.travelStatus === 'approved' || updated.bonusStatus === 'approved') {
           updated.status = 'approved';
         }
         return updated;
@@ -2112,6 +2126,78 @@ export default function ContractorDashboard() {
                               {entry.travelStatus === 'rejected' && entry.travelFeedback && (
                                 <div className="text-[10px] text-rose-500 italic">Reason: "{entry.travelFeedback}"</div>
                               )}
+                            </div>
+                          )}
+
+                          {/* Bonus / Misc Item */}
+                          {entry.bonusCost && Number(entry.bonusCost) > 0 ? (
+                            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-300">Bonus / Misc:</span>
+                                  <span className="text-slate-400 ml-1 font-mono">${Number(entry.bonusCost).toFixed(2)}</span>
+                                </div>
+                                <div className="flex gap-1.5 ml-4">
+                                  {entry.bonusStatus !== 'approved' && entry.bonusStatus !== 'rejected' ? (
+                                    <>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
+                                      <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
+                                    </>
+                                  ) : (
+                                    <span className={`text-[9px] font-bold uppercase ${entry.bonusStatus === 'approved' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {entry.bonusStatus === 'approved' ? '✓ Approved' : '✕ Rejected'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {entry.bonusStatus === 'rejected' && entry.bonusFeedback && (
+                                <div className="text-[10px] text-rose-500 italic">Reason: "{entry.bonusFeedback}"</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="bg-slate-950/20 p-2.5 rounded-xl border border-slate-900 border-dashed flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Bonus / Misc</span>
+                              <div className="flex gap-1.5 items-center">
+                                <input
+                                  type="number"
+                                  placeholder="$0.00"
+                                  id={`bonus-input-${entry.id}`}
+                                  className="w-16 bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2 py-0.5 rounded focus:outline-none focus:border-slate-700 font-mono text-right"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const input = document.getElementById(`bonus-input-${entry.id}`) as HTMLInputElement;
+                                    const val = Number(input?.value || 0);
+                                    if (val <= 0) return alert('Please enter a valid positive bonus amount.');
+                                    try {
+                                      const token = await auth.currentUser?.getIdToken();
+                                      const res = await fetch('/api/portal/time-clock', {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          Authorization: `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({
+                                          action: 'add_bonus',
+                                          timecardId: entry.id,
+                                          amount: val
+                                        })
+                                      });
+                                      if (!res.ok) {
+                                        const err = await res.text();
+                                        throw new Error(err);
+                                      }
+                                      window.location.reload();
+                                    } catch (err: any) {
+                                      alert('Failed to add bonus: ' + err.message);
+                                    }
+                                  }}
+                                  className="px-2 py-0.5 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 text-[9px] font-bold rounded transition cursor-pointer"
+                                >
+                                  ➕ Add
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

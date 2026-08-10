@@ -269,28 +269,31 @@ export default async function handler(req, res) {
       const isLaborActive = updatedTimecard.totalHours && Number(updatedTimecard.totalHours) > 0;
       const isSuppliesActive = updatedTimecard.suppliesCost && Number(updatedTimecard.suppliesCost) > 0;
       const isTravelActive = updatedTimecard.travelCost && Number(updatedTimecard.travelCost) > 0;
+      const isBonusActive = updatedTimecard.bonusCost && Number(updatedTimecard.bonusCost) > 0;
 
       const isLaborApproved = !isLaborActive || updatedTimecard.laborStatus === 'approved';
       const isSuppliesApproved = !isSuppliesActive || updatedTimecard.suppliesStatus === 'approved';
       const isTravelApproved = !isTravelActive || updatedTimecard.travelStatus === 'approved';
+      const isBonusApproved = !isBonusActive || updatedTimecard.bonusStatus === 'approved';
 
       const isLaborRejected = isLaborActive && updatedTimecard.laborStatus === 'rejected';
       const isSuppliesRejected = isSuppliesActive && updatedTimecard.suppliesStatus === 'rejected';
       const isTravelRejected = isTravelActive && updatedTimecard.travelStatus === 'rejected';
+      const isBonusRejected = isBonusActive && updatedTimecard.bonusStatus === 'rejected';
 
       let newOverallStatus = 'pending';
-      if (isLaborApproved && isSuppliesApproved && isTravelApproved) {
+      if (isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved) {
         newOverallStatus = 'approved';
-      } else if (isLaborRejected || isSuppliesRejected || isTravelRejected) {
+      } else if (isLaborRejected || isSuppliesRejected || isTravelRejected || isBonusRejected) {
         newOverallStatus = 'rejected';
-      } else if (updatedTimecard.laborStatus === 'approved' || updatedTimecard.suppliesStatus === 'approved' || updatedTimecard.travelStatus === 'approved') {
+      } else if (updatedTimecard.laborStatus === 'approved' || updatedTimecard.suppliesStatus === 'approved' || updatedTimecard.travelStatus === 'approved' || updatedTimecard.bonusStatus === 'approved') {
         newOverallStatus = 'approved';
       }
 
       await docRef.update({ status: newOverallStatus });
       updatedTimecard.status = newOverallStatus;
 
-      const isFullyApproved = isLaborApproved && isSuppliesApproved && isTravelApproved;
+      const isFullyApproved = isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved;
 
       if (isFullyApproved) {
         const jobDate = new Date(updatedTimecard.date);
@@ -447,6 +450,61 @@ export default async function handler(req, res) {
         });
         return res.status(500).json({ error: qboError.message });
       }
+    }
+
+    if (action === 'add_bonus') {
+      if (user.admin !== true) {
+        return res.status(403).json({ error: 'Administrator access required.' });
+      }
+
+      const { timecardId, amount } = req.body;
+      if (!timecardId || typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ error: 'Invalid timecard ID or bonus amount.' });
+      }
+
+      const docRef = adminDb.collection('time_entries').doc(timecardId);
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) {
+        return res.status(404).json({ error: 'Time entry not found.' });
+      }
+
+      await docRef.update({
+        bonusCost: amount,
+        bonusStatus: 'approved',
+        qbStatus: 'pending',
+        qboSyncError: null
+      });
+
+      const updatedSnap = await docRef.get();
+      const updatedTimecard = { id: updatedSnap.id, ...updatedSnap.data() };
+
+      const isLaborActive = updatedTimecard.totalHours && Number(updatedTimecard.totalHours) > 0;
+      const isSuppliesActive = updatedTimecard.suppliesCost && Number(updatedTimecard.suppliesCost) > 0;
+      const isTravelActive = updatedTimecard.travelCost && Number(updatedTimecard.travelCost) > 0;
+      const isBonusActive = updatedTimecard.bonusCost && Number(updatedTimecard.bonusCost) > 0;
+
+      const isLaborApproved = !isLaborActive || updatedTimecard.laborStatus === 'approved';
+      const isSuppliesApproved = !isSuppliesActive || updatedTimecard.suppliesStatus === 'approved';
+      const isTravelApproved = !isTravelActive || updatedTimecard.travelStatus === 'approved';
+      const isBonusApproved = !isBonusActive || updatedTimecard.bonusStatus === 'approved';
+
+      const isLaborRejected = isLaborActive && updatedTimecard.laborStatus === 'rejected';
+      const isSuppliesRejected = isSuppliesActive && updatedTimecard.suppliesStatus === 'rejected';
+      const isTravelRejected = isTravelActive && updatedTimecard.travelStatus === 'rejected';
+      const isBonusRejected = isBonusActive && updatedTimecard.bonusStatus === 'rejected';
+
+      let newOverallStatus = 'pending';
+      if (isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved) {
+        newOverallStatus = 'approved';
+      } else if (isLaborRejected || isSuppliesRejected || isTravelRejected || isBonusRejected) {
+        newOverallStatus = 'rejected';
+      } else if (updatedTimecard.laborStatus === 'approved' || updatedTimecard.suppliesStatus === 'approved' || updatedTimecard.travelStatus === 'approved' || updatedTimecard.bonusStatus === 'approved') {
+        newOverallStatus = 'approved';
+      }
+
+      await docRef.update({ status: newOverallStatus });
+
+      return res.status(200).json({ success: true });
     }
 
     return res.status(400).json({ error: 'Unsupported time-clock action.' });

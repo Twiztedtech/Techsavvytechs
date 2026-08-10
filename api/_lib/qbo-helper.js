@@ -222,6 +222,18 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
     });
   }
 
+  const bonus = Number(timecard.bonusCost || 0);
+  if (timecard.bonusStatus === 'approved' && bonus > 0) {
+    expenseLines.push({
+      DetailType: 'AccountBasedExpenseLineDetail',
+      Amount: bonus,
+      Description: `Bonus / Misc Payroll Adjustment (${timecard.jobSite})`,
+      AccountBasedExpenseLineDetail: {
+        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_BONUS || '83' }
+      }
+    });
+  }
+
   if (expenseLines.length > 0) {
     const billPayload = {
       VendorRef: { value: vendorId },

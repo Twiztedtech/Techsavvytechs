@@ -3,25 +3,30 @@ interface TimeEntryTotalsInput {
   rate?: number;
   suppliesCost?: string | number;
   travelCost?: string | number;
+  bonusCost?: string | number;
   laborStatus?: string;
   suppliesStatus?: string;
   travelStatus?: string;
+  bonusStatus?: string;
 }
 
 export function getEntryTotals(entry: TimeEntryTotalsInput) {
   const labor = Number(entry.totalHours || 0) * (entry.rate || 75);
   const supplies = Number(entry.suppliesCost || 0);
   const travel = Number(entry.travelCost || 0);
+  const bonus = Number(entry.bonusCost || 0);
 
   return {
     labor,
     supplies,
     travel,
-    totalGross: labor + supplies + travel,
+    bonus,
+    totalGross: labor + supplies + travel + bonus,
     totalApproved:
       (entry.laborStatus === 'approved' ? labor : 0) +
       (entry.suppliesStatus === 'approved' ? supplies : 0) +
-      (entry.travelStatus === 'approved' ? travel : 0),
+      (entry.travelStatus === 'approved' ? travel : 0) +
+      (entry.bonusStatus === 'approved' ? bonus : 0),
   };
 }
 
