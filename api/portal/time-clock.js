@@ -371,6 +371,7 @@ export default async function handler(req, res) {
           await docRef.update({
             qbStatus: 'synced',
             qboBillId: qboResult.Bill?.Id || '',
+            qboTimeActivityId: qboResult.TimeActivity?.Id || '',
             qboSyncedAt: new Date().toISOString()
           });
         } catch (qboError) {
@@ -428,10 +429,16 @@ export default async function handler(req, res) {
         await docRef.update({
           qbStatus: 'synced',
           qboBillId: qboResult.Bill?.Id || '',
+          qboTimeActivityId: qboResult.TimeActivity?.Id || '',
           qboSyncedAt: new Date().toISOString(),
           qboSyncError: null
         });
-        return res.status(200).json({ success: true, qbStatus: 'synced', qboBillId: qboResult.Bill?.Id || '' });
+        return res.status(200).json({
+          success: true,
+          qbStatus: 'synced',
+          qboBillId: qboResult.Bill?.Id || '',
+          qboTimeActivityId: qboResult.TimeActivity?.Id || ''
+        });
       } catch (qboError) {
         console.error('QBO Sync Error:', qboError);
         await docRef.update({

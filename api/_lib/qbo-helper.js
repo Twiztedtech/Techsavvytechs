@@ -154,27 +154,54 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
   // Resolve QBO Vendor ID
   const vendorId = await getOrCreateVendor(timecard.technicianName, timecard.technicianEmail);
 
-  // Calculate totals
-  const labor = Number(timecard.totalHours || 0) * (timecard.rate || 75);
+  const promises = [];
+  let laborPromiseIdx = -1;
+  let expensePromiseIdx = -1;
+
+  // 1. Labor -> TimeActivity
+  const decimalHours = Number(timecard.totalHours || 0);
+  const laborRate = Number(timecard.rate || 75);
+  if (timecard.laborStatus === 'approved' && decimalHours > 0) {
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours - hours) * 60);
+
+    const timeActivityPayload = {
+      NameOf: 'Vendor',
+      VendorRef: { value: vendorId },
+      TxnDate: timecard.date,
+      Hours: hours,
+      Minutes: minutes,
+      HourlyRate: laborRate,
+      Description: `Labor: ${timecard.totalHours} hrs @ $${laborRate}/hr (${timecard.jobSite})`
+    };
+
+    const timeActivityUrl = `${baseUrl}/timeactivity`;
+    const timePromise = fetch(timeActivityUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(timeActivityPayload)
+    }).then(async res => {
+      if (!res.ok) {
+        throw new Error('Failed to create TimeActivity in QBO: ' + await res.text());
+      }
+      return res.json();
+    });
+
+    laborPromiseIdx = promises.length;
+    promises.push(timePromise);
+  }
+
+  // 2. Expenses (Supplies / Travel) -> Bill
   const supplies = Number(timecard.suppliesCost || 0);
   const travel = Number(timecard.travelCost || 0);
 
-  // Build Line Items for QBO Bill
-  const lines = [];
-
-  if (timecard.laborStatus === 'approved' && labor > 0) {
-    lines.push({
-      DetailType: 'AccountBasedExpenseLineDetail',
-      Amount: labor,
-      Description: `Labor: ${timecard.totalHours} hrs @ $${timecard.rate || 75}/hr (${timecard.jobSite})`,
-      AccountBasedExpenseLineDetail: {
-        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_LABOR || '80' }
-      }
-    });
-  }
-
+  const expenseLines = [];
   if (timecard.suppliesStatus === 'approved' && supplies > 0) {
-    lines.push({
+    expenseLines.push({
       DetailType: 'AccountBasedExpenseLineDetail',
       Amount: supplies,
       Description: `Supplies Reimbursement (${timecard.jobSite})`,
@@ -185,7 +212,7 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
   }
 
   if (timecard.travelStatus === 'approved' && travel > 0) {
-    lines.push({
+    expenseLines.push({
       DetailType: 'AccountBasedExpenseLineDetail',
       Amount: travel,
       Description: `Travel Expense (${timecard.jobSite})`,
@@ -195,28 +222,45 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
     });
   }
 
-  const billPayload = {
-    VendorRef: { value: vendorId },
-    TxnDate: timecard.date,
-    DueDate: payoutDueDate.toISOString().split('T')[0],
-    PrivateNote: `TechSavvyTechs Approval ID: ${timecard.id}`,
-    Line: lines
-  };
+  if (expenseLines.length > 0) {
+    const billPayload = {
+      VendorRef: { value: vendorId },
+      TxnDate: timecard.date,
+      DueDate: payoutDueDate.toISOString().split('T')[0],
+      PrivateNote: `TechSavvyTechs Approval ID: ${timecard.id}`,
+      Line: expenseLines
+    };
 
-  const billUrl = `${baseUrl}/bill`;
-  const response = await fetch(billUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    body: JSON.stringify(billPayload)
-  });
+    const billUrl = `${baseUrl}/bill`;
+    const billPromise = fetch(billUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(billPayload)
+    }).then(async res => {
+      if (!res.ok) {
+        throw new Error('Failed to create Bill in QBO: ' + await res.text());
+      }
+      return res.json();
+    });
 
-  if (!response.ok) {
-    throw new Error('Failed to create Bill in QBO: ' + await response.text());
+    expensePromiseIdx = promises.length;
+    promises.push(billPromise);
   }
 
-  return await response.json();
+  // Wait for both to complete
+  const results = await Promise.all(promises);
+
+  const responseObj = {};
+  if (laborPromiseIdx !== -1) {
+    responseObj.TimeActivity = results[laborPromiseIdx].TimeActivity;
+  }
+  if (expensePromiseIdx !== -1) {
+    responseObj.Bill = results[expensePromiseIdx].Bill;
+  }
+
+  return responseObj;
 }
