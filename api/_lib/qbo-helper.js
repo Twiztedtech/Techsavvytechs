@@ -88,22 +88,58 @@ export async function getOrCreateVendor(name, email) {
     PrimaryEmailAddr: { Address: email }
   };
 
-  const createRes = await fetch(createUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    body: JSON.stringify(vendorPayload)
-  });
+  try {
+    const createRes = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(vendorPayload)
+    });
 
-  if (!createRes.ok) {
-    throw new Error('Failed to create vendor in QBO: ' + await createRes.text());
+    if (createRes.ok) {
+      const createData = await createRes.json();
+      return createData.Vendor.Id;
+    }
+
+    const errorText = await createRes.text();
+    let errorObj = null;
+    try {
+      errorObj = JSON.parse(errorText);
+    } catch (_) {}
+
+    const code = errorObj?.Fault?.Error?.[0]?.code;
+    if (code === '6240') {
+      // Duplicate Name Error: retry with " (Contractor)" suffix
+      const fallbackPayload = {
+        DisplayName: `${name} (Contractor)`,
+        PrimaryEmailAddr: { Address: email }
+      };
+
+      const retryRes = await fetch(createUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(fallbackPayload)
+      });
+
+      if (!retryRes.ok) {
+        throw new Error('Failed to create vendor in QBO after duplicate retry: ' + await retryRes.text());
+      }
+
+      const retryData = await retryRes.json();
+      return retryData.Vendor.Id;
+    }
+
+    throw new Error('Failed to create vendor in QBO: ' + errorText);
+  } catch (err) {
+    throw err;
   }
-
-  const createData = await createRes.json();
-  return createData.Vendor.Id;
 }
 
 /**
