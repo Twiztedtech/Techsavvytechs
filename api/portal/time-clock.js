@@ -266,25 +266,31 @@ export default async function handler(req, res) {
       const updatedSnap = await docRef.get();
       const updatedTimecard = { id: updatedSnap.id, ...updatedSnap.data() };
 
-      const statuses = [
-        updatedTimecard.laborStatus || 'pending',
-        updatedTimecard.suppliesStatus || 'pending',
-        updatedTimecard.travelStatus || 'pending'
-      ];
+      const isLaborActive = updatedTimecard.totalHours && Number(updatedTimecard.totalHours) > 0;
+      const isSuppliesActive = updatedTimecard.suppliesCost && Number(updatedTimecard.suppliesCost) > 0;
+      const isTravelActive = updatedTimecard.travelCost && Number(updatedTimecard.travelCost) > 0;
+
+      const isLaborApproved = !isLaborActive || updatedTimecard.laborStatus === 'approved';
+      const isSuppliesApproved = !isSuppliesActive || updatedTimecard.suppliesStatus === 'approved';
+      const isTravelApproved = !isTravelActive || updatedTimecard.travelStatus === 'approved';
+
+      const isLaborRejected = isLaborActive && updatedTimecard.laborStatus === 'rejected';
+      const isSuppliesRejected = isSuppliesActive && updatedTimecard.suppliesStatus === 'rejected';
+      const isTravelRejected = isTravelActive && updatedTimecard.travelStatus === 'rejected';
 
       let newOverallStatus = 'pending';
-      if (statuses.every(s => s === 'approved')) {
+      if (isLaborApproved && isSuppliesApproved && isTravelApproved) {
         newOverallStatus = 'approved';
-      } else if (statuses.every(s => s === 'rejected')) {
+      } else if (isLaborRejected || isSuppliesRejected || isTravelRejected) {
         newOverallStatus = 'rejected';
-      } else if (statuses.some(s => s === 'approved')) {
+      } else if (updatedTimecard.laborStatus === 'approved' || updatedTimecard.suppliesStatus === 'approved' || updatedTimecard.travelStatus === 'approved') {
         newOverallStatus = 'approved';
       }
 
       await docRef.update({ status: newOverallStatus });
       updatedTimecard.status = newOverallStatus;
 
-      const isFullyApproved = statuses.every(s => s === 'approved');
+      const isFullyApproved = isLaborApproved && isSuppliesApproved && isTravelApproved;
 
       if (isFullyApproved) {
         const jobDate = new Date(updatedTimecard.date);

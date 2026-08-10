@@ -2016,8 +2016,17 @@ export default function ContractorDashboard() {
                                 </button>
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
-                                Pending QBO Sync
+                              <span className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
+                                  Pending QBO Sync
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetrySync(entry.id)}
+                                  className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow"
+                                >
+                                  🔄 Retry Sync
+                                </button>
                               </span>
                             )}
                           </div>
