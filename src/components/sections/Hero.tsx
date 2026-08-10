@@ -78,16 +78,12 @@ export const Hero = () => {
             <div>121.9818° W</div>
           </div>
 
-          {/* Video with Invert Filter */}
-          <video 
-            autoPlay 
-            loop 
-            muted 
-            playsInline 
-            className="object-contain w-full h-full invert brightness-110 contrast-125 opacity-90 transition-transform duration-1000 group-hover:scale-105"
-          >
-            <source src="https://storage.googleapis.com/creators-ai-studio-public/willjac1%40gmail.com/techsavaytechs.mp4" type="video/mp4" />
-          </video>
+          {/* Datacenter Technician Background Image */}
+          <img 
+            src="/technician-datacenter.jpg" 
+            alt="Enterprise Datacenter Deployment" 
+            className="object-cover w-full h-full opacity-35 transition-transform duration-1000 group-hover:scale-105"
+          />
           
           <div className="absolute bottom-10 left-10 right-10 p-6 glass-card border-l-2 border-tech-green z-20">
             <p className="font-mono text-[9px] text-tech-green uppercase tracking-[0.4em] mb-2 font-bold italic">Operational Range</p>
