@@ -310,6 +310,9 @@ export default async function handler(req, res) {
           }
         }
 
+        updatedTimecard.technicianEmail = techEmail;
+        updatedTimecard.technicianName = techName;
+
         if (techEmail) {
           const apiKey = process.env.RESEND_API_KEY;
           const sender = process.env.EMAIL_FROM || 'TechSavvy Contractor Portal <support@techsavvytechs.com>';
@@ -392,6 +395,22 @@ export default async function handler(req, res) {
       }
 
       const updatedTimecard = { id: snapshot.id, ...snapshot.data() };
+
+      let techEmail = updatedTimecard.technicianEmail;
+      let techName = updatedTimecard.technicianName;
+      if (!techEmail && updatedTimecard.technicianUid) {
+        const contractorSnap = await adminDb.collection('contractors')
+          .where('authUid', '==', updatedTimecard.technicianUid)
+          .limit(1)
+          .get();
+        if (!contractorSnap.empty) {
+          techEmail = contractorSnap.docs[0].data().email;
+          techName = contractorSnap.docs[0].data().name;
+        }
+      }
+      updatedTimecard.technicianEmail = techEmail;
+      updatedTimecard.technicianName = techName;
+
       const jobDate = new Date(updatedTimecard.date);
       const payoutDueDate = new Date(jobDate);
       payoutDueDate.setDate(payoutDueDate.getDate() + 15);
