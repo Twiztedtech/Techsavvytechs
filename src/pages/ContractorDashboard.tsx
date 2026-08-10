@@ -33,6 +33,7 @@ export default function ContractorDashboard() {
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
+  const [contractorJobTab, setContractorJobTab] = useState<'form' | 'instructions'>('form');
 
   // Add Contractor Modal State
   const [isAddContractorOpen, setIsAddContractorOpen] = useState(false);
@@ -1368,8 +1369,36 @@ export default function ContractorDashboard() {
                         </div>
                       )}
 
-                      {/* JOB INSTRUCTIONS & MANAGER UPDATES NOTIFICATION */}
+                      {/* TABS BAR FOR MOBILE & EASIER READING */}
                       {!isCustomJob && selectedJobObj && (
+                        <div className="flex border-b border-slate-800 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setContractorJobTab('form')}
+                            className={`flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider transition ${
+                              contractorJobTab === 'form'
+                                ? 'text-amber-500 border-b-2 border-amber-500'
+                                : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            ⏱️ Log Hours & Shift
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setContractorJobTab('instructions')}
+                            className={`flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider transition ${
+                              contractorJobTab === 'instructions'
+                                ? 'text-amber-500 border-b-2 border-amber-500'
+                                : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            📋 Work Order & SOW
+                          </button>
+                        </div>
+                      )}
+
+                      {/* JOB INSTRUCTIONS & MANAGER UPDATES NOTIFICATION */}
+                      {!isCustomJob && selectedJobObj && contractorJobTab === 'instructions' && (
                         <div className="space-y-2">
                           {/* Real-time Notification Banner */}
                           {selectedJobObj.updatedAt && (!jobSitesViewedAt[selectedJobObj.id] || new Date(selectedJobObj.updatedAt) > new Date(jobSitesViewedAt[selectedJobObj.id])) && (
@@ -1454,7 +1483,9 @@ export default function ContractorDashboard() {
                       )}
                     </div>
 
-                    {/* WORK DATE WITH INTERACTIVE CALENDAR POPOVER */}
+                    {(isCustomJob || !selectedJobObj || contractorJobTab === 'form') && (
+                      <>
+                        {/* WORK DATE WITH INTERACTIVE CALENDAR POPOVER */}
                     <div className="relative">
                       <label className="block text-xs font-semibold text-slate-300 mb-1">Work Date *</label>
                       <div className="flex items-center gap-2">
@@ -1720,6 +1751,8 @@ export default function ContractorDashboard() {
                       <span>Submit Time Entry for Review</span>
                       <span>→</span>
                     </button>
+                      </>
+                    )}
                   </form>
                 </div>
 
