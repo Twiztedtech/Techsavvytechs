@@ -375,6 +375,46 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, status: newOverallStatus });
     }
 
+    if (action === 'retry_qbo_sync') {
+      if (user.admin !== true) {
+        return res.status(403).json({ error: 'Administrator access required.' });
+      }
+
+      const { timecardId } = req.body;
+      if (!timecardId) {
+        return res.status(400).json({ error: 'Missing timecard ID.' });
+      }
+
+      const docRef = adminDb.collection('time_entries').doc(timecardId);
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) {
+        return res.status(404).json({ error: 'Time entry not found.' });
+      }
+
+      const updatedTimecard = { id: snapshot.id, ...snapshot.data() };
+      const jobDate = new Date(updatedTimecard.date);
+      const payoutDueDate = new Date(jobDate);
+      payoutDueDate.setDate(payoutDueDate.getDate() + 15);
+
+      try {
+        const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
+        await docRef.update({
+          qbStatus: 'synced',
+          qboBillId: qboResult.Bill?.Id || '',
+          qboSyncedAt: new Date().toISOString(),
+          qboSyncError: null
+        });
+        return res.status(200).json({ success: true, qbStatus: 'synced', qboBillId: qboResult.Bill?.Id || '' });
+      } catch (qboError) {
+        console.error('QBO Sync Error:', qboError);
+        await docRef.update({
+          qbStatus: 'failed',
+          qboSyncError: qboError.message
+        });
+        return res.status(500).json({ error: qboError.message });
+      }
+    }
+
     return res.status(400).json({ error: 'Unsupported time-clock action.' });
   } catch (error) {
     const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.'].includes(error.message) ? 403 : 500;

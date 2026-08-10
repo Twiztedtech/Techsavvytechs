@@ -736,6 +736,55 @@ export default function ContractorDashboard() {
     }
   };
 
+  const handleRetrySync = async (timecardId) => {
+    setTimeEntries(prev =>
+      prev.map(entry => {
+        if (entry.id !== timecardId) return entry;
+        return { ...entry, qbStatus: 'pending', qboSyncError: null };
+      })
+    );
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'retry_qbo_sync',
+          timecardId
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Sync failed.');
+      }
+
+      setTimeEntries(prev =>
+        prev.map(entry => {
+          if (entry.id !== timecardId) return entry;
+          return {
+            ...entry,
+            qbStatus: 'synced',
+            qboBillId: data.qboBillId
+          };
+        })
+      );
+    } catch (err: any) {
+      console.error(err);
+      alert('Retry failed: ' + err.message);
+      setTimeEntries(prev =>
+        prev.map(entry => {
+          if (entry.id !== timecardId) return entry;
+          return { ...entry, qbStatus: 'failed', qboSyncError: err.message };
+        })
+      );
+    }
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.currentTarget.files ?? []) as File[];
     const filePreviews = files.map(file => URL.createObjectURL(file));
@@ -1954,8 +2003,17 @@ export default function ContractorDashboard() {
                                 QBO Synced #{entry.qboBillId}
                               </span>
                             ) : entry.qbStatus === 'failed' ? (
-                              <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-semibold rounded cursor-help" title={entry.qboSyncError}>
-                                QBO Sync Failed
+                              <span className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-semibold rounded cursor-help" title={entry.qboSyncError}>
+                                  QBO Sync Failed
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetrySync(entry.id)}
+                                  className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow"
+                                >
+                                  🔄 Retry Sync
+                                </button>
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">

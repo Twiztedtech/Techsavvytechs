@@ -62,8 +62,9 @@ export async function getOrCreateVendor(name, email) {
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
 
-  // 1. Query Vendor by Email
-  const query = encodeURIComponent(`select * from Vendor where PrimaryEmailAddr = '${email}'`);
+  // 1. Query Vendor by DisplayName (PrimaryEmailAddr is not queryable in QBO)
+  const escapedName = name.replace(/'/g, "\\'");
+  const query = encodeURIComponent(`select * from Vendor where DisplayName = '${escapedName}'`);
   const queryUrl = `${baseUrl}/query?query=${query}`;
 
   const searchRes = await fetch(queryUrl, {
