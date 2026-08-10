@@ -59,6 +59,7 @@ export async function getValidQboToken() {
  * Resolves a QBO Vendor ID by email, or creates a new Vendor in QBO if not found
  */
 export async function getOrCreateVendor(name, email) {
+  console.log('[DEBUG getOrCreateVendor] Called with name:', name, 'email:', email);
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
 
@@ -146,6 +147,7 @@ export async function getOrCreateVendor(name, email) {
  * Creates a Vendor Bill in QBO for an Approved Timecard
  */
 export async function createQBOBillForTimecard(timecard, payoutDueDate) {
+  console.log('[DEBUG createQBOBillForTimecard] Called with timecard payload:', JSON.stringify(timecard, null, 2));
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
 

@@ -359,6 +359,7 @@ export default async function handler(req, res) {
           }
         }
 
+        console.log('[DEBUG approve_item] Calling QBO helper with updatedTimecard:', JSON.stringify(updatedTimecard, null, 2));
         try {
           const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
           await docRef.update({
@@ -415,6 +416,7 @@ export default async function handler(req, res) {
       const payoutDueDate = new Date(jobDate);
       payoutDueDate.setDate(payoutDueDate.getDate() + 15);
 
+      console.log('[DEBUG retry_qbo_sync] Calling QBO helper with updatedTimecard:', JSON.stringify(updatedTimecard, null, 2));
       try {
         const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
         await docRef.update({
