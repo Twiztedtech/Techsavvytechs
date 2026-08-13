@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, db, storage } from '../lib/firebase';
 import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
-import { GoogleAuthProvider, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { Link } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
@@ -1113,14 +1113,17 @@ export default function ContractorDashboard() {
                     setResetStatus('sending');
                     setAuthMessage(null);
                     try {
-                      await sendPasswordResetEmail(auth, resetEmail.trim(), {
-                        url: `${window.location.origin}/contractor/dashboard`,
-                        handleCodeInApp: false,
+                      const response = await fetch('/api/auth/password-reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: resetEmail.trim() }),
                       });
+                      const data = await response.json();
+                      if (!response.ok) throw new Error(data.error || 'Unable to send the reset email.');
                       setResetStatus('sent');
                     } catch (error) {
                       setResetStatus('idle');
-                      setAuthMessage({ tone: 'error', text: getAuthErrorMessage(error) });
+                      setAuthMessage({ tone: 'error', text: error instanceof Error ? error.message : 'Unable to send the reset email.' });
                       setIsResetModalOpen(false);
                     }
                   }}
