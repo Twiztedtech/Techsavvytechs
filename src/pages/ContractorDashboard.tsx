@@ -31,6 +31,8 @@ export default function ContractorDashboard() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const [isEmailSigningIn, setIsEmailSigningIn] = useState(false);
+  const [authMessage, setAuthMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
   const [contractorJobTab, setContractorJobTab] = useState<'form' | 'instructions'>('form');
@@ -102,6 +104,32 @@ export default function ContractorDashboard() {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
+
+  const getAuthErrorMessage = (error: unknown) => {
+    const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+        return 'The email or password is incorrect. Try again or reset your password.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts were made. Please wait a few minutes and try again.';
+      case 'auth/popup-blocked':
+        return 'Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.';
+      case 'auth/popup-closed-by-user':
+        return 'Google sign-in was canceled before it finished.';
+      case 'auth/account-exists-with-different-credential':
+        return 'This email already uses password login. Sign in with your password first; Google can then be connected to the same account.';
+      case 'auth/operation-not-allowed':
+        return 'Google sign-in is not enabled yet. An administrator must enable the Google provider in Firebase Authentication.';
+      case 'auth/unauthorized-domain':
+        return 'This website domain is not authorized for Google sign-in. Add it to Firebase Authentication authorized domains.';
+      case 'auth/network-request-failed':
+        return 'The authentication service could not be reached. Check your connection and try again.';
+      default:
+        return 'We could not complete sign-in. Please try again or contact TechSavvy support.';
+    }
+  };
 
   // Support Tickets State
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
@@ -927,10 +955,14 @@ export default function ContractorDashboard() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              setAuthMessage(null);
+              setIsEmailSigningIn(true);
               try {
-                await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+                await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
               } catch (error) {
-                alert(error instanceof Error ? error.message : 'Unable to sign in.');
+                setAuthMessage({ tone: 'error', text: getAuthErrorMessage(error) });
+              } finally {
+                setIsEmailSigningIn(false);
               }
             }}
             className="space-y-4"
@@ -971,11 +1003,21 @@ export default function ContractorDashboard() {
 
             <button
               type="submit"
+              disabled={isEmailSigningIn}
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded text-sm transition shadow-lg shadow-amber-500/10"
             >
-              Continue with Email
+              {isEmailSigningIn ? 'Signing in…' : 'Continue with Email'}
             </button>
           </form>
+
+          {authMessage && (
+            <div
+              role="alert"
+              className={`rounded border px-3 py-2 text-xs leading-relaxed ${authMessage.tone === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-green-500/30 bg-green-500/10 text-green-200'}`}
+            >
+              {authMessage.text}
+            </div>
+          )}
 
           <div className="relative flex items-center py-1" aria-hidden="true">
             <div className="flex-grow border-t border-slate-800" />
@@ -988,13 +1030,14 @@ export default function ContractorDashboard() {
               type="button"
               disabled={isGoogleSigningIn}
               onClick={async () => {
+                setAuthMessage(null);
                 setIsGoogleSigningIn(true);
                 try {
                   const provider = new GoogleAuthProvider();
                   provider.setCustomParameters({ prompt: 'select_account' });
                   await signInWithPopup(auth, provider);
                 } catch (error) {
-                  alert(error instanceof Error ? error.message : 'Unable to sign in with Google.');
+                  setAuthMessage({ tone: 'error', text: getAuthErrorMessage(error) });
                 } finally {
                   setIsGoogleSigningIn(false);
                 }
@@ -1024,11 +1067,16 @@ export default function ContractorDashboard() {
         {/* PASSWORD RESET MODAL */}
         {isResetModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100 space-y-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="password-reset-title"
+              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100 space-y-4"
+            >
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-amber-500 text-lg">🔑</span>
-                  <h3 className="font-bold text-sm text-slate-100">Reset Portal Password</h3>
+                  <h3 id="password-reset-title" className="font-bold text-sm text-slate-100">Reset Portal Password</h3>
                 </div>
                 <button
                   type="button"
@@ -1063,12 +1111,17 @@ export default function ContractorDashboard() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     setResetStatus('sending');
+                    setAuthMessage(null);
                     try {
-                      await sendPasswordResetEmail(auth, resetEmail);
+                      await sendPasswordResetEmail(auth, resetEmail.trim(), {
+                        url: `${window.location.origin}/contractor/dashboard`,
+                        handleCodeInApp: false,
+                      });
                       setResetStatus('sent');
                     } catch (error) {
                       setResetStatus('idle');
-                      alert(error instanceof Error ? error.message : 'Unable to send the reset email.');
+                      setAuthMessage({ tone: 'error', text: getAuthErrorMessage(error) });
+                      setIsResetModalOpen(false);
                     }
                   }}
                   className="space-y-4"
