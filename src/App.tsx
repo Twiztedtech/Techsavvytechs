@@ -21,6 +21,8 @@ import Contact from "./pages/Contact";
 import { Seo } from "./components/Seo";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
@@ -68,6 +70,8 @@ function AppShell() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/contractor/dashboard" element={
               <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
                 <ContractorDashboard />

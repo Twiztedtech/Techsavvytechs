@@ -26,6 +26,10 @@ const pageMetadata: Record<string, { title: string; description: string }> = {
     title: 'Request a Site Survey or Quote | TechSavvy LLC',
     description: 'Contact TechSavvy to discuss a site survey, cabling project, managed IT support, or network infrastructure need.',
   },
+  '/blog': {
+    title: 'Technology & Infrastructure Insights | TechSavvy LLC',
+    description: 'Practical briefings on network infrastructure, low-voltage systems, managed IT, and reliable business connectivity.',
+  },
 };
 
 function setMeta(selector: string, attributes: Record<string, string>) {
@@ -39,19 +43,44 @@ function setMeta(selector: string, attributes: Record<string, string>) {
   }
 }
 
+export type SeoMetadata = {
+  title: string;
+  description: string;
+  url: string;
+  image?: string;
+  type?: 'website' | 'article';
+  noIndex?: boolean;
+};
+
+export function applySeoMetadata({title, description, url, image, type = 'website', noIndex = false}: SeoMetadata) {
+  document.title = title;
+  setMeta('meta[name="description"]', {name: 'description', content: description});
+  setMeta('meta[property="og:title"]', {property: 'og:title', content: title});
+  setMeta('meta[property="og:description"]', {property: 'og:description', content: description});
+  setMeta('meta[property="og:type"]', {property: 'og:type', content: type});
+  setMeta('meta[property="og:url"]', {property: 'og:url', content: url});
+  setMeta('meta[name="twitter:card"]', {name: 'twitter:card', content: image ? 'summary_large_image' : 'summary'});
+  setMeta('meta[name="robots"]', {name: 'robots', content: noIndex ? 'noindex, nofollow' : 'index, follow'});
+  if (image) {
+    setMeta('meta[property="og:image"]', {property: 'og:image', content: image});
+    setMeta('meta[name="twitter:image"]', {name: 'twitter:image', content: image});
+  }
+  let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.rel = 'canonical';
+    document.head.appendChild(canonical);
+  }
+  canonical.href = url;
+}
+
 export const Seo = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
     const metadata = pageMetadata[pathname] || pageMetadata['/'];
     const url = `${window.location.origin}${pathname}`;
-    document.title = metadata.title;
-    setMeta('meta[name="description"]', { name: 'description', content: metadata.description });
-    setMeta('meta[property="og:title"]', { property: 'og:title', content: metadata.title });
-    setMeta('meta[property="og:description"]', { property: 'og:description', content: metadata.description });
-    setMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' });
-    setMeta('meta[property="og:url"]', { property: 'og:url', content: url });
-    setMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary' });
+    applySeoMetadata({title: metadata.title, description: metadata.description, url});
 
     let structuredData = document.getElementById('techsavvy-local-business') as HTMLScriptElement | null;
     if (!structuredData) {
