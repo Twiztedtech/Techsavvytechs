@@ -81,6 +81,7 @@ export const Navbar = () => {
           </NavItem>
 
           <Link to="/contact" className="hover:text-tech-green transition-colors py-2">Contact</Link>
+          <Link to="/blog" className="hover:text-tech-green transition-colors py-2">Blog</Link>
           
           <Link to="/contact">
             <Button variant="orange" size="sm">
@@ -118,6 +119,7 @@ export const Navbar = () => {
             <Link to="/about/service-areas" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Service Areas</Link>
             <Link to="/contractor/dashboard" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contractor Portal</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contact</Link>
+            <Link to="/blog" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Blog</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Get a Quote</Link>
           </div>
         </div>

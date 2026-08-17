@@ -2,15 +2,23 @@
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@11.19.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3001 --host=127.0.0.1",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "studio:dev": "npm --prefix studio run dev",
+    "studio:build": "npm --prefix studio run build",
+    "studio:deploy": "npm --prefix studio run deploy",
+    "studio:schema": "npm --prefix studio run schema:deploy"
   },
   "dependencies": {
+    "@portabletext/react": "^5.0.0",
+    "@sanity/client": "^7.0.0",
+    "@sanity/image-url": "^2.0.0",
     "@google/genai": "^1.29.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.3.3",
@@ -25,6 +33,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "groq": "^4.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^8.3.0",
