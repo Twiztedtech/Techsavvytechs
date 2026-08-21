@@ -489,6 +489,7 @@ export default function ContractorDashboard() {
 
   // Admin Selection for Batch Approvals / Rejections
   const [selectedEntryIds, setSelectedEntryIds] = useState([]);
+  const [adminTechnicianFilter, setAdminTechnicianFilter] = useState('ALL');
 
   // Contractor View Navigation & History Filter State
   const [contractorTab, setContractorTab] = useState('logger'); // 'logger' | 'history'
@@ -497,6 +498,20 @@ export default function ContractorDashboard() {
 
   // Submissions Data
   const [timeEntries, setTimeEntries] = useState([]);
+
+  const adminTechnicianOptions = Array.from(new Map<string, { uid: string; name: string }>(timeEntries
+    .filter((entry) => entry.technicianUid)
+    .map((entry) => {
+      const contractor = contractorsList.find((item) => item.authUid === entry.technicianUid);
+      return [entry.technicianUid, {
+        uid: entry.technicianUid,
+        name: entry.technicianName || contractor?.name || entry.technicianEmail || contractor?.email || 'Unknown technician',
+      }] as [string, { uid: string; name: string }];
+    })).values()).sort((left, right) => left.name.localeCompare(right.name));
+
+  const filteredAdminTimeEntries = adminTechnicianFilter === 'ALL'
+    ? timeEntries
+    : timeEntries.filter((entry) => entry.technicianUid === adminTechnicianFilter);
 
   const totalLifetimeHours = timeEntries
     .filter((entry) => entry.status !== 'voided')
@@ -2094,36 +2109,49 @@ export default function ContractorDashboard() {
 
             {activeAdminTab === 'timecards' && (
               <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                  <div>
+                    <label htmlFor="admin-technician-filter" className="block text-xs font-bold text-slate-200">Technician</label>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Choose one technician or view everyone.</p>
+                  </div>
+                  <select id="admin-technician-filter" value={adminTechnicianFilter} onChange={(event) => { setAdminTechnicianFilter(event.target.value); setSelectedEntryIds([]); }} className="min-w-56 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 focus:border-amber-500 focus:outline-none">
+                    <option value="ALL">All technicians ({timeEntries.length} tasks)</option>
+                    {adminTechnicianOptions.map((technician) => (
+                      <option key={technician.uid} value={technician.uid}>{technician.name} ({timeEntries.filter((entry) => entry.technicianUid === technician.uid).length})</option>
+                    ))}
+                  </select>
+                </div>
                 {/* Overview Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending Timecards</div>
                     <div className="text-2xl font-bold mt-1 text-amber-500">
-                      {timeEntries.filter(tc => tc.status !== 'approved' && tc.status !== 'voided').length}
+                      {filteredAdminTimeEntries.filter(tc => tc.status !== 'approved' && tc.status !== 'voided').length}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Fully Approved</div>
                     <div className="text-2xl font-bold mt-1 text-green-400">
-                      {timeEntries.filter(tc => tc.status === 'approved').length}
+                      {filteredAdminTimeEntries.filter(tc => tc.status === 'approved').length}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">QBO Sync Queue</div>
                     <div className="text-2xl font-bold mt-1 text-blue-400">
-                      {timeEntries.filter(tc => tc.qbStatus === 'synced').length}
+                      {filteredAdminTimeEntries.filter(tc => tc.qbStatus === 'synced').length}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sync Failures</div>
                     <div className="text-2xl font-bold mt-1 text-red-500">
-                      {timeEntries.filter(tc => tc.qbStatus === 'failed').length}
+                      {filteredAdminTimeEntries.filter(tc => tc.qbStatus === 'failed').length}
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  {timeEntries.map((entry) => {
+                  {filteredAdminTimeEntries.length === 0 && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">No timecards were found for this technician.</div>}
+                  {filteredAdminTimeEntries.map((entry) => {
                     const totals = getEntryTotals(entry);
                     const isFullyApproved = entry.status === 'approved';
                     const techName = entry.technicianName || contractorsList.find(c => c.authUid === entry.technicianUid)?.name || 'Unknown Tech';
