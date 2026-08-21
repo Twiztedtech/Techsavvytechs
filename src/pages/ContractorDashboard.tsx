@@ -22,6 +22,9 @@ export default function ContractorDashboard() {
   const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; type: string } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void'; label: string } | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [isVoiding, setIsVoiding] = useState(false);
   const [contractorsList, setContractorsList] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [invitingContractorId, setInvitingContractorId] = useState<string | null>(null);
@@ -186,6 +189,7 @@ export default function ContractorDashboard() {
   const [editingJobId, setEditingJobId] = useState(null);
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
   const [isSavingJob, setIsSavingJob] = useState(false);
+  const [jobRecordFilter, setJobRecordFilter] = useState<'active' | 'voided'>('active');
   const [isSigningWorkOrder, setIsSigningWorkOrder] = useState(false);
   const [previewJob, setPreviewJob] = useState(null);
   const [qboConnected, setQboConnected] = useState(false);
@@ -357,8 +361,11 @@ export default function ContractorDashboard() {
   };
 
   useEffect(() => {
-    if (jobSitesList.length > 0 && !jobSitesList.some((job) => job.id === selectedJobId)) {
-      setSelectedJobId(jobSitesList[0].id);
+    const availableJobs = jobSitesList.filter((job) => job.status !== 'voided');
+    if (availableJobs.length > 0 && !availableJobs.some((job) => job.id === selectedJobId)) {
+      setSelectedJobId(availableJobs[0].id);
+    } else if (availableJobs.length === 0 && selectedJobId) {
+      setSelectedJobId('');
     }
   }, [jobSitesList, selectedJobId]);
 
@@ -456,7 +463,7 @@ export default function ContractorDashboard() {
   // Auto-fill contractor rates when selecting a predefined job site
   useEffect(() => {
     if (!isCustomJob) {
-      const job = jobSitesList.find(j => j.id === selectedJobId);
+    const job = jobSitesList.find(j => j.id === selectedJobId && j.status !== 'voided');
       if (job) {
         setContractorRate(job.hourlyRate !== undefined ? Number(job.hourlyRate) : 55.00);
         setTravelCost(job.travelRate !== undefined ? Number(job.travelRate).toFixed(2) : '0.00');
@@ -492,6 +499,7 @@ export default function ContractorDashboard() {
   const [timeEntries, setTimeEntries] = useState([]);
 
   const totalLifetimeHours = timeEntries
+    .filter((entry) => entry.status !== 'voided')
     .reduce((acc, curr) => acc + Number(curr.totalHours || 0), 0)
     .toFixed(2);
 
@@ -508,7 +516,8 @@ export default function ContractorDashboard() {
     .reduce((acc, curr) => acc + getEntryTotals(curr).totalGross, 0);
 
   // Active Job Details
-  const selectedJobObj = jobSitesList.find(j => j.id === selectedJobId) || jobSitesList[0];
+  const activeJobSites = jobSitesList.filter((job) => job.status !== 'voided');
+  const selectedJobObj = activeJobSites.find(j => j.id === selectedJobId) || activeJobSites[0];
 
   // Filtered History Entries
   const filteredHistoryEntries = timeEntries.filter(entry => {
@@ -518,7 +527,8 @@ export default function ContractorDashboard() {
       (historyFilterStatus === 'paid' && entry.qbStatus === 'synced') ||
       (historyFilterStatus === 'approved' && entry.status === 'approved' && entry.qbStatus !== 'synced') ||
       (historyFilterStatus === 'pending' && entry.status === 'pending') ||
-      (historyFilterStatus === 'rejected' && entry.status === 'rejected');
+      (historyFilterStatus === 'rejected' && entry.status === 'rejected') ||
+      (historyFilterStatus === 'voided' && entry.status === 'voided');
     return matchesJob && matchesStatus;
   });
 
@@ -599,6 +609,33 @@ export default function ContractorDashboard() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not save your signature.');
     setSavedTechnicianSignature(data.technicianSignature || signatureDataUrl);
+  };
+
+  const submitVoidAction = async () => {
+    if (!voidTarget || !voidReason.trim()) return;
+    setIsVoiding(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const action = voidTarget.kind === 'job'
+        ? 'void_job'
+        : voidTarget.mode === 'request' ? 'request_void_timecard' : 'void_timecard';
+      const response = await fetch('/api/portal/time-clock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, reason: voidReason.trim(), ...(voidTarget.kind === 'job' ? { jobId: voidTarget.id } : { timecardId: voidTarget.id }) }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not complete the void request.');
+      if (data.entry) setTimeEntries((current) => current.map((entry) => entry.id === data.entry.id ? data.entry : entry));
+      if (data.job) setJobSitesList((current) => current.map((job) => job.id === data.job.id ? data.job : job));
+      alert(voidTarget.mode === 'request' ? 'Your void request was sent to the administrator.' : 'The record was voided and retained in history.');
+      setVoidTarget(null);
+      setVoidReason('');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not complete the void request.');
+    } finally {
+      setIsVoiding(false);
+    }
   };
 
   const calculateHours = (start, end, breakMins) => {
@@ -1369,6 +1406,7 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
                         >
                           {jobSitesList.filter((job) => {
+                            if (job.status === 'voided') return false;
                             const assignedIds = getAssignedTechIds(job);
                             return userRole === 'admin' || assignedIds.includes('ALL') || assignedJobIds.includes(job.id);
                           }).map((site) => (
@@ -1826,7 +1864,7 @@ export default function ContractorDashboard() {
                   </div>
 
                   <div className="space-y-3">
-                    {timeEntries.slice(0, 4).map((entry) => (
+                    {timeEntries.filter((entry) => entry.status !== 'voided').slice(0, 4).map((entry) => (
                       <div key={entry.id} className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
                         <div className="flex justify-between items-start">
                           <div>
@@ -1834,7 +1872,7 @@ export default function ContractorDashboard() {
                             <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{entry.notes}</p>
                           </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
-                            entry.status === 'approved' 
+                            entry.status === 'approved'
                               ? 'bg-green-500/10 text-green-400 border-green-500/20' 
                               : entry.status === 'rejected'
                               ? 'bg-red-500/10 text-red-400 border-red-500/20'
@@ -1851,13 +1889,13 @@ export default function ContractorDashboard() {
 
                         <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-[11px]">
                           <span className="text-slate-500">📷 {entry.photos?.length || 0} Photos</span>
-                          <button
-                            type="button"
-                            onClick={() => setActiveInvoice(entry)}
-                            className="text-amber-400 hover:underline font-bold flex items-center gap-1"
-                          >
-                            Review time entry
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && (
+                              <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'request', label: `${entry.jobSite} · ${entry.date}` })} className="text-rose-400 hover:underline font-bold">Request void</button>
+                            )}
+                            {entry.voidStatus === 'requested' && <span className="font-bold text-violet-400">Void requested</span>}
+                            <button type="button" onClick={() => setActiveInvoice(entry)} className="text-amber-400 hover:underline font-bold flex items-center gap-1">Review time entry</button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1899,6 +1937,7 @@ export default function ContractorDashboard() {
                         <option value="approved">Approved</option>
                         <option value="pending">Pending Review</option>
                         <option value="rejected">Not Approved</option>
+                        <option value="voided">Voided</option>
                       </select>
                     </div>
                   </div>
@@ -1946,7 +1985,9 @@ export default function ContractorDashboard() {
                               <td className="p-3 font-mono font-bold text-green-400">${totals.totalGross.toFixed(2)}</td>
                               <td className="p-3">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  entry.status === 'approved'
+                                  entry.status === 'voided'
+                                    ? 'bg-slate-700/40 text-slate-300 border border-slate-600'
+                                    : entry.status === 'approved'
                                     ? 'bg-green-500/10 text-green-400 border border-green-500/20'
                                     : entry.status === 'rejected'
                                     ? 'bg-red-500/10 text-red-400 border border-red-500/20'
@@ -1954,11 +1995,14 @@ export default function ContractorDashboard() {
                                 }`}>
                                   {entry.status === 'rejected' ? 'Not Approved' : entry.status}
                                 </span>
+                                {entry.status === 'voided' && <span className="mt-1 block max-w-xs text-[10px] text-slate-500">Reason: {entry.voidReason}</span>}
                               </td>
                               <td className="p-3">
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 w-max">⏳ Accounting review</span>
                               </td>
                               <td className="p-3 text-right">
+                                {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'request', label: `${entry.jobSite} · ${entry.date}` })} className="mr-2 px-2.5 py-1 text-rose-400 font-bold hover:underline text-[11px]">Request void</button>}
+                                {entry.voidStatus === 'requested' && <span className="mr-2 text-[10px] font-bold text-violet-400">Awaiting admin</span>}
                                 <button
                                   type="button"
                                   onClick={() => setActiveInvoice(entry)}
@@ -2055,7 +2099,7 @@ export default function ContractorDashboard() {
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending Timecards</div>
                     <div className="text-2xl font-bold mt-1 text-amber-500">
-                      {timeEntries.filter(tc => tc.status !== 'approved').length}
+                      {timeEntries.filter(tc => tc.status !== 'approved' && tc.status !== 'voided').length}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
@@ -2086,12 +2130,13 @@ export default function ContractorDashboard() {
                     const techEmail = entry.technicianEmail || contractorsList.find(c => c.authUid === entry.technicianUid)?.email || 'No Email';
                     
                     return (
-                      <div key={entry.id} className={`p-6 border border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition ${isFullyApproved ? 'bg-slate-900/10' : 'bg-slate-900/20'}`}>
+                      <div key={entry.id} className={`p-6 border rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition ${entry.status === 'voided' ? 'border-slate-700 bg-slate-950/60 opacity-75' : `border-slate-800 ${isFullyApproved ? 'bg-slate-900/10' : 'bg-slate-900/20'}`}`}>
                         <div className="space-y-1.5 max-w-md">
                           <div className="flex items-center gap-3">
                             <span className="font-bold text-slate-100">{techName}</span>
                             <span className="text-[10px] text-slate-500 font-mono">{entry.date}</span>
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ${
+                              entry.status === 'voided' ? 'bg-slate-700/40 text-slate-300 border border-slate-600' :
                               entry.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                               entry.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
                               'bg-slate-800 text-slate-400 border border-slate-700'
@@ -2099,6 +2144,8 @@ export default function ContractorDashboard() {
                           </div>
                           <div className="text-sm font-semibold text-slate-200">{entry.jobSite}</div>
                           <div className="text-[10px] text-slate-500 font-mono">{techEmail}</div>
+                          {entry.status === 'voided' && <div className="mt-2 rounded border border-slate-700 bg-slate-900/70 p-2 text-[10px] text-slate-400"><strong className="text-slate-300">Voided:</strong> {entry.voidReason}<br />{entry.voidAgreedByTechnician ? 'Technician requested and administrator approved.' : 'Voided by administrator.'}</div>}
+                          {entry.voidStatus === 'requested' && entry.status !== 'voided' && <div className="mt-2 rounded border border-violet-500/30 bg-violet-500/10 p-2 text-[10px] text-violet-300"><strong>Technician requests void:</strong> {entry.voidRequestReason}</div>}
                           <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-500">QBO status:</span>
                             {entry.qbStatus === 'synced' ? (
@@ -2294,6 +2341,9 @@ export default function ContractorDashboard() {
                         <div className="text-right min-w-[120px]">
                           <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Total Payable</span>
                           <span className="text-xl font-bold text-slate-100 font-mono">${totals.totalGross.toFixed(2)}</span>
+                          {entry.status !== 'voided' && entry.qbStatus !== 'synced' && !entry.active && (
+                            <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'void', label: `${entry.jobSite} · ${entry.date}` })} className="mt-3 block w-full rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/20">{entry.voidStatus === 'requested' ? 'Approve void request' : 'Void submission'}</button>
+                          )}
                         </div>
                       </div>
                     );
@@ -2596,9 +2646,10 @@ export default function ContractorDashboard() {
 
                   {/* RIGHT: JOB SITES DATA TABLE */}
                   <div className="lg:col-span-2 space-y-3">
-                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      <span>📋</span> Active Job Sites List
-                    </h3>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2"><span>📋</span> Work Order Records</h3>
+                      <select value={jobRecordFilter} onChange={(event) => setJobRecordFilter(event.target.value as 'active' | 'voided')} className="rounded border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-[11px] text-slate-300"><option value="active">Active</option><option value="voided">Voided history</option></select>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs text-slate-300">
                         <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
@@ -2612,9 +2663,9 @@ export default function ContractorDashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/60">
-                          {jobSitesList.map((job) => (
-                            <tr key={job.id} className={`hover:bg-slate-950/40 ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
-                              <td className="p-3 font-semibold text-slate-100">{job.name}</td>
+                          {jobSitesList.filter((job) => jobRecordFilter === 'voided' ? job.status === 'voided' : job.status !== 'voided').map((job) => (
+                            <tr key={job.id} className={`hover:bg-slate-950/40 ${job.status === 'voided' ? 'opacity-70' : ''} ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
+                              <td className="p-3 font-semibold text-slate-100">{job.name}{job.status === 'voided' && <span className="mt-1 block text-[9px] uppercase text-slate-500">Voided · {job.voidedAt ? new Date(job.voidedAt).toLocaleDateString() : ''}</span>}</td>
                               <td className="p-3 font-semibold text-slate-300 text-[11px]">
                                 {getAssignmentLabel(job)}
                               </td>
@@ -2625,11 +2676,12 @@ export default function ContractorDashboard() {
                               <td className="p-3 text-slate-400 font-mono text-[11px]">{job.address}</td>
                               <td className="p-3 text-slate-400">
                                 <div>{job.notes}</div>
+                                {job.status === 'voided' && <div className="mt-1 text-[10px] text-rose-300">Reason: {job.voidReason}</div>}
                                 {job.attachments?.length > 0 && <div className="mt-1 text-[10px] text-amber-400">📎 {job.attachments.length} document{job.attachments.length === 1 ? '' : 's'}</div>}
                               </td>
                               <td className="p-3 text-right space-x-2">
-                                <button type="button" onClick={() => setPreviewJob(job)} className="text-green-400 hover:text-green-300 font-bold hover:underline text-[11px] cursor-pointer">Preview Tech View</button>
-                                <button
+                                {job.status !== 'voided' && <button type="button" onClick={() => setPreviewJob(job)} className="text-green-400 hover:text-green-300 font-bold hover:underline text-[11px] cursor-pointer">Preview Tech View</button>}
+                                {job.status !== 'voided' && <button
                                   type="button"
                                   onClick={() => {
                                     setEditingJobId(job.id);
@@ -2654,19 +2706,16 @@ export default function ContractorDashboard() {
                                   className="text-amber-400 hover:text-amber-300 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
                                   Edit
-                                </button>
-                                <button
+                                </button>}
+                                {job.status !== 'voided' && <button
                                   type="button"
                                   onClick={() => {
-                                    if (editingJobId === job.id) {
-                                      resetWorkOrderForm();
-                                    }
-                                    setJobSitesList(prev => prev.filter(item => item.id !== job.id));
+                                    setVoidTarget({ kind: 'job', id: job.id, mode: 'void', label: job.name });
                                   }}
                                   className="text-red-400 hover:text-red-300 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
-                                  Delete
-                                </button>
+                                  Void
+                                </button>}
                               </td>
                             </tr>
                           ))}
@@ -3368,6 +3417,22 @@ export default function ContractorDashboard() {
               >
                 Submit Rejection
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {voidTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-rose-500/30 bg-slate-900 p-6 shadow-2xl">
+            <div>
+              <h3 className="text-lg font-bold text-rose-400">{voidTarget.mode === 'request' ? 'Request a void' : voidTarget.kind === 'job' ? 'Void work order' : 'Void submission'}</h3>
+              <p className="mt-1 text-xs text-slate-400">{voidTarget.label}</p>
+            </div>
+            <p className="text-sm text-slate-300">{voidTarget.mode === 'request' ? 'Explain why this rejected submission should be voided. The administrator must approve your request.' : 'This removes the record from active work but keeps the original information and reason in history. Assigned technicians will be notified.'}</p>
+            <textarea value={voidReason} onChange={(event) => setVoidReason(event.target.value)} rows={4} maxLength={500} placeholder="Required reason" className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 placeholder-slate-600 focus:border-rose-500 focus:outline-none" />
+            <div className="flex justify-end gap-3">
+              <button type="button" disabled={isVoiding} onClick={() => { setVoidTarget(null); setVoidReason(''); }} className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">Cancel</button>
+              <button type="button" disabled={isVoiding || !voidReason.trim()} onClick={submitVoidAction} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50">{isVoiding ? 'Saving…' : voidTarget.mode === 'request' ? 'Send request' : 'Confirm void'}</button>
             </div>
           </div>
         </div>

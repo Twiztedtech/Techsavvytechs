@@ -51,6 +51,12 @@ export interface JobSite {
   // assignedTechIds so one job can be shared with several technicians.
   assignedTechId?: string;
   assignedTechIds?: string[];
+  status?: 'voided' | string;
+  voidStatus?: 'voided';
+  voidedAt?: string;
+  voidedByUid?: string;
+  voidedByRole?: 'admin';
+  voidReason?: string;
 }
 
 export interface TimeEntry {
@@ -73,4 +79,10 @@ export interface TimeEntry {
   notes: string;
   photos: string[];
   suppliesItems?: Array<{ id: string; description: string; cost: string }>;
+  voidStatus?: 'requested' | 'voided';
+  voidRequestedAt?: string;
+  voidRequestReason?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  voidAgreedByTechnician?: boolean;
 }
