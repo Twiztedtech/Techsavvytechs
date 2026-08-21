@@ -76,6 +76,40 @@ const signatureFor = (contractor) => {
   return typeof signature.dataUrl === 'string' ? signature.dataUrl : '';
 };
 
+const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+
+const escapeHtml = (value) => String(value || '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const sendPortalNotice = async ({ to, subject, heading, message, details = [] }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !to) return false;
+  const sender = process.env.EMAIL_FROM || 'TechSavvy Contractor Portal <support@techsavvytechs.com>';
+  const supportEmail = process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com';
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'User-Agent': 'TechSavvy-Contractor-Portal/1.0' },
+      body: JSON.stringify({
+        from: sender,
+        reply_to: supportEmail,
+        to: [to],
+        subject,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="font-size:22px">${escapeHtml(heading)}</h1><p>${escapeHtml(message)}</p><div style="background:#f8fafc;padding:15px;border-radius:6px;border:1px solid #e2e8f0">${details.map(([label, value]) => `<strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}<br/>`).join('')}</div><p>This record remains available in portal history for your records.</p></div>`,
+      }),
+    });
+    if (!response.ok) console.error('Portal notice email failed:', response.status, await response.text());
+    return response.ok;
+  } catch (error) {
+    console.error('Portal notice email failed:', error);
+    return false;
+  }
+};
+
 const handleOnboarding = async (req, res, user) => {
   const contractor = await contractorProfileFor(user);
   if (req.method === 'GET') return res.status(200).json({ onboarding: onboardingFor(contractor.data()) });
@@ -144,6 +178,87 @@ export default async function handler(req, res) {
       await contractor.ref.set({ signature: { dataUrl: '', updatedAt: new Date().toISOString() } }, { merge: true });
       return res.status(200).json({ success: true, technicianSignature: '' });
     }
+    if (action === 'request_void_timecard') {
+      if (user.contractor !== true || user.admin === true) return res.status(403).json({ error: 'Technician access required.' });
+      const reason = cleanReason(req.body?.reason);
+      if (!reason) return res.status(422).json({ error: 'Please explain why this submission should be voided.' });
+      const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.technicianUid !== user.uid) return res.status(403).json({ error: 'You can only request changes to your own submissions.' });
+      if (entry.status !== 'rejected') return res.status(409).json({ error: 'A submission can be voided by agreement after it has been rejected.' });
+      if (entry.active) return res.status(409).json({ error: 'Stop the active shift before requesting a void.' });
+      if (entry.qbStatus === 'synced') return res.status(409).json({ error: 'QuickBooks-synced records cannot be voided in the portal.' });
+      const now = new Date().toISOString();
+      const update = { voidStatus: 'requested', voidRequestedAt: now, voidRequestedByUid: user.uid, voidRequestReason: reason, updatedAt: now };
+      await docRef.set(update, { merge: true });
+      const contractor = await contractorProfileFor(user);
+      await sendPortalNotice({
+        to: process.env.SUPPORT_EMAIL,
+        subject: `Void requested: ${entry.jobSite || 'time submission'}`,
+        heading: 'Technician requested a void',
+        message: `${contractor.data().name || 'A technician'} requested that a rejected submission be voided.`,
+        details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Reason', reason]],
+      });
+      return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
+    }
+    if (action === 'void_timecard') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const reason = cleanReason(req.body?.reason);
+      if (!reason) return res.status(422).json({ error: 'A reason is required to void this submission.' });
+      const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.active) return res.status(409).json({ error: 'An active shift cannot be voided.' });
+      if (entry.qbStatus === 'synced') return res.status(409).json({ error: 'This entry is already synced to QuickBooks and cannot be voided in the portal.' });
+      if (entry.status === 'voided') return res.status(409).json({ error: 'This submission is already voided.' });
+      const now = new Date().toISOString();
+      const agreed = entry.voidStatus === 'requested';
+      const update = { status: 'voided', voidStatus: 'voided', voidedAt: now, voidedByUid: user.uid, voidedByRole: 'admin', voidReason: reason, voidAgreedByTechnician: agreed, updatedAt: now };
+      await docRef.set(update, { merge: true });
+      let techEmail = entry.technicianEmail;
+      let techName = entry.technicianName;
+      if (!techEmail && entry.technicianUid) {
+        const contractor = await adminDb.collection('contractors').where('authUid', '==', entry.technicianUid).limit(1).get();
+        if (!contractor.empty) ({ email: techEmail, name: techName } = contractor.docs[0].data());
+      }
+      await sendPortalNotice({
+        to: techEmail,
+        subject: `Submission voided: ${entry.jobSite || 'time entry'}`,
+        heading: 'Time submission voided',
+        message: `Hello ${techName || 'there'}, this submission has been removed from active review. It was not permanently deleted.`,
+        details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Reason', reason], ['Agreement', agreed ? 'Technician requested the void' : 'Administrative void']],
+      });
+      return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
+    }
+    if (action === 'void_job') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const reason = cleanReason(req.body?.reason);
+      if (!reason) return res.status(422).json({ error: 'A reason is required to void this work order.' });
+      const jobRef = adminDb.collection('jobs').doc(String(req.body?.jobId || ''));
+      const snapshot = await jobRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Work order not found.' });
+      const job = snapshot.data();
+      if (job.status === 'voided') return res.status(409).json({ error: 'This work order is already voided.' });
+      const relatedEntries = await adminDb.collection('time_entries').where('jobId', '==', snapshot.id).get();
+      if (relatedEntries.docs.some((entry) => entry.data().active === true)) return res.status(409).json({ error: 'A technician is currently clocked in to this work order. Stop that shift before voiding it.' });
+      const now = new Date().toISOString();
+      const update = { status: 'voided', voidStatus: 'voided', voidedAt: now, voidedByUid: user.uid, voidedByRole: 'admin', voidReason: reason, updatedAt: now };
+      await jobRef.set(update, { merge: true });
+      const contractors = await adminDb.collection('contractors').get();
+      const assigned = Array.isArray(job.assignedTechIds) ? job.assignedTechIds : [job.assignedTechId || 'ALL'];
+      const recipients = contractors.docs.filter((contractor) => assigned.includes('ALL') || assigned.includes(contractor.id));
+      await Promise.all(recipients.map((contractor) => sendPortalNotice({
+        to: contractor.data().email,
+        subject: `Work order voided: ${job.name || snapshot.id}`,
+        heading: 'Work order voided',
+        message: `Hello ${contractor.data().name || 'there'}, this work order has been removed from your active assignments.`,
+        details: [['Work order', job.workOrderNumber || snapshot.id], ['Job', job.name || 'Unknown'], ['Reason', reason]],
+      })));
+      return res.status(200).json({ success: true, job: { id: snapshot.id, ...job, ...update } });
+    }
     const existingEntries = await entriesFor(user);
     const activeEntry = existingEntries.find((entry) => entry.active === true);
     if (action === 'start') {
@@ -151,6 +266,7 @@ export default async function handler(req, res) {
       const jobId = req.body?.jobId;
       const job = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId);
       if (!job) return res.status(403).json({ error: 'You are not assigned to this work order.' });
+      if (job.data().status === 'voided') return res.status(409).json({ error: 'This work order has been voided and is no longer active.' });
       const now = new Date();
       const entry = {
         jobId,
@@ -250,6 +366,9 @@ export default async function handler(req, res) {
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
         return res.status(404).json({ error: 'Time entry not found.' });
+      }
+      if (snapshot.data().status === 'voided') {
+        return res.status(409).json({ error: 'Voided submissions cannot be approved or changed.' });
       }
 
       const updates = {
@@ -404,6 +523,9 @@ export default async function handler(req, res) {
       if (!snapshot.exists) {
         return res.status(404).json({ error: 'Time entry not found.' });
       }
+      if (snapshot.data().status === 'voided') {
+        return res.status(409).json({ error: 'Voided submissions cannot be synced to QuickBooks.' });
+      }
 
       const updatedTimecard = { id: snapshot.id, ...snapshot.data() };
 
@@ -466,6 +588,9 @@ export default async function handler(req, res) {
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
         return res.status(404).json({ error: 'Time entry not found.' });
+      }
+      if (snapshot.data().status === 'voided') {
+        return res.status(409).json({ error: 'Voided submissions cannot be changed.' });
       }
 
       await docRef.update({
