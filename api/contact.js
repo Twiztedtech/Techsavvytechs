@@ -1,4 +1,21 @@
 import { adminDb } from './_lib/firebase-admin.js';
+import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
+import resendWebhookHandler from './_lib/resend-webhook-handler.js';
+import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
+
+export const config = { api: { bodyParser: false } };
+
+async function ensureBody(req, integration) {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return;
+  const chunks = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  const raw = Buffer.concat(chunks).toString('utf8');
+  req.rawBody = raw;
+  if (integration === 'resend') return;
+  if (integration === 'twilio') req.body = Object.fromEntries(new URLSearchParams(raw));
+  else if (raw) req.body = JSON.parse(raw);
+  else req.body = {};
+}
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;
@@ -42,6 +59,14 @@ function isRateLimited(ip, now) {
 }
 
 export default async function handler(req, res) {
+  const integration = String(req.query?.integration || '');
+  await ensureBody(req, integration);
+  if (integration === 'twilio') {
+    req.url = '/api/webhooks/twilio';
+    return twilioWebhookHandler(req, res);
+  }
+  if (integration === 'resend') return resendWebhookHandler(req, res);
+  if (integration === 'googleCalendar') return googleCalendarWebhookHandler(req, res);
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

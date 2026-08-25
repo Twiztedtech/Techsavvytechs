@@ -1,5 +1,5 @@
-import { adminDb } from '../_lib/firebase-admin.js';
-import { addBusinessDays, nowIso, renewGoogleCalendarWatch, sendEmail, sendSms, syncGoogleCalendarChanges } from '../_lib/client-portal.js';
+import { adminDb } from './firebase-admin.js';
+import { addBusinessDays, nowIso, renewGoogleCalendarWatch, sendEmail, sendSms, syncGoogleCalendarChanges } from './client-portal.js';
 
 async function recipientsFor(jobId) {
   const participants = await adminDb.collection('job_participants').where('jobId', '==', jobId).get();

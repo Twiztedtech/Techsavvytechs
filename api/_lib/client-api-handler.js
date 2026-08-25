@@ -1,11 +1,11 @@
 import { randomInt } from 'node:crypto';
-import { adminAuth, adminDb, adminStorage } from './_lib/firebase-admin.js';
+import { adminAuth, adminDb, adminStorage } from './firebase-admin.js';
 import {
   CLIENT_ROLES, addBusinessDays, canAccessJob, clean, emailDomain, hasRole, hashValue,
   normalizeEmail, normalizePhone, notifyNewRequest, nowIso, opaqueToken, optionalUser,
   publicTechnician, recordEvent, requireClient, requireUser, sendEmail, sendSms,
   uploadInlineFiles, verificationHash,
-} from './_lib/client-portal.js';
+} from './client-portal.js';
 
 const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const requestLimit = new Map();

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { adminDb } from '../_lib/firebase-admin.js';
-import { clean, hashValue, nowIso, recordEvent } from '../_lib/client-portal.js';
+import { adminDb } from './firebase-admin.js';
+import { clean, hashValue, nowIso, recordEvent } from './client-portal.js';
 
 function verifySvix(req) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
@@ -18,9 +18,11 @@ function verifySvix(req) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  req.rawBody = Buffer.concat(chunks).toString('utf8');
+  if (!req.rawBody) {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    req.rawBody = Buffer.concat(chunks).toString('utf8');
+  }
   try { req.body = JSON.parse(req.rawBody); } catch { return res.status(400).json({ error: 'Invalid webhook payload.' }); }
   if (!verifySvix(req)) return res.status(403).json({ error: 'Invalid webhook signature.' });
   const eventId = clean(req.headers['svix-id'], 120);
