@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
-import { adminDb, requireAdmin } from '../_lib/firebase-admin.js';
-import { clean, encryptSecret, nowIso, renewGoogleCalendarWatch, safeEqual } from '../_lib/client-portal.js';
+import { adminDb, requireAdmin } from './firebase-admin.js';
+import { clean, encryptSecret, nowIso, renewGoogleCalendarWatch, safeEqual } from './client-portal.js';
 
 const appUrl = () => (process.env.APP_URL || 'https://techsavvytechs.com').replace(/\/$/, '');
 const redirectUri = () => `${appUrl()}/api/auth/google-calendar?action=callback`;

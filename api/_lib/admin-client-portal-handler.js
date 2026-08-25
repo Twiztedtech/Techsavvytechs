@@ -1,5 +1,5 @@
-import { adminDb, requireAdmin } from '../_lib/firebase-admin.js';
-import { clean, hashValue, nowIso, opaqueToken, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from '../_lib/client-portal.js';
+import { adminDb, requireAdmin } from './firebase-admin.js';
+import { clean, hashValue, nowIso, opaqueToken, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
 
 async function listDashboard(res) {
   const [requests, organizations, users, settings, appointments, failedNotifications, scopeChanges] = await Promise.all([

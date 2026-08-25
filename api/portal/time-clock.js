@@ -1,5 +1,8 @@
 import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
 import { createQBOBillForTimecard } from '../_lib/qbo-helper.js';
+import clientPortalHandler from '../_lib/client-api-handler.js';
+import adminClientPortalHandler from '../_lib/admin-client-portal-handler.js';
+import jobEventsHandler from '../_lib/job-events-handler.js';
 
 const getUser = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -154,6 +157,9 @@ const handleOnboarding = async (req, res, user) => {
 };
 
 export default async function handler(req, res) {
+  if (req.query?.portalOperation === 'clientPortal') return clientPortalHandler(req, res);
+  if (req.query?.portalOperation === 'adminClientPortal') return adminClientPortalHandler(req, res);
+  if (req.query?.portalOperation === 'jobEvents') return jobEventsHandler(req, res);
   try {
     const user = await getUser(req);
     if (req.query?.portalOperation === 'onboarding') return await handleOnboarding(req, res, user);

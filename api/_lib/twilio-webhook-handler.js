@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
-import { adminDb } from '../_lib/firebase-admin.js';
-import { clean, hashValue, nowIso } from '../_lib/client-portal.js';
+import { adminDb } from './firebase-admin.js';
+import { clean, hashValue, nowIso } from './client-portal.js';
 
 function validSignature(req) {
   const token = process.env.TWILIO_AUTH_TOKEN;

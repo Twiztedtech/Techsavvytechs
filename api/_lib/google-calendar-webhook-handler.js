@@ -1,5 +1,5 @@
-import { adminDb } from '../_lib/firebase-admin.js';
-import { hashValue, nowIso, safeEqual } from '../_lib/client-portal.js';
+import { adminDb } from './firebase-admin.js';
+import { hashValue, nowIso, safeEqual } from './client-portal.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });

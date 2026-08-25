@@ -1,5 +1,5 @@
-import { adminAuth, adminDb } from '../_lib/firebase-admin.js';
-import { clean, nowIso, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from '../_lib/client-portal.js';
+import { adminAuth, adminDb } from './firebase-admin.js';
+import { clean, nowIso, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
 
 async function portalUser(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
