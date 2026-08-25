@@ -11,6 +11,9 @@
       ]
     }
   ],
+  "crons": [
+    { "path": "/api/cron/client-portal", "schedule": "0 * * * *" }
+  ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/api/portal/onboarding", "destination": "/api/portal/time-clock?portalOperation=onboarding" },

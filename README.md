@@ -10,6 +10,7 @@ Production source for [techsavvytechs.com](https://techsavvytechs.com): the publ
 - Firebase Authentication, Firestore, and Storage security rules.
 - Server-side QuickBooks OAuth and vendor synchronization; browser code never receives QuickBooks tokens.
 - Branded contractor invitations and contact notifications delivered through Resend from `support@techsavvytechs.com`.
+- Client booking and dispatch portal with organization access, multi-visit scheduling, client-safe technician profiles, progress timelines, rescheduling, and closeout acceptance.
 - Security headers on every Vercel response, including a content security policy, clickjacking protection, and referrer controls.
 
 ## Local development
@@ -44,6 +45,11 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 | `RESEND_API_KEY` | Server-side API key for contractor invitations and contact notifications. |
 | `EMAIL_FROM` | Branded sender, for example `TechSavvy Contractor Portal <support@techsavvytechs.com>`. |
 | `SUPPORT_EMAIL` | Inbox for replies and website-contact notifications. |
+| `CLIENT_PORTAL_SECRET`, `CRON_SECRET` | Signing/encryption and scheduled automation secrets. |
+| `CLIENT_REQUEST_ALERT_EMAILS`, `CLIENT_REQUEST_ALERT_PHONES` | Configurable internal booking alert recipients. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` | Transactional SMS, verification, opt-out, and delivery tracking. |
+| `RESEND_RECEIVING_DOMAIN`, `RESEND_WEBHOOK_SECRET` | Job-specific inbound email replies and verified webhooks. |
+| `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_ID`, `GOOGLE_CALENDAR_WEBHOOK_TOKEN` | Portal-to-Google Calendar synchronization. |
 
 ## Operational notes
 
@@ -51,6 +57,9 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 - **Contractor onboarding:** After first sign-in, a technician uploads a W-9 PDF and accepts the portal terms. The file is stored in a contractor-specific private Storage path. Contractor Sync shows the submission state; administrators can open, approve, or request an update. W-9s are never exposed through a public URL or regular Firestore reads.
 - **QuickBooks sync:** The sync writes the current production vendor list and removes only stale auto-created `qbo-*` documents that are no longer returned by QuickBooks. Manually created contractor records are never auto-deleted.
 - **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. It includes a honeypot and per-instance request throttling to reduce automated abuse. If email delivery fails after the submission is saved, the visitor still receives a successful confirmation and the Firestore record is marked with its delivery status to prevent duplicate submissions. No Firebase email extension is required.
+- **Client booking:** `/book-a-job` creates a server-owned request and alerts the configured internal team. `/client` provides verified, organization-scoped access. Client collections remain inaccessible through direct Firestore rules.
+- **Scheduling automation:** Vercel invokes `/api/cron/client-portal` hourly for 24-hour/2-hour reminders and five-business-day closeout. Configure `CRON_SECRET` and confirm the Vercel plan supports hourly cron execution.
+- **Provider webhooks:** Register `/api/webhooks/twilio`, `/api/webhooks/resend`, and `/api/webhooks/google-calendar` with the respective providers. Configure Resend receiving on an isolated subdomain so existing company email MX records are unaffected.
 - **Portal performance:** The public website already defers the contractor portal route. Within the portal, document-signing and technician-preview modules now load only when their workflow opens, keeping the initial dashboard download smaller.
 - **Security headers:** Vercel applies `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, a strict referrer policy, and a restrictive permissions policy. Review the policy whenever adding a new third-party service, font, media host, or browser connection.
 - **Rules:** Source-controlled Firestore and Storage rules are in [`firestore.rules`](firestore.rules) and [`storage.rules`](storage.rules). Deploy them with the Firebase CLI or publish them in Firebase Console after reviewing the diff.

@@ -62,8 +62,8 @@ export const Navbar = () => {
             />
             <NavDropdownItem 
               label="Client Portal" 
-              href="/portal" 
-              description="Access Management Console"
+              href="/client"
+              description="Track Requests & Scheduled Work"
             />
           </NavItem>
 
@@ -83,9 +83,9 @@ export const Navbar = () => {
           <Link to="/contact" className="hover:text-tech-green transition-colors py-2">Contact</Link>
           <Link to="/blog" className="hover:text-tech-green transition-colors py-2">Blog</Link>
           
-          <Link to="/contact">
+          <Link to="/book-a-job">
             <Button variant="orange" size="sm">
-              Get Quote
+              Request a Job
             </Button>
           </Link>
         </div>
@@ -117,10 +117,11 @@ export const Navbar = () => {
             <div className="my-3 border-t border-white/5" />
             <Link to="/about/mission" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">About TechSavvy</Link>
             <Link to="/about/service-areas" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Service Areas</Link>
+            <Link to="/client" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Client Portal</Link>
             <Link to="/contractor/dashboard" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contractor Portal</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contact</Link>
             <Link to="/blog" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Blog</Link>
-            <Link to="/contact" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Get a Quote</Link>
+            <Link to="/book-a-job" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Request a Job</Link>
           </div>
         </div>
       )}

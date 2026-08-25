@@ -26,6 +26,9 @@ import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
+const BookJob = lazy(() => import('./pages/BookJob'));
+const ClientPortal = lazy(() => import('./pages/ClientPortal'));
+const RequestStatus = lazy(() => import('./pages/RequestStatus'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -46,7 +49,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor');
+  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client');
 
   return (
     <>
@@ -70,6 +73,9 @@ function AppShell() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
+            <Route path="/client" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading client portal…</div>}><ClientPortal /></Suspense>} />
+            <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/contractor/dashboard" element={

@@ -8,6 +8,8 @@ import { SupportTicketModal } from '../features/contractor/support/SupportTicket
 import type { SupportTicket } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
+import { ClientRequestsAdmin } from '../features/client/ClientRequestsAdmin';
+import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
 import { type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
 
 const WorkOrderSigningModal = lazy(() => import('../features/contractor/workOrders/WorkOrderSigningModal').then(({ WorkOrderSigningModal }) => ({ default: WorkOrderSigningModal })));
@@ -19,7 +21,7 @@ export default function ContractorDashboard() {
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState('timecards'); // 'timecards' | 'contractors'
+  const [activeAdminTab, setActiveAdminTab] = useState(() => new URLSearchParams(window.location.search).get('adminTab') === 'requests' ? 'requests' : 'timecards');
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; type: string } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void'; label: string } | null>(null);
@@ -1509,6 +1511,7 @@ export default function ContractorDashboard() {
                       {/* JOB INSTRUCTIONS & MANAGER UPDATES NOTIFICATION */}
                       {!isCustomJob && selectedJobObj && contractorJobTab === 'instructions' && (
                         <div className="space-y-2">
+                          <ContractorProgressPanel jobId={selectedJobObj.id} />
                           {/* Real-time Notification Banner */}
                           {selectedJobObj.updatedAt && (!jobSitesViewedAt[selectedJobObj.id] || new Date(selectedJobObj.updatedAt) > new Date(jobSitesViewedAt[selectedJobObj.id])) && (
                             <div className="bg-amber-500/10 border border-amber-500/40 p-3 rounded-lg text-xs text-amber-300 space-y-2 flex flex-col sm:flex-row justify-between sm:items-center gap-2 animate-pulse">
@@ -2050,6 +2053,18 @@ export default function ContractorDashboard() {
             <div className="flex border-b border-slate-800 gap-4 mb-2 flex-wrap">
               <button
                 type="button"
+                onClick={() => setActiveAdminTab('requests')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  activeAdminTab === 'requests'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>📥</span>
+                <span>Client Requests</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveAdminTab('timecards')}
                 className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
                   activeAdminTab === 'timecards'
@@ -2106,6 +2121,10 @@ export default function ContractorDashboard() {
                 </span>
               </button>
             </div>
+
+            {activeAdminTab === 'requests' && (
+              <ClientRequestsAdmin contractors={contractorsList} />
+            )}
 
             {activeAdminTab === 'timecards' && (
               <>

@@ -16,6 +16,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Client portal records are projected through authenticated server APIs.
+    // Keeping these collections server-only prevents cross-company access and
+    // ensures contractor private fields never reach client browsers.
+    match /client_organizations/{document=**} { allow read, write: if false; }
+    match /client_users/{document=**} { allow read, write: if false; }
+    match /vendor_requests/{document=**} { allow read, write: if false; }
+    match /appointments/{document=**} { allow read, write: if false; }
+    match /job_participants/{document=**} { allow read, write: if false; }
+    match /job_events/{document=**} { allow read, write: if false; }
+    match /job_messages/{document=**} { allow read, write: if false; }
+    match /scope_versions/{document=**} { allow read, write: if false; }
+    match /notification_deliveries/{document=**} { allow read, write: if false; }
+    match /calendar_connections/{document=**} { allow read, write: if false; }
+    match /conversation_tokens/{document=**} { allow read, write: if false; }
+    match /webhook_events/{document=**} { allow read, write: if false; }
+    match /sms_preferences/{document=**} { allow read, write: if false; }
+
     // Email Triggers for Extension
     match /mail/{mailId} {
       allow read, write: if false;
