@@ -12,7 +12,7 @@
     }
   ],
   "crons": [
-    { "path": "/api/cron/client-portal", "schedule": "0 * * * *" }
+    { "path": "/api/cron/client-portal", "schedule": "0 15 * * *" }
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
