@@ -12,7 +12,8 @@
     }
   ],
   "crons": [
-    { "path": "/api/contact?operation=run-reminders", "schedule": "0 15 * * *" }
+    { "path": "/api/contact?operation=run-reminders", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/client-portal", "schedule": "0 * * * *" }
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },

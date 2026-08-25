@@ -1,5 +1,4 @@
 /**
-/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,6 +33,9 @@ const ContractorOnboarding = lazy(() => import("./pages/ContractorOnboarding"));
 const CRM = lazy(() => import("./pages/CRM"));
 const CustomerDocument = lazy(() => import("./pages/CustomerDocument"));
 const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
+const BookJob = lazy(() => import('./pages/BookJob'));
+const ClientPortal = lazy(() => import('./pages/ClientPortal'));
+const RequestStatus = lazy(() => import('./pages/RequestStatus'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -54,7 +56,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith("/contractor");
+  const isContractorPortal = pathname.startsWith("/contractor") || pathname.startsWith("/client");
   const isSecureCustomerDocument = pathname.startsWith("/customer/");
 
   return (
@@ -118,6 +120,9 @@ function AppShell() {
                 </Suspense>
               }
             />
+            <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
+            <Route path="/client" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading client portal…</div>}><ClientPortal /></Suspense>} />
+            <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route

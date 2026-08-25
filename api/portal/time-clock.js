@@ -166,12 +166,21 @@ export default async function handler(req, res) {
       const contractor = user.admin !== true && user.contractor === true
         ? await contractorProfileFor(user)
         : null;
+      const jobs = await Promise.all(assignedJobs.map(async (job) => {
+        const data = job.data();
+        const attachments = await Promise.all((data.attachments || []).map(async (attachment) => {
+          if (!attachment.storagePath) return attachment;
+          const [url] = await adminStorage.file(attachment.storagePath).getSignedUrl({ action: 'read', version: 'v4', expires: Date.now() + 15 * 60 * 1000 });
+          return { ...attachment, url };
+        }));
+        return { id: job.id, ...data, attachments };
+      }));
       return res.status(200).json({
         entries,
         assignedJobIds: assignedJobs.map((job) => job.id),
         // Contractors receive their work orders through this authenticated
         // server endpoint. Do not expose the whole jobs collection to them.
-        jobs: assignedJobs.map((job) => ({ id: job.id, ...job.data() })),
+        jobs,
         activeEntry: entries.find((entry) => entry.active === true) || null,
         technicianSignature: contractor ? signatureFor(contractor) : '',
       });

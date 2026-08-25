@@ -5,7 +5,7 @@ export default function TermsOfService() {
     <div className="py-20 px-4 max-w-4xl mx-auto space-y-8 relative z-10">
       <div className="border-l-4 border-safety-orange pl-4 space-y-2">
         <h1 className="text-3xl font-black text-white tracking-tight">END-USER LICENSE AGREEMENT</h1>
-        <p className="text-xs text-slate-400 font-mono">Last Updated: August 2, 2026</p>
+        <p className="text-xs text-slate-400 font-mono">Last Updated: August 25, 2026</p>
       </div>
 
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 text-sm text-slate-300 leading-relaxed font-sans">
@@ -14,11 +14,16 @@ export default function TermsOfService() {
             <span className="text-safety-orange">01.</span> Agreement to Terms
           </h2>
           <p>
-            This End-User License Agreement ("EULA" or "Terms of Service") constitutes a binding legal agreement between TechSavvy LLC ("Company", "we", "our", "us") and you, whether personally or on behalf of an entity ("you" or "User"), concerning your access to and use of the Contractor Portal and its QuickBooks Online integration features.
+            This End-User License Agreement ("EULA" or "Terms of Service") constitutes a binding legal agreement between TechSavvy LLC ("Company", "we", "our", "us") and you, whether personally or on behalf of an entity ("you" or "User"), concerning your access to and use of the Client Portal, Contractor Portal, scheduling tools, and QuickBooks Online integration features.
           </p>
           <p>
             By logging into the portal, submitting time cards, or linking your QuickBooks account, you acknowledge that you have read, understood, and agreed to be bound by all of these terms.
           </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2"><span className="text-safety-orange">04.</span> Scheduling and Client Requests</h2>
+          <p>Requested appointment windows are not confirmed until shown as scheduled in the portal. Clients and assigned technicians may agree to a replacement window, which is recorded in the appointment history and communicated to TechSavvy. Late cancellation, missed access, or trip charges are reviewed by TechSavvy and are not applied automatically by the portal.</p>
         </section>
 
         <section className="space-y-3">
@@ -46,7 +51,7 @@ export default function TermsOfService() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span className="text-safety-orange">04.</span> Limitation of Liability
+            <span className="text-safety-orange">05.</span> Limitation of Liability
           </h2>
           <p>
             TechSavvy LLC, its directors, and agents shall not be liable for any direct, indirect, incidental, or consequential damages resulting from your use of the portal, QuickBooks sync interruptions, database downtime, or any errors in financial ledgers resulting from contractor-submitted data.
@@ -55,7 +60,7 @@ export default function TermsOfService() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span className="text-safety-orange">05.</span> Modifications & Governing Law
+            <span className="text-safety-orange">06.</span> Modifications & Governing Law
           </h2>
           <p>
             We reserve the right to revise or modify this EULA at any time. Changes take effect immediately upon publication. These terms are governed by and construed in accordance with the laws of the State of California, without regard to its conflict of law principles.
