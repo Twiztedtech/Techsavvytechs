@@ -2,6 +2,17 @@
 
 Production source for [techsavvytechs.com](https://techsavvytechs.com): the public TechSavvy services website and its Firebase-backed contractor portal.
 
+## Current production status
+
+As of August 25, 2026:
+
+- The public website, contractor portal, client booking form, client login, admin dispatch queue, and client-safe progress experience are live on Vercel at `techsavvytechs.com`.
+- The client entry points are **Book a Job** for a first request and **Client Login** for returning users.
+- Twilio trial SMS is connected through `+1 737-258-3478`; credentials are encrypted in Vercel and the signed inbound webhook is live at `/api/webhooks/twilio`.
+- The production deployment stays within the Vercel Hobby limit by consolidating portal operations into 12 server functions.
+- Hourly appointment, closeout, and calendar automation is live through the Cloudflare Worker in [`cloudflare/portal-scheduler`](cloudflare/portal-scheduler). Its `0 * * * *` trigger is managed in source control, uses an encrypted shared secret, and replaces the former Vercel daily cron.
+- Resend Receiving and Google Calendar synchronization still require their production provider credentials and webhook/OAuth registration before those features are fully operational.
+
 ## What this project includes
 
 - Public service pages, protected contact form, local-service SEO, sitemap, and responsive navigation.
@@ -59,7 +70,7 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 - **QuickBooks sync:** Fully approving a contractor timecard places it in a persistent **Ready for QBO Sync** queue and sends the administrator a reminder; approval does not create a QuickBooks record automatically. An administrator must review the approved entry and select **Sync to QuickBooks**. Voided entries are read-only and cannot be synced. The vendor sync removes only stale auto-created `qbo-*` documents that are no longer returned by QuickBooks; manually created contractor records are never auto-deleted.
 - **Contact form:** Submissions are saved in Firestore and emailed to `SUPPORT_EMAIL` through Resend. It includes a honeypot and per-instance request throttling to reduce automated abuse. If email delivery fails after the submission is saved, the visitor still receives a successful confirmation and the Firestore record is marked with its delivery status to prevent duplicate submissions. No Firebase email extension is required.
 - **Client booking:** `/book-a-job` creates a server-owned request and alerts the configured internal team. `/client` provides verified, organization-scoped access. Client collections remain inaccessible through direct Firestore rules.
-- **Scheduling automation:** The Hobby deployment invokes `/api/cron/client-portal` once daily. Upgrade to an hourly scheduler before launch to deliver precise 24-hour/2-hour reminders. Configure `CRON_SECRET` for either schedule.
+- **Scheduling automation:** [`cloudflare/portal-scheduler`](cloudflare/portal-scheduler) invokes `/api/cron/client-portal` at the top of every hour (UTC) with a shared `CRON_SECRET`. Cloudflare and Vercel store the value as encrypted secrets. The former Vercel Hobby daily cron has been removed to prevent duplicate runs.
 - **Provider webhooks:** Register `/api/webhooks/twilio`, `/api/webhooks/resend`, and `/api/webhooks/google-calendar` with the respective providers. Configure Resend receiving on an isolated subdomain so existing company email MX records are unaffected.
 - **Portal performance:** The public website already defers the contractor portal route. Within the portal, document-signing and technician-preview modules now load only when their workflow opens, keeping the initial dashboard download smaller.
 - **Security headers:** Vercel applies `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, a strict referrer policy, and a restrictive permissions policy. Review the policy whenever adding a new third-party service, font, media host, or browser connection.
@@ -70,3 +81,15 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 Pushing `main` to GitHub triggers the Vercel production deployment. The same push is mirrored to the self-hosted Forgejo remote. The production deployment was verified after the latest hardening and performance updates.
 
 Before a live deployment, run lint, build, and `npm audit --omit=dev --audit-level=high`. After changing any Vercel environment value, redeploy the production deployment so it receives the new configuration.
+
+### Cloudflare migration preview
+
+The repository includes a Wrangler configuration for deploying the Vite build as a Cloudflare Worker with Static Assets. This is the target Cloudflare product because it supports the SPA today and can host migrated API handlers later.
+
+```sh
+npm run build
+npm run cf:check
+npm run cf:dev
+```
+
+Do not attach `techsavvytechs.com` or replace the Vercel production deployment yet. The existing `api/` handlers use Vercel's request/response interface and continue to run on Vercel until they are adapted to the Workers runtime, their secrets are configured in Cloudflare, and the Firebase Admin, OAuth, webhook, upload, and scheduled-job paths have been tested. After authenticating Wrangler with `npx wrangler login`, `npm run cf:deploy` publishes only the current static frontend.
