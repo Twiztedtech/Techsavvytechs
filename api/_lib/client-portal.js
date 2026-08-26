@@ -33,9 +33,6 @@ export async function requireUser(req) {
 
 export async function requireClient(req) {
   const user = await requireUser(req);
-  const authUser = await adminAuth.getUser(user.uid);
-  const hasTotp = authUser.multiFactor?.enrolledFactors?.some((factor) => factor.factorId === 'totp');
-  if (!hasTotp) throw Object.assign(new Error('Authenticator MFA enrollment is required.'), { statusCode: 403 });
   const profile = await adminDb.collection('client_users').doc(user.uid).get();
   if (!profile.exists) throw Object.assign(new Error('Client membership is required.'), { statusCode: 403 });
   const data = profile.data();
