@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminStorage } from './firebase-admin.js';
 import {
   CLIENT_ROLES, addBusinessDays, canAccessJob, clean, emailDomain, hasRole, hashValue,
   normalizeEmail, normalizePhone, notifyNewRequest, nowIso, opaqueToken, optionalUser,
-  publicTechnician, recordEvent, requireClient, requireUser, sendEmail, sendSms,
+  escapeHtml, publicTechnician, recordEvent, requireClient, requireUser, sendEmail, sendSms,
   uploadInlineFiles, verificationHash,
 } from './client-portal.js';
 
@@ -165,6 +165,28 @@ async function registerMembership(req, res) {
   return res.status(202).json({ success: true, organization: { id: org.id, name: org.data().name }, status: 'pending_phone_verification' });
 }
 
+async function sendVerificationEmail(req, res) {
+  const user = await requireUser(req);
+  if (user.email_verified) return res.status(200).json({ success: true, alreadyVerified: true });
+  if (rateLimited(req, `email-verification:${user.uid}`, 4, 30 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Please wait before requesting another verification email.' });
+  }
+  const email = normalizeEmail(user.email);
+  if (!email) return res.status(422).json({ error: 'This account does not have an email address.' });
+  const appUrl = (process.env.APP_URL || 'https://techsavvytechs.com').replace(/\/$/, '');
+  const verificationLink = await adminAuth.generateEmailVerificationLink(email, { url: `${appUrl}/client` });
+  const safeLink = escapeHtml(verificationLink);
+  const delivery = await sendEmail({
+    to: email,
+    subject: 'Verify your TechSavvy Client Portal email',
+    text: `Verify your TechSavvy Client Portal email by opening this secure link:\n${verificationLink}\n\nIf you did not create this account, you can ignore this email.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="color:#16a34a;font-size:24px">TechSavvy Client Portal</h1><p>Confirm that this email belongs to you.</p><p><a href="${safeLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:700">Verify email address</a></p><p style="color:#475569">If you did not create this account, you can ignore this message.</p></div>`,
+    type: 'client_email_verification',
+  });
+  if (delivery.skipped) return res.status(503).json({ error: 'Verification email delivery is not configured.' });
+  return res.status(202).json({ success: true });
+}
+
 async function sendVerificationCode(req, res) {
   const user = await requireUser(req);
   if (rateLimited(req, `verify:${user.uid}`, 4, 30 * 60 * 1000)) return res.status(429).json({ error: 'Please wait before requesting another code.' });
@@ -324,6 +346,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && action === 'request') return await createRequest(req, res);
     if (['GET', 'POST'].includes(req.method) && action === 'request-status') return await publicRequestStatus(req, res);
     if (req.method === 'POST' && action === 'register') return await registerMembership(req, res);
+    if (req.method === 'POST' && action === 'send-verification-email') return await sendVerificationEmail(req, res);
     if (req.method === 'POST' && action === 'send-code') return await sendVerificationCode(req, res);
     if (req.method === 'POST' && action === 'verify-code') return await verifyCode(req, res);
     if (req.method === 'GET' && action === 'me') return await getMe(req, res);
