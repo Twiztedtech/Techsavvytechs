@@ -9,7 +9,7 @@ As of August 25, 2026:
 - The public website, contractor portal, client booking form, client login, admin dispatch queue, and client-safe progress experience are live on Vercel at `techsavvytechs.com`.
 - The client entry points are **Book a Job** for a first request and **Client Login** for returning users.
 - Twilio trial SMS is connected through `+1 737-258-3478`; credentials are encrypted in Vercel and the signed inbound webhook is live at `/api/webhooks/twilio`.
-- Client accounts use branded Resend email verification and require Firebase Identity Platform TOTP multi-factor enrollment before company access; future sign-ins require the authenticator code.
+- Client accounts use branded Resend email verification and can optionally enable Firebase Identity Platform TOTP multi-factor authentication for future sign-ins.
 - The production deployment stays within the Vercel Hobby limit by consolidating portal operations into 12 server functions.
 - Hourly appointment, closeout, and calendar automation is live through the Cloudflare Worker in [`cloudflare/portal-scheduler`](cloudflare/portal-scheduler). Its `0 * * * *` trigger is managed in source control, uses an encrypted shared secret, and replaces the former Vercel daily cron.
 - Resend Receiving and Google Calendar synchronization still require their production provider credentials and webhook/OAuth registration before those features are fully operational.
