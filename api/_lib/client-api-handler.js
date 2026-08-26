@@ -136,6 +136,9 @@ async function publicRequestStatus(req, res) {
 
 async function registerMembership(req, res) {
   const user = await requireUser(req);
+  const authUser = await adminAuth.getUser(user.uid);
+  const hasTotp = authUser.multiFactor?.enrolledFactors?.some((factor) => factor.factorId === 'totp');
+  if (!hasTotp) return res.status(403).json({ error: 'Complete authenticator MFA enrollment before requesting company access.' });
   const email = normalizeEmail(user.email);
   if (!user.email_verified) return res.status(403).json({ error: 'Verify your email before requesting company access.' });
   const organization = await findOrganization(emailDomain(email));
