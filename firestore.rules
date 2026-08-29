@@ -40,6 +40,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // CRM quotes and estimates. Accepted quotes are converted into jobs by an
+    // authenticated administrator in the CRM workspace.
+    match /quotes/{quoteId} {
+      allow read, write: if isAdmin();
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();
