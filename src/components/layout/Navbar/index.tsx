@@ -65,6 +65,11 @@ export const Navbar = () => {
               href="/portal" 
               description="Access Management Console"
             />
+            <NavDropdownItem
+              label="CRM Command Center"
+              href="/crm"
+              description="Customers, Pipeline & Field Operations"
+            />
           </NavItem>
 
           <NavItem label="Contractor Portal">
@@ -118,6 +123,7 @@ export const Navbar = () => {
             <Link to="/about/mission" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">About TechSavvy</Link>
             <Link to="/about/service-areas" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Service Areas</Link>
             <Link to="/contractor/dashboard" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contractor Portal</Link>
+            <Link to="/crm" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">CRM Command Center</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contact</Link>
             <Link to="/blog" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Blog</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Get a Quote</Link>

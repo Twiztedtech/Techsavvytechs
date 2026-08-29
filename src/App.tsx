@@ -26,6 +26,7 @@ import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
+const CRM = lazy(() => import('./pages/CRM'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -70,6 +71,11 @@ function AppShell() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/crm" element={
+              <Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading CRM command center…</div>}>
+                <CRM />
+              </Suspense>
+            } />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/contractor/dashboard" element={
