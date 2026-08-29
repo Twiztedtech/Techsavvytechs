@@ -1,123 +1,78 @@
 import { useMemo, useState } from 'react';
-import {
-  Activity, ArrowUpRight, BriefcaseBusiness, Building2, CalendarClock,
-  CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3,
-  FileText, Filter, Globe2, HardHat, History, Inbox, LayoutDashboard,
-  Mail, MapPin, MessageSquareText, MoreHorizontal, Phone, Plus,
-  Search, Send, Sparkles, Users, Wrench,
-} from 'lucide-react';
+import { Activity, AlertTriangle, Archive, BarChart3, Boxes, BriefcaseBusiness, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, ClipboardCheck, Clock3, FileCheck2, FileText, Gauge, HardHat, Inbox, LayoutDashboard, MapPin, Menu, MoreHorizontal, PackageCheck, Plus, ReceiptText, Search, Settings, ShieldCheck, Truck, Users, Wrench, X } from 'lucide-react';
 
-type Section = 'overview' | 'customers' | 'pipeline' | 'jobs' | 'quotes' | 'followups' | 'intake' | 'technicians' | 'history';
-
-const navItems: { id: Section; label: string; icon: typeof LayoutDashboard; count?: number }[] = [
-  { id: 'overview', label: 'Command Center', icon: LayoutDashboard },
-  { id: 'customers', label: 'Leads & Customers', icon: Users, count: 48 },
-  { id: 'pipeline', label: 'Opportunities', icon: CircleDollarSign, count: 12 },
-  { id: 'jobs', label: 'Active Jobs', icon: BriefcaseBusiness, count: 7 },
-  { id: 'quotes', label: 'Quotes', icon: FileText, count: 5 },
-  { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: 6 },
-  { id: 'intake', label: 'Web Intake', icon: Inbox, count: 3 },
-  { id: 'technicians', label: 'Technician Activity', icon: HardHat },
-  { id: 'history', label: 'Customer History', icon: History },
+type Module = 'dashboard' | 'schedule' | 'customers' | 'quotes' | 'jobs' | 'invoices' | 'catalog' | 'assets' | 'reports';
+const modules: { id: Module; label: string; icon: typeof LayoutDashboard; count?: number }[] = [
+  { id: 'dashboard', label: 'Operations', icon: LayoutDashboard }, { id: 'schedule', label: 'Schedule & Dispatch', icon: CalendarDays },
+  { id: 'customers', label: 'Customers & Sites', icon: Users }, { id: 'quotes', label: 'Quotes', icon: FileText, count: 8 },
+  { id: 'jobs', label: 'Jobs', icon: BriefcaseBusiness, count: 14 }, { id: 'invoices', label: 'Invoices', icon: ReceiptText, count: 6 },
+  { id: 'catalog', label: 'Materials & Stock', icon: Boxes }, { id: 'assets', label: 'Customer Assets', icon: Wrench }, { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
-
-const opportunities = [
-  { company: 'River City Dental', service: 'Network refresh', value: '$18,400', stage: 'Site survey', age: '2d', tone: 'green' },
-  { company: 'Ghilotti Construction', service: 'Low-voltage buildout', value: '$42,800', stage: 'Quote sent', age: '1d', tone: 'orange' },
-  { company: 'Oak Park Storage', service: 'Camera & access control', value: '$12,600', stage: 'Qualified', age: '4d', tone: 'blue' },
-  { company: 'Sierra Commerce', service: 'Cell signal boosting', value: '$31,200', stage: 'Discovery', age: '6h', tone: 'purple' },
+const lifecycle = [
+  { label: 'New requests', value: 6, icon: Inbox, tone: 'sky', sub: '2 unassigned' }, { label: 'Quotes pending', value: 8, icon: FileText, tone: 'orange', sub: '$74,300' },
+  { label: 'Jobs in progress', value: 14, icon: HardHat, tone: 'green', sub: '6 on site' }, { label: 'Ready to invoice', value: 5, icon: ReceiptText, tone: 'violet', sub: '$21,840' },
+  { label: 'Overdue', value: 3, icon: AlertTriangle, tone: 'red', sub: 'Needs action' },
 ];
-
-const jobs = [
-  { code: 'WO-2026-1842', client: 'Ghilotti Construction', title: 'MDF / IDF fiber backbone', location: 'Sacramento, CA', tech: 'Marcus J.', progress: 72, status: 'On site' },
-  { code: 'WO-2026-1839', client: 'River City Dental', title: 'Switch replacement & cutover', location: 'Roseville, CA', tech: 'Elena R.', progress: 46, status: 'In progress' },
-  { code: 'WO-2026-1834', client: 'Oak Park Storage', title: 'Camera commissioning', location: 'Elk Grove, CA', tech: 'Devon K.', progress: 88, status: 'Testing' },
+const resources = [
+  { name: 'Marcus Johnson', trade: 'Low Voltage', initials: 'MJ', color: 'bg-emerald-500', jobs: [{ start: 1, span: 3, label: 'WO-1842 · Ghilotti', tone: 'green' }, { start: 5, span: 2, label: 'WO-1848 · Arden', tone: 'orange' }] },
+  { name: 'Elena Ruiz', trade: 'Network Engineer', initials: 'ER', color: 'bg-sky-500', jobs: [{ start: 0, span: 2, label: 'WO-1839 · River City', tone: 'blue' }, { start: 3, span: 3, label: 'WO-1851 · Sierra', tone: 'green' }] },
+  { name: 'Devon King', trade: 'Security Systems', initials: 'DK', color: 'bg-violet-500', jobs: [{ start: 2, span: 3, label: 'WO-1834 · Oak Park', tone: 'purple' }] },
+  { name: 'Unassigned', trade: 'Dispatch queue', initials: '—', color: 'bg-slate-700', jobs: [{ start: 4, span: 2, label: 'WO-1854 · Northgate', tone: 'slate' }] },
 ];
-
-const intake = [
-  { source: 'Contact form', name: 'Alicia Moreno', company: 'Northgate Pediatrics', request: 'Wi-Fi dead zones across two floors', time: '14 min ago', icon: Globe2 },
-  { source: 'Quote request', name: 'Jordan Lee', company: 'Capitol Foods', request: '48-drop Cat6A warehouse installation', time: '1 hr ago', icon: FileText },
-  { source: 'Booking', name: 'Sam Patel', company: 'Patel Property Group', request: 'Site survey · Tue, Sep 1 at 10:00 AM', time: '3 hrs ago', icon: CalendarClock },
+const jobRows = [
+  { no: 'WO-2026-1842', customer: 'Ghilotti Construction', site: 'West Sacramento Yard', description: 'MDF / IDF fiber backbone', stage: 'In Progress', technician: 'Marcus J.', due: 'Aug 29', cost: '$18,460', margin: '38%' },
+  { no: 'WO-2026-1839', customer: 'River City Dental', site: 'Roseville Clinic', description: 'Switch replacement & cutover', stage: 'Scheduled', technician: 'Elena R.', due: 'Aug 30', cost: '$7,825', margin: '42%' },
+  { no: 'WO-2026-1834', customer: 'Oak Park Storage', site: 'Elk Grove Facility', description: 'Camera commissioning', stage: 'Field Complete', technician: 'Devon K.', due: 'Aug 29', cost: '$11,200', margin: '34%' },
+  { no: 'WO-2026-1854', customer: 'Northgate Pediatrics', site: 'Midtown Office', description: 'Wireless site survey', stage: 'New', technician: 'Unassigned', due: 'Sep 1', cost: '$1,450', margin: '51%' },
 ];
-
-const followups = [
-  { time: '9:00 AM', person: 'Dana Wu', company: 'Sierra Commerce', task: 'Review DAS site survey', type: 'Call' },
-  { time: '11:30 AM', person: 'Chris Moore', company: 'River City Dental', task: 'Confirm cutover window', type: 'Email' },
-  { time: '2:00 PM', person: 'Alicia Moreno', company: 'Northgate Pediatrics', task: 'Qualify website request', type: 'Call' },
+const activity = [
+  { icon: CheckCircle2, title: 'Job marked field complete', detail: 'WO-2026-1834 · Oak Park Storage', time: '8 min ago', color: 'text-tech-green' },
+  { icon: PackageCheck, title: 'Materials allocated', detail: '620 ft Cat6A added to WO-2026-1842', time: '24 min ago', color: 'text-sky-500' },
+  { icon: FileCheck2, title: 'Quote accepted', detail: 'QT-1028 · Sierra Commerce · $31,200', time: '42 min ago', color: 'text-safety-orange' },
+  { icon: Clock3, title: 'Technician started travel', detail: 'Elena Ruiz → River City Dental', time: '1 hr ago', color: 'text-violet-500' },
 ];
-
-const metricCards = [
-  { label: 'Open pipeline', value: '$186.4K', delta: '+18.2%', helper: 'vs. last month', icon: CircleDollarSign, color: 'text-tech-green' },
-  { label: 'Active jobs', value: '7', delta: '3 on site', helper: '2 due this week', icon: Wrench, color: 'text-safety-orange' },
-  { label: 'New inquiries', value: '14', delta: '+6 this week', helper: '3 need review', icon: Inbox, color: 'text-sky-400' },
-  { label: 'Quote win rate', value: '68%', delta: '+4.5 pts', helper: 'rolling 90 days', icon: CheckCircle2, color: 'text-violet-400' },
+const customers = [
+  { name: 'Ghilotti Construction', sites: 4, openJobs: 3, assets: 26, value: '$142,800', contact: 'Dana Wu' }, { name: 'River City Dental', sites: 3, openJobs: 2, assets: 18, value: '$86,420', contact: 'Chris Moore' },
+  { name: 'Oak Park Storage', sites: 6, openJobs: 1, assets: 64, value: '$74,210', contact: 'Jordan Lee' }, { name: 'Sierra Commerce', sites: 2, openJobs: 1, assets: 8, value: '$58,900', contact: 'Sam Patel' },
 ];
+const tones: Record<string, string> = { sky: 'border-sky-400/20 bg-sky-400/10 text-sky-600', orange: 'border-orange-400/20 bg-orange-400/10 text-orange-600', green: 'border-green-500/20 bg-green-500/10 text-green-700', violet: 'border-violet-400/20 bg-violet-400/10 text-violet-600', red: 'border-red-400/20 bg-red-400/10 text-red-600', blue: 'border-sky-400/30 bg-sky-400/20 text-sky-800', purple: 'border-violet-400/30 bg-violet-400/20 text-violet-800', slate: 'border-slate-400/20 bg-slate-500/15 text-slate-700' };
 
 export default function CRM() {
-  const [active, setActive] = useState<Section>('overview');
-  const [query, setQuery] = useState('');
-  const filteredOpportunities = useMemo(() => opportunities.filter((item) => `${item.company} ${item.service}`.toLowerCase().includes(query.toLowerCase())), [query]);
-
-  return (
-    <div className="min-h-screen bg-[#090d0a] text-brand-white">
-      <div className="border-b border-white/5 bg-brand-slate/60">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-5 py-3 lg:px-8">
-          <div className="flex items-center gap-3 text-xs font-mono uppercase tracking-[0.22em] text-slate-400">
-            <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-tech-green/30 bg-tech-green/10 text-tech-green"><Activity className="h-4 w-4" /></span>
-            CRM Command Center <span className="hidden text-slate-700 sm:inline">/</span><span className="hidden text-slate-500 sm:inline">Operations live</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-tech-green"><span className="h-2 w-2 animate-pulse rounded-full bg-tech-green" /> All systems online</div>
+  const [module, setModule] = useState<Module>('dashboard'); const [mobileNav, setMobileNav] = useState(false); const [query, setQuery] = useState('');
+  const currentLabel = modules.find((item) => item.id === module)?.label;
+  const filteredJobs = useMemo(() => jobRows.filter((job) => Object.values(job).join(' ').toLowerCase().includes(query.toLowerCase())), [query]);
+  const go = (target: Module) => { setModule(target); setMobileNav(false); };
+  return <div className="min-h-screen bg-[#f3f5f4] text-slate-900">
+    <header className="sticky top-0 z-40 flex h-14 items-center border-b border-white/10 bg-[#101812] px-3 text-white shadow-lg lg:px-5">
+      <button onClick={() => setMobileNav(!mobileNav)} className="mr-2 rounded p-2 text-slate-400 lg:hidden" aria-label="Toggle CRM navigation">{mobileNav ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
+      <div className="flex items-center gap-3 border-r border-white/10 pr-4"><span className="grid h-8 w-8 place-items-center rounded bg-tech-green text-brand-black"><Gauge className="h-5 w-5" /></span><div><p className="font-display text-xs uppercase tracking-wider">TechSavvy</p><p className="text-[9px] uppercase tracking-[.22em] text-tech-green">Field Operations</p></div></div>
+      <div className="hidden flex-1 items-center px-5 md:flex"><label className="flex w-full max-w-xl items-center gap-2 rounded border border-white/10 bg-white/[0.04] px-3 py-2"><Search className="h-4 w-4 text-slate-500" /><input value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-600" placeholder="Search customers, sites, jobs, quotes, assets…" /></label></div>
+      <div className="ml-auto flex items-center gap-2"><button className="hidden items-center gap-2 rounded border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-300 sm:flex"><Plus className="h-3.5 w-3.5" /> Quick create <ChevronDown className="h-3 w-3" /></button><button className="rounded p-2 text-slate-400"><Settings className="h-4 w-4" /></button><span className="grid h-8 w-8 place-items-center rounded-full bg-safety-orange text-[10px] font-bold text-brand-black">TT</span></div>
+    </header>
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <aside className={`${mobileNav ? 'fixed inset-y-14 left-0 z-30 flex' : 'hidden'} w-64 flex-col border-r border-slate-200 bg-white shadow-xl lg:static lg:flex lg:shadow-none`}>
+        <div className="border-b border-slate-100 p-3"><button className="flex w-full items-center justify-between rounded bg-tech-green px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-brand-black"><span className="flex items-center gap-2"><Plus className="h-4 w-4" /> Create new</span><ChevronDown className="h-3.5 w-3.5" /></button></div>
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">{modules.map(({ id, label, icon: Icon, count }) => <button key={id} onClick={() => go(id)} className={`flex w-full items-center gap-3 rounded px-3 py-2.5 text-left text-xs font-medium ${module === id ? 'bg-[#e8f7ed] text-tech-green-deep' : 'text-slate-600 hover:bg-slate-50'}`}><Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{count ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] text-slate-500">{count}</span> : null}</button>)}</nav>
+        <div className="border-t border-slate-100 p-4"><div className="flex items-center gap-2 text-[10px] text-slate-400"><span className="h-2 w-2 rounded-full bg-tech-green" /> Live operations sync</div></div>
+      </aside>
+      <main className="min-w-0 flex-1 overflow-hidden">
+        <div className="border-b border-slate-200 bg-white px-4 py-4 lg:px-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-slate-400"><span>Field Operations</span><ChevronRight className="h-3 w-3" /><span className="text-tech-green-deep">{currentLabel}</span></div><h1 className="mt-1 font-display text-xl uppercase tracking-tight">{currentLabel}</h1></div><div className="flex gap-2"><button className="flex items-center gap-2 rounded border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600"><Archive className="h-3.5 w-3.5" /> Export</button><button className="flex items-center gap-2 rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white"><Plus className="h-3.5 w-3.5" /> Add {module === 'customers' ? 'customer' : module === 'quotes' ? 'quote' : 'job'}</button></div></div></div>
+        <div className="space-y-5 p-4 lg:p-6">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{lifecycle.map(({ label, value, icon: Icon, tone, sub }) => <button key={label} className="rounded border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md"><div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span><span className={`rounded border p-1.5 ${tones[tone]}`}><Icon className="h-3.5 w-3.5" /></span></div><div className="mt-3 flex items-end justify-between"><span className="font-display text-2xl">{value}</span><span className="text-[10px] text-slate-400">{sub}</span></div></button>)}</section>
+          {module === 'schedule' ? <ScheduleView /> : module === 'customers' ? <CustomersView /> : module === 'dashboard' ? <DashboardView jobs={filteredJobs} go={go} /> : <WorkModuleView module={module} jobs={filteredJobs} />}
         </div>
-      </div>
-
-      <div className="mx-auto grid max-w-[1600px] lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="border-b border-white/5 bg-[#0d120e]/85 p-4 lg:min-h-[calc(100vh-49px)] lg:border-b-0 lg:border-r lg:p-5">
-          <div className="mb-5 hidden px-3 pt-2 lg:block">
-            <p className="text-[10px] font-mono uppercase tracking-[0.28em] text-slate-600">Workspace</p>
-            <p className="mt-2 font-display text-sm uppercase">TechSavvy Ops</p>
-          </div>
-          <nav className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1">
-            {navItems.map(({ id, label, icon: Icon, count }) => (
-              <button key={id} onClick={() => setActive(id)} className={`flex min-w-max items-center gap-3 rounded-sm border px-3 py-2.5 text-left text-xs font-medium transition lg:w-full ${active === id ? 'border-tech-green/25 bg-tech-green/10 text-tech-green' : 'border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-white'}`}>
-                <Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{count && <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[9px] text-slate-500">{count}</span>}
-              </button>
-            ))}
-          </nav>
-          <div className="mt-8 hidden rounded-sm border border-safety-orange/20 bg-safety-orange/[0.06] p-4 lg:block">
-            <div className="mb-3 flex items-center gap-2 text-safety-orange"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-mono uppercase tracking-widest">Priority signal</span></div>
-            <p className="text-xs leading-relaxed text-slate-300">3 new website inquiries are waiting for qualification.</p>
-            <button onClick={() => setActive('intake')} className="mt-3 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-safety-orange">Review intake <ChevronRight className="h-3 w-3" /></button>
-          </div>
-        </aside>
-
-        <main className="min-w-0 px-5 py-7 lg:px-8 lg:py-8">
-          <div className="mb-7 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
-            <div><p className="mb-2 text-[10px] font-mono uppercase tracking-[0.3em] text-tech-green">Sales + field operations</p><h1 className="font-display text-2xl uppercase tracking-tight md:text-3xl">{navItems.find((item) => item.id === active)?.label}</h1><p className="mt-2 max-w-2xl text-sm text-slate-500">One view from first inquiry to completed work order.</p></div>
-            <div className="flex flex-wrap gap-2"><label className="flex min-w-[220px] flex-1 items-center gap-2 rounded-sm border border-white/10 bg-white/[0.03] px-3 py-2.5 text-slate-500"><Search className="h-4 w-4" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search CRM…" className="w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-600" /></label><button className="glass-button flex items-center gap-2 rounded-sm px-3 py-2 text-xs text-slate-300"><Filter className="h-4 w-4" /> Filter</button><button className="flex items-center gap-2 rounded-sm bg-tech-green px-4 py-2 text-xs font-bold uppercase tracking-wider text-brand-black hover:bg-green-400"><Plus className="h-4 w-4" /> New record</button></div>
-          </div>
-
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {metricCards.map(({ label, value, delta, helper, icon: Icon, color }) => <article key={label} className="glass-card rounded-sm p-5"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-500">{label}</span><Icon className={`h-4 w-4 ${color}`} /></div><div className="flex items-end justify-between gap-3"><span className="font-display text-2xl">{value}</span><div className="text-right"><p className={`text-[11px] font-medium ${color}`}>{delta}</p><p className="text-[10px] text-slate-600">{helper}</p></div></div></article>)}
-          </section>
-
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
-            <section className="glass-card overflow-hidden rounded-sm">
-              <header className="flex items-center justify-between border-b border-white/5 px-5 py-4"><div><h2 className="text-sm font-bold">Opportunity pipeline</h2><p className="mt-1 text-[11px] text-slate-500">$105K represented in current view</p></div><button className="text-slate-500 hover:text-white"><MoreHorizontal className="h-5 w-5" /></button></header>
-              <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead className="border-b border-white/5 bg-white/[0.015] text-[9px] font-mono uppercase tracking-[0.18em] text-slate-600"><tr><th className="px-5 py-3 font-normal">Account / Scope</th><th className="px-4 py-3 font-normal">Stage</th><th className="px-4 py-3 font-normal">Value</th><th className="px-4 py-3 font-normal">Age</th><th className="px-4 py-3" /></tr></thead><tbody className="divide-y divide-white/5">{filteredOpportunities.map((item) => <tr key={item.company} className="group hover:bg-white/[0.025]"><td className="px-5 py-4"><p className="text-xs font-semibold text-slate-200">{item.company}</p><p className="mt-1 text-[11px] text-slate-500">{item.service}</p></td><td className="px-4 py-4"><span className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-slate-300">{item.stage}</span></td><td className="px-4 py-4 font-mono text-xs text-slate-200">{item.value}</td><td className="px-4 py-4 text-[11px] text-slate-500">{item.age}</td><td className="px-4 py-4"><ArrowUpRight className="h-4 w-4 text-slate-600 group-hover:text-tech-green" /></td></tr>)}</tbody></table></div>
-            </section>
-
-            <section className="glass-card rounded-sm"><header className="flex items-center justify-between border-b border-white/5 px-5 py-4"><div><h2 className="text-sm font-bold">Today’s follow-ups</h2><p className="mt-1 text-[11px] text-slate-500">3 of 6 scheduled</p></div><CalendarClock className="h-4 w-4 text-safety-orange" /></header><div className="divide-y divide-white/5">{followups.map((item) => <div key={item.person} className="flex gap-4 px-5 py-4"><span className="w-16 pt-0.5 font-mono text-[10px] text-tech-green">{item.time}</span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-semibold text-slate-200">{item.task}</p><span className="text-slate-600">{item.type === 'Call' ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}</span></div><p className="mt-1 truncate text-[11px] text-slate-500">{item.person} · {item.company}</p></div></div>)}</div><button className="m-4 mt-3 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-sm border border-white/10 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:border-tech-green/30 hover:text-tech-green">View schedule <ChevronRight className="h-3 w-3" /></button></section>
-          </div>
-
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-            <section className="glass-card rounded-sm"><header className="flex items-center justify-between border-b border-white/5 px-5 py-4"><div><h2 className="text-sm font-bold">Active field jobs</h2><p className="mt-1 text-[11px] text-slate-500">Live status from technician assignments</p></div><span className="flex items-center gap-2 text-[10px] font-mono uppercase text-tech-green"><span className="h-1.5 w-1.5 rounded-full bg-tech-green" /> Live</span></header><div className="divide-y divide-white/5">{jobs.map((job) => <div key={job.code} className="px-5 py-4"><div className="flex flex-col justify-between gap-3 md:flex-row md:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[9px] text-tech-green">{job.code}</span><span className="rounded-full bg-safety-orange/10 px-2 py-0.5 text-[9px] text-safety-orange">{job.status}</span></div><p className="mt-1.5 text-xs font-semibold text-slate-200">{job.title}</p><p className="mt-1 flex flex-wrap gap-x-3 text-[10px] text-slate-500"><span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{job.client}</span><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{job.location}</span></p></div><div className="min-w-[180px]"><div className="mb-2 flex justify-between text-[10px]"><span className="text-slate-500">{job.tech}</span><span className="font-mono text-slate-300">{job.progress}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-tech-green" style={{ width: `${job.progress}%` }} /></div></div></div></div>)}</div></section>
-
-            <section className="glass-card rounded-sm"><header className="flex items-center justify-between border-b border-white/5 px-5 py-4"><div><h2 className="text-sm font-bold">Website & booking intake</h2><p className="mt-1 text-[11px] text-slate-500">Automatically captured requests</p></div><Inbox className="h-4 w-4 text-sky-400" /></header><div className="divide-y divide-white/5">{intake.map(({ source, name, company, request, time, icon: Icon }) => <div key={name} className="px-5 py-4"><div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-sky-400"><Icon className="h-3 w-3" />{source}</span><span className="text-[9px] text-slate-600">{time}</span></div><p className="text-xs font-semibold text-slate-200">{name} <span className="font-normal text-slate-600">· {company}</span></p><p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{request}</p><div className="mt-3 flex gap-2"><button className="flex items-center gap-1 rounded-sm bg-tech-green/10 px-2 py-1 text-[9px] font-bold uppercase text-tech-green"><CheckCircle2 className="h-3 w-3" /> Qualify</button><button className="flex items-center gap-1 rounded-sm bg-white/5 px-2 py-1 text-[9px] font-bold uppercase text-slate-400"><MessageSquareText className="h-3 w-3" /> Reply</button></div></div>)}</div></section>
-          </div>
-
-          <footer className="mt-5 flex flex-col justify-between gap-2 border-t border-white/5 pt-5 text-[9px] font-mono uppercase tracking-widest text-slate-700 sm:flex-row"><span>TechSavvy CRM · Sacramento operations</span><span className="flex items-center gap-2"><Clock3 className="h-3 w-3" /> Last synchronized just now <Send className="ml-2 h-3 w-3" /></span></footer>
-        </main>
-      </div>
+      </main>
     </div>
-  );
+  </div>;
 }
+
+function ScheduleView() { const hours = ['7 AM','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM']; return <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="flex flex-col justify-between gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">Dispatch board</h2><p className="mt-1 text-[10px] text-slate-400">Saturday, August 29 · Sacramento region</p></div><div className="flex gap-2"><button className="rounded border border-slate-200 p-2"><ChevronLeft className="h-3.5 w-3.5" /></button><button className="rounded border border-slate-200 px-3 text-[10px] font-semibold">Today</button><button className="rounded border border-slate-200 p-2"><ChevronRight className="h-3.5 w-3.5" /></button></div></header><div className="overflow-x-auto"><div className="min-w-[950px]"><div className="grid grid-cols-[190px_repeat(8,minmax(90px,1fr))] border-b border-slate-200 bg-slate-50"><div className="border-r border-slate-200 px-4 py-3 text-[9px] font-bold uppercase text-slate-400">Technician</div>{hours.map(h => <div key={h} className="border-r border-slate-200 py-3 text-center text-[9px] text-slate-400">{h}</div>)}</div>{resources.map(r => <div key={r.name} className="grid min-h-20 grid-cols-[190px_repeat(8,minmax(90px,1fr))] border-b border-slate-100"><div className="flex items-center gap-3 border-r border-slate-200 px-4"><span className={`grid h-8 w-8 place-items-center rounded-full ${r.color} text-[9px] font-bold text-white`}>{r.initials}</span><div><p className="text-[11px] font-semibold">{r.name}</p><p className="text-[9px] text-slate-400">{r.trade}</p></div></div><div className="relative col-span-8 grid grid-cols-8 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px)] bg-[size:12.5%_100%]">{r.jobs.map(j => <div key={j.label} style={{gridColumn:`${j.start+1} / span ${j.span}`}} className={`m-2 flex items-center rounded border px-3 text-[10px] font-semibold ${tones[j.tone]}`}><Truck className="mr-2 h-3.5 w-3.5" />{j.label}</div>)}</div></div>)}</div></div></section>; }
+
+function DashboardView({ jobs, go }: { jobs: typeof jobRows; go: (m: Module) => void }) { return <><div className="grid gap-5 xl:grid-cols-[1.45fr_.55fr]"><JobTable jobs={jobs} onAll={() => go('jobs')} /><section className="rounded border border-slate-200 bg-white shadow-sm"><header className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold">Live activity</h2><p className="text-[10px] text-slate-400">Office and field updates</p></div><Activity className="h-4 w-4 text-tech-green" /></header><div className="divide-y divide-slate-100">{activity.map(({icon:Icon,title,detail,time,color}) => <div key={title} className="flex gap-3 p-4"><span className="grid h-8 w-8 place-items-center rounded bg-slate-50"><Icon className={`h-4 w-4 ${color}`} /></span><div className="min-w-0"><p className="text-[11px] font-semibold">{title}</p><p className="truncate text-[10px] text-slate-400">{detail}</p><p className="text-[9px] text-slate-300">{time}</p></div></div>)}</div></section></div><div className="grid gap-5 lg:grid-cols-3"><MiniPanel icon={CircleDollarSign} title="Job profitability" value="38.6%" detail="Average gross margin" progress={72} /><MiniPanel icon={ClipboardCheck} title="Quote conversion" value="68%" detail="24 accepted of 35" progress={68} /><MiniPanel icon={ShieldCheck} title="Asset compliance" value="92%" detail="118 of 128 current" progress={92} /></div></>; }
+
+function JobTable({jobs,onAll}:{jobs:typeof jobRows;onAll?:()=>void}) { return <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold">Job control</h2><p className="text-[10px] text-slate-400">Cost, schedule and delivery status</p></div><button onClick={onAll} className="text-[10px] font-semibold text-tech-green-deep">View all jobs</button></header><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left"><thead className="border-b border-slate-200 bg-slate-50 text-[9px] uppercase text-slate-400"><tr>{['Job / Customer','Site','Stage','Technician','Due','Value / Margin',''].map(h=><th key={h} className="px-4 py-3">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{jobs.map(j=><tr key={j.no} className="hover:bg-slate-50"><td className="px-4 py-3"><p className="font-mono text-[9px] text-tech-green-deep">{j.no}</p><p className="text-[11px] font-semibold">{j.customer}</p><p className="text-[9px] text-slate-400">{j.description}</p></td><td className="px-4 py-3"><p className="text-[10px]">{j.site}</p><p className="flex items-center gap-1 text-[9px] text-slate-400"><MapPin className="h-3 w-3" />Sacramento region</p></td><td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-[9px]">{j.stage}</span></td><td className="px-4 py-3 text-[10px]">{j.technician}</td><td className="px-4 py-3 text-[10px]">{j.due}</td><td className="px-4 py-3"><p className="text-[10px] font-semibold">{j.cost}</p><p className="text-[9px] text-tech-green-deep">{j.margin} margin</p></td><td className="px-4 py-3"><MoreHorizontal className="h-4 w-4 text-slate-400" /></td></tr>)}</tbody></table></div></section>; }
+
+function CustomersView(){return <section className="rounded border border-slate-200 bg-white shadow-sm"><header className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold">Customer card files</h2><p className="text-[10px] text-slate-400">Contacts, sites, rates, assets and transaction history</p></div><Building2 className="h-4 w-4 text-tech-green-deep" /></header><div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">{customers.map(c=><article key={c.name} className="rounded border border-slate-200 p-4 hover:border-tech-green/40"><span className="grid h-9 w-9 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep"><Building2 className="h-4 w-4" /></span><h3 className="mt-4 text-xs font-bold">{c.name}</h3><p className="text-[10px] text-slate-400">Primary: {c.contact}</p><div className="mt-4 grid grid-cols-3 border-y border-slate-100 py-3 text-center"><div><b className="block text-xs">{c.sites}</b><span className="text-[8px] text-slate-400">SITES</span></div><div><b className="block text-xs">{c.openJobs}</b><span className="text-[8px] text-slate-400">JOBS</span></div><div><b className="block text-xs">{c.assets}</b><span className="text-[8px] text-slate-400">ASSETS</span></div></div><div className="mt-3 flex justify-between text-[9px]"><span className="text-slate-400">Lifetime value</span><b className="text-tech-green-deep">{c.value}</b></div></article>)}</div></section>}
+
+function WorkModuleView({module,jobs}:{module:Module;jobs:typeof jobRows}){if(module==='jobs')return <JobTable jobs={jobs}/>;const config:Record<string,{icon:typeof FileText;title:string;description:string;stats:[string,string][]}>={quotes:{icon:FileText,title:'Quote & estimate workspace',description:'Build labor, materials, service fees and options, then convert accepted work directly into jobs.',stats:[['Draft','3'],['Awaiting approval','5'],['Accepted this month','12'],['Quoted value','$128K']]},invoices:{icon:ReceiptText,title:'Billing & payments',description:'Turn completed work into itemized invoices with labor, materials and purchase orders reconciled.',stats:[['Ready to invoice','5'],['Sent','8'],['Overdue','3'],['Receivable','$38.4K']]},catalog:{icon:Boxes,title:'Materials, stock & purchasing',description:'Manage catalog pricing, warehouse and truck stock, supplier purchase orders and job allocations.',stats:[['Catalog items','1,248'],['Low stock','14'],['Open POs','6'],['Stock value','$82.6K']]},assets:{icon:Wrench,title:'Customer asset management',description:'Track installed equipment by site, maintenance schedules, serial numbers and service history.',stats:[['Assets','128'],['Due service','10'],['Overdue','4'],['Compliance','92%']]},reports:{icon:BarChart3,title:'Operations & financial reporting',description:'Monitor job profitability, technician productivity, quote conversion and labor recovery.',stats:[['Gross margin','38.6%'],['Labor utilization','84%'],['Quote conversion','68%'],['Revenue MTD','$94.2K']]}};const item=config[module]??config.quotes;const Icon=item.icon;return <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><div className="flex gap-4 border-b border-slate-100 pb-5"><span className="grid h-11 w-11 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep"><Icon className="h-5 w-5" /></span><div><h2 className="text-base font-bold">{item.title}</h2><p className="mt-1 max-w-3xl text-xs text-slate-500">{item.description}</p></div></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{item.stats.map(([l,v])=><div key={l} className="rounded border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-semibold uppercase text-slate-400">{l}</p><p className="mt-2 font-display text-xl">{v}</p></div>)}</div><div className="mt-5 grid min-h-56 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 text-center"><div><Icon className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-xs font-semibold">Select or create a record to begin</p><p className="text-[10px] text-slate-400">Ready for your live operational data.</p></div></div></section>}
+function MiniPanel({icon:Icon,title,value,detail,progress}:{icon:typeof CircleDollarSign;title:string;value:string;detail:string;progress:number}){return <section className="rounded border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-tech-green-deep"/><h3 className="text-[11px] font-bold">{title}</h3></div><span className="font-display text-lg">{value}</span></div><div className="mt-4 h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-tech-green" style={{width:`${progress}%`}}/></div><p className="mt-2 text-[9px] text-slate-400">{detail}</p></section>}
