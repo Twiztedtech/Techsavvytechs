@@ -10,6 +10,7 @@ const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const recentSubmissions = new Map();
 const tokenHash = (token) => createHash("sha256").update(token).digest("hex");
+const dateValue = (value) => value?.toDate?.() || (value ? new Date(value) : null);
 
 const escapeHtml = (value) =>
   String(value).replace(
@@ -336,6 +337,100 @@ async function createPortalServiceRequest(req, res) {
   return res.status(201).json({ success: true, requestId: request.id });
 }
 
+async function deliverReminder({ type, entityId, entity, customer, actor, manual = false }) {
+  const email = String(customer.email || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { skipped: "missing-email" };
+  const preferences = customer.reminderPreferences || {};
+  if (!manual && (preferences.enabled === false || preferences[type] === false)) return { skipped: "opted-out" };
+  const today = new Date().toISOString().slice(0, 10);
+  const cycle = type === "appointment" ? entity.schedule?.date || entity.targetCompletion || today : type === "maintenance" ? entity.maintenance?.nextServiceDate || today : `${today.slice(0, 8)}${String(Math.floor((Number(today.slice(8, 10)) - 1) / 7) + 1)}`;
+  const deliveryId = `${type}_${entityId}_${manual ? `manual_${Date.now()}` : cycle}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const deliveryRef = adminDb.collection("reminder_deliveries").doc(deliveryId);
+  const existingDelivery = await deliveryRef.get();
+  if (existingDelivery.exists && ["sent", "sending"].includes(existingDelivery.data()?.status)) return { skipped: "duplicate" };
+  await deliveryRef.set({ type, entityId, customerId: customer.id, email, status: "sending", manual, createdAt: new Date().toISOString() });
+  try {
+    const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+    let actionUrl = `${appUrl}/contact`;
+    let actionLabel = "Contact TechSavvy";
+    if (type === "quote" || type === "invoice") {
+      const rawToken = randomBytes(32).toString("base64url");
+      const hash = tokenHash(rawToken);
+      const expiresAt = new Date(Date.now() + (type === "quote" ? 30 : 60) * 86400000).toISOString();
+      await adminDb.collection("customer_document_tokens").doc(hash).set({ type, documentId: entityId, email, expiresAt, createdAt: new Date().toISOString(), usedAt: null, reminder: true });
+      await adminDb.collection(type === "quote" ? "quotes" : "invoices").doc(entityId).set({ customerDelivery: { ...(entity.customerDelivery || {}), email, status: "reminded", sentAt: new Date().toISOString(), expiresAt, tokenHash: hash }, updatedAt: new Date().toISOString() }, { merge: true });
+      actionUrl = `${appUrl}/customer/document?type=${type}&token=${encodeURIComponent(rawToken)}`;
+      actionLabel = type === "quote" ? "Review and approve quote" : "View invoice and payment options";
+    }
+    const number = entity.quoteNumber || entity.invoiceNumber || entity.workOrderNumber || entity.name || entityId;
+    const amount = Number(entity.balance ?? entity.total ?? 0);
+    const detail = type === "appointment" ? `Scheduled for ${entity.schedule?.date || entity.targetCompletion || "the planned service date"}${entity.schedule?.start ? ` at ${entity.schedule.start}` : ""}.` : type === "quote" ? `Your quote ${number} for ${amount.toLocaleString("en-US", { style: "currency", currency: "USD" })} is awaiting your decision.` : type === "invoice" ? `Invoice ${number} has an outstanding balance of ${amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}.` : `${entity.name || "Your equipment"} is due for recurring maintenance on ${entity.maintenance?.nextServiceDate || "the upcoming service date"}.`;
+    const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: `Reminder: TechSavvy invoice ${number} is overdue`, maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
+    const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+    const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `techsavvy-${deliveryId}`, "User-Agent": "TechSavvy-CRM/1.0" },
+      body: JSON.stringify({ from: sender, reply_to: supportEmail, to: [email], subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
+    });
+    if (!response.ok) throw new Error("Reminder email failed: " + (await response.text()));
+    const result = await response.json();
+    await deliveryRef.set({ status: "sent", emailId: result.id, sentAt: new Date().toISOString() }, { merge: true });
+    await writeAudit({ actor: actor || { email: "Scheduled reminder" }, action: manual ? "reminder-sent-manually" : "reminder-sent", entityType: type, entityId, summary: `Sent ${type} reminder to ${email}`, details: { deliveryId, email }, source: manual ? "crm" : "scheduled-reminder" });
+    return { sent: true, deliveryId };
+  } catch (error) {
+    await deliveryRef.set({ status: "failed", error: error.message, failedAt: new Date().toISOString() }, { merge: true });
+    throw error;
+  }
+}
+
+async function reminderCandidates() {
+  const [customersSnapshot, jobsSnapshot, quotesSnapshot, invoicesSnapshot, assetsSnapshot] = await Promise.all([
+    adminDb.collection("customers").get(), adminDb.collection("jobs").get(), adminDb.collection("quotes").get(), adminDb.collection("invoices").get(), adminDb.collection("customer_assets").get(),
+  ]);
+  const customers = customersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const customerByName = new Map(customers.map((customer) => [customer.name, customer]));
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
+  const maintenanceLimit = new Date(today.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+  const candidates = [];
+  jobsSnapshot.docs.forEach((doc) => { const entity = doc.data(); const serviceDate = entity.schedule?.date || entity.targetCompletion; if (serviceDate === tomorrow) candidates.push({ type: "appointment", entityId: doc.id, entity, customer: customerByName.get(entity.vendorName) }); });
+  quotesSnapshot.docs.forEach((doc) => { const entity = doc.data(); const created = dateValue(entity.createdAt); if (["Pending", "Sent", "Draft"].includes(entity.status) && (!created || today.getTime() - created.getTime() >= 3 * 86400000)) candidates.push({ type: "quote", entityId: doc.id, entity, customer: customerByName.get(entity.customer) }); });
+  invoicesSnapshot.docs.forEach((doc) => { const entity = doc.data(); if (Number(entity.balance || 0) > 0 && entity.dueDate && new Date(`${entity.dueDate}T00:00:00`) < today) candidates.push({ type: "invoice", entityId: doc.id, entity, customer: customerByName.get(entity.customer) }); });
+  assetsSnapshot.docs.forEach((doc) => { const entity = doc.data(); const due = entity.maintenance?.nextServiceDate; if (entity.status === "Active" && entity.maintenance?.enabled && due && due >= today.toISOString().slice(0, 10) && due <= maintenanceLimit) candidates.push({ type: "maintenance", entityId: doc.id, entity, customer: customerById.get(entity.customerId) }); });
+  return candidates.filter((candidate) => candidate.customer);
+}
+
+async function runReminderCycle(req, res) {
+  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
+    return res.status(401).json({ error: "Unauthorized" });
+  if (!process.env.RESEND_API_KEY) return res.status(503).json({ error: "Email delivery is not configured." });
+  const candidates = await reminderCandidates();
+  const results = [];
+  for (const candidate of candidates.slice(0, 100)) {
+    try { results.push(await deliverReminder(candidate)); }
+    catch (error) { results.push({ failed: true, error: error.message }); }
+  }
+  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length });
+}
+
+async function sendManualReminder(req, res) {
+  const user = await requireAdmin(req);
+  const type = req.body?.type;
+  const entityId = String(req.body?.entityId || "").trim();
+  if (!entityId || !["appointment", "quote", "invoice", "maintenance"].includes(type)) return res.status(400).json({ error: "A valid reminder is required." });
+  const collectionName = type === "appointment" ? "jobs" : type === "maintenance" ? "customer_assets" : `${type}s`;
+  const entitySnapshot = await adminDb.collection(collectionName).doc(entityId).get();
+  if (!entitySnapshot.exists) return res.status(404).json({ error: "The reminder record was not found." });
+  const entity = entitySnapshot.data();
+  const customerSnapshot = type === "maintenance" ? await adminDb.collection("customers").doc(entity.customerId).get() : await adminDb.collection("customers").where("name", "==", entity.vendorName || entity.customer).limit(1).get();
+  const customer = type === "maintenance" ? (customerSnapshot.exists ? { id: customerSnapshot.id, ...customerSnapshot.data() } : null) : (customerSnapshot.empty ? null : { id: customerSnapshot.docs[0].id, ...customerSnapshot.docs[0].data() });
+  if (!customer) return res.status(422).json({ error: "The record is not linked to a customer." });
+  const result = await deliverReminder({ type, entityId, entity, customer, actor: user, manual: true });
+  return res.status(200).json({ success: true, ...result, email: customer.email });
+}
+
 async function loadCustomerDocument(req, res) {
   const rawToken = typeof req.query?.token === "string" ? req.query.token : "";
   const hash = rawToken ? tokenHash(rawToken) : "";
@@ -457,6 +552,18 @@ async function respondToQuote(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (req.query?.operation === "run-reminders" && req.method === "GET") {
+    try { return await runReminderCycle(req, res); }
+    catch (error) { console.error("Scheduled reminder cycle failed:", error); return res.status(500).json({ error: error.message || "Reminder cycle failed." }); }
+  }
+  if (req.query?.operation === "send-reminder" && req.method === "POST") {
+    try { return await sendManualReminder(req, res); }
+    catch (error) {
+      if (error.message === "Authentication required." || error.message === "Administrator access required.") return res.status(403).json({ error: error.message });
+      console.error("Manual reminder failed:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message || "Reminder could not be sent." });
+    }
+  }
   if (req.query?.operation === "manage-customer-portal" && req.method === "POST") {
     try { return await manageCustomerPortal(req, res); }
     catch (error) {

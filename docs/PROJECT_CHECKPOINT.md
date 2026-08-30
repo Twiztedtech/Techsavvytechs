@@ -35,6 +35,7 @@ Last updated: 2026-08-30
 - The CRM Audit Trail stores immutable administrator, customer-document, customer-portal, billing, scheduling, asset-maintenance, email-delivery, and QuickBooks activity. Audit records can be created and read by administrators but cannot be edited or deleted from the client.
 - QuickBooks disconnect was consolidated into the existing QuickBooks administration handler, reducing the deployment footprint to 11 API functions while preserving administrator authentication and audit logging.
 - Customer portal access management now shows active, expired, revoked, and not-invited status on customer cards. Administrators can choose 30–180 day access, renew by resending, revoke immediately, and open a separate 15-minute read-only preview that cannot submit service requests or expose live payment links.
+- Automated reminders run daily through the existing contact handler and cover next-day appointments, quotes awaiting a decision, overdue invoices, and maintenance due within 14 days. Deterministic delivery records and Resend idempotency keys prevent scheduled duplicates; administrators can send manually, review delivery results, and set per-customer reminder preferences from CRM Reminders. Every successful reminder is recorded in the Audit Trail.
 
 ## Vercel API-function allowance
 
@@ -64,6 +65,7 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 5. Create a controlled CRM invoice and use **Sync QB** to verify the first production customer/invoice export, Product/Service mapping, stored QuickBooks ID, and duplicate protection. Do not use a real customer invoice for the first test.
 6. Before every deployment that changes `api/`, confirm the Vercel API-function count remains at 12 or fewer and consolidate related handlers when necessary.
 7. Send a portal invite to a controlled customer, confirm customer-only data visibility, submit a service request, and test the QuickBooks hosted payment link with a sandbox or zero-risk test invoice before using it with a real customer.
+8. Before relying on automated reminders, use controlled customer records to test each reminder type and confirm delivery, secure document links, preference opt-outs, and duplicate suppression. The schedule endpoint is protected by Vercel `CRON_SECRET`.
 
 ## Next development milestone
 

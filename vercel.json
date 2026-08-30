@@ -11,6 +11,9 @@
       ]
     }
   ],
+  "crons": [
+    { "path": "/api/contact?operation=run-reminders", "schedule": "0 15 * * *" }
+  ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/api/portal/onboarding", "destination": "/api/portal/time-clock?portalOperation=onboarding" },

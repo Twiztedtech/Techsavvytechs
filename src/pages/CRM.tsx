@@ -62,6 +62,7 @@ type Module =
   | "catalog"
   | "assets"
   | "reports"
+  | "reminders"
   | "audit";
 const modules: {
   id: Module;
@@ -78,6 +79,7 @@ const modules: {
   { id: "catalog", label: "Materials & Stock", icon: Boxes },
   { id: "assets", label: "Customer Assets", icon: Wrench },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "reminders", label: "Reminders", icon: Clock3 },
   { id: "audit", label: "Audit Trail", icon: ClipboardCheck },
 ];
 const resources = [
@@ -247,6 +249,7 @@ type LiveCustomer = {
   assets?: number;
   lifetimeValue?: number;
   portalDelivery?: { status: string; email: string; sentAt: string; expiresAt?: string; revokedAt?: string };
+  reminderPreferences?: { enabled?: boolean; appointment?: boolean; quote?: boolean; invoice?: boolean; maintenance?: boolean };
 };
 type LiveJob = {
   id: string;
@@ -369,6 +372,7 @@ type AuditLog = {
   source?: string;
   createdAt?: unknown;
 };
+type ReminderDelivery = { id: string; type: string; entityId: string; email: string; status: string; manual?: boolean; sentAt?: string; createdAt?: string; error?: string };
 
 async function recordAudit(action: string, entityType: string, entityId: string, summary: string, details: Record<string, unknown> = {}) {
   const user = auth.currentUser;
@@ -407,6 +411,7 @@ export default function CRM() {
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
   const [assets, setAssets] = useState<CustomerAsset[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [reminderDeliveries, setReminderDeliveries] = useState<ReminderDelivery[]>([]);
   const [createType, setCreateType] = useState<"customer" | "job" | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
@@ -487,6 +492,9 @@ export default function CRM() {
     const stopAuditLogs = onSnapshot(collection(db, "audit_logs"), (snapshot) =>
       setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
     );
+    const stopReminderDeliveries = onSnapshot(collection(db, "reminder_deliveries"), (snapshot) =>
+      setReminderDeliveries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ReminderDelivery)),
+    );
     return () => {
       stopCustomers();
       stopJobs();
@@ -495,6 +503,7 @@ export default function CRM() {
       stopInvoices();
       stopAssets();
       stopAuditLogs();
+      stopReminderDeliveries();
     };
   }, [access]);
   const jobsForTable = useMemo(
@@ -766,6 +775,8 @@ export default function CRM() {
               />
             ) : module === "audit" ? (
               <AuditTrailView logs={auditLogs} />
+            ) : module === "reminders" ? (
+              <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} />
             ) : module === "dashboard" ? (
               <DashboardView jobs={jobsForTable} go={go} />
             ) : (
@@ -1181,6 +1192,46 @@ function CustomersView({
       )}
     </section>
   );
+}
+
+function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries }: { customers: LiveCustomer[]; jobs: LiveJob[]; quotes: LiveQuote[]; invoices: LiveInvoice[]; assets: CustomerAsset[]; deliveries: ReminderDelivery[] }) {
+  const [sending, setSending] = useState("");
+  const [preferenceCustomer, setPreferenceCustomer] = useState("");
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
+  const maintenanceLimit = new Date(today.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+  const items = [
+    ...jobs.filter((job) => (job.schedule?.date || job.targetCompletion) === tomorrow).map((job) => ({ type: "appointment", id: job.id, title: job.workOrderNumber || job.id, detail: `${job.vendorName || "Customer"} · ${job.schedule?.date || job.targetCompletion}` })),
+    ...quotes.filter((quote) => ["Pending", "Sent", "Draft"].includes(quote.status)).map((quote) => ({ type: "quote", id: quote.id, title: quote.quoteNumber || quote.id, detail: `${quote.customer} · ${quote.total.toLocaleString(undefined, { style: "currency", currency: "USD" })}` })),
+    ...invoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today).map((invoice) => ({ type: "invoice", id: invoice.id, title: invoice.invoiceNumber || invoice.id, detail: `${invoice.customer} · ${invoice.balance.toLocaleString(undefined, { style: "currency", currency: "USD" })} overdue` })),
+    ...assets.filter((asset) => asset.status === "Active" && asset.maintenance?.enabled && asset.maintenance.nextServiceDate >= today.toISOString().slice(0, 10) && asset.maintenance.nextServiceDate <= maintenanceLimit).map((asset) => ({ type: "maintenance", id: asset.id, title: asset.name, detail: `${asset.customerName} · due ${asset.maintenance?.nextServiceDate}` })),
+  ];
+  const send = async (item: { type: string; id: string }) => {
+    setSending(`${item.type}-${item.id}`);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=send-reminder", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ type: item.type, entityId: item.id }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Reminder could not be sent.");
+      alert(`Reminder sent to ${result.email}.`);
+    } catch (error) { alert(error instanceof Error ? error.message : "Reminder could not be sent."); }
+    finally { setSending(""); }
+  };
+  const selected = customers.find((customer) => customer.id === preferenceCustomer);
+  const togglePreference = async (key: "enabled" | "appointment" | "quote" | "invoice" | "maintenance") => {
+    if (!selected) return;
+    const current = selected.reminderPreferences || {};
+    const next = { ...current, [key]: current[key] === false };
+    await updateDoc(doc(db, "customers", selected.id), { reminderPreferences: next, updatedAt: serverTimestamp() });
+    await recordAudit("reminder-preferences-updated", "customer", selected.id, `Updated reminder preferences for ${selected.name}`, { preference: key, enabled: next[key] });
+  };
+  const recent = [...deliveries].sort((a, b) => String(b.sentAt || b.createdAt || "").localeCompare(String(a.sentAt || a.createdAt || ""))).slice(0, 12);
+  return <div className="space-y-5">
+    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep"><Clock3 className="h-5 w-5"/></span><div><h2 className="text-sm font-bold">Automated customer reminders</h2><p className="mt-1 text-[10px] text-slate-400">Daily at 8:00 AM Pacific · appointments, quotes, overdue invoices and recurring maintenance</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{["appointment", "quote", "invoice", "maintenance"].map((type) => <div key={type} className="rounded bg-slate-50 p-3"><p className="text-[8px] font-bold uppercase text-slate-400">{type}</p><p className="mt-1 font-display text-xl">{items.filter((item) => item.type === type).length}</p><p className="text-[8px] text-slate-400">currently actionable</p></div>)}</div></section>
+    <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-slate-400">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-slate-100 overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase text-slate-500">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-slate-400">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-[#17251b] px-3 py-2 text-[9px] font-bold text-white disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
+    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-slate-400">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-slate-100">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>
+    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h3 className="text-sm font-bold">Recent reminder delivery</h3></header>{recent.length ? <div className="divide-y divide-slate-100">{recent.map((delivery) => <div key={delivery.id} className="grid gap-2 p-4 sm:grid-cols-[120px_1fr_120px] sm:items-center"><span className="text-[8px] font-bold uppercase text-slate-400">{delivery.type}{delivery.manual ? " · manual" : ""}</span><div><p className="text-[10px] font-semibold">{delivery.email}</p>{delivery.error && <p className="mt-1 text-[8px] text-red-600">{delivery.error}</p>}</div><span className={`text-[9px] font-bold uppercase sm:text-right ${delivery.status === "sent" ? "text-green-700" : delivery.status === "failed" ? "text-red-600" : "text-orange-600"}`}>{delivery.status}</span></div>)}</div> : <ReportEmpty text="No reminders have been delivered yet."/>}</section>
+  </div>;
 }
 
 function AuditTrailView({ logs }: { logs: AuditLog[] }) {
