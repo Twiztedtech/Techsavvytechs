@@ -48,6 +48,11 @@ export default function ContractorDashboard() {
   const [newContractorSpecialty, setNewContractorSpecialty] = useState('');
   const [isSavingContractor, setIsSavingContractor] = useState(false);
   const [viewingContractorTimecards, setViewingContractorTimecards] = useState<any | null>(null);
+  const [lifecycleTarget, setLifecycleTarget] = useState<any | null>(null);
+  const [lifecycleStatus, setLifecycleStatus] = useState<'Active' | 'Suspended' | 'Offboarded'>('Active');
+  const [lifecycleReason, setLifecycleReason] = useState('');
+  const [lifecycleReassignToId, setLifecycleReassignToId] = useState('');
+  const [isSavingLifecycle, setIsSavingLifecycle] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -253,6 +258,49 @@ export default function ContractorDashboard() {
     }
   };
 
+  const contractorAccessStatus = (contractor) => contractor.accessStatus || (contractor.active === false ? 'Suspended' : 'Active');
+  const assignableContractors = contractorsList.filter((contractor) => contractorAccessStatus(contractor) === 'Active');
+  const openJobsForContractor = lifecycleTarget
+    ? jobSitesList.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        const terminal = ['complete', 'completed', 'closed', 'cancelled', 'canceled', 'voided'].includes(status);
+        return !terminal && getAssignedTechIds(job).includes(lifecycleTarget.id);
+      })
+    : [];
+
+  const openLifecycleDialog = (contractor, status: 'Active' | 'Suspended' | 'Offboarded') => {
+    setLifecycleTarget(contractor);
+    setLifecycleStatus(status);
+    setLifecycleReason('');
+    setLifecycleReassignToId('');
+  };
+
+  const saveLifecycleStatus = async () => {
+    if (!lifecycleTarget) return;
+    setIsSavingLifecycle(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/contractors/invite?adminOperation=lifecycle', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractorId: lifecycleTarget.id,
+          status: lifecycleStatus,
+          reason: lifecycleReason,
+          reassignToId: lifecycleStatus === 'Active' ? '' : lifecycleReassignToId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not update technician access.');
+      alert(`${lifecycleTarget.name || 'Technician'} is now ${lifecycleStatus.toLowerCase()}.${data.affectedJobCount ? ` ${data.affectedJobCount} open work order(s) were updated.` : ''}`);
+      setLifecycleTarget(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not update technician access.');
+    } finally {
+      setIsSavingLifecycle(false);
+    }
+  };
+
   const resetWorkOrderForm = () => {
     setEditingJobId(null);
     setAdminJobName('');
@@ -339,7 +387,9 @@ export default function ContractorDashboard() {
         email: newContractorEmail.trim().toLowerCase(),
         rate: Number(newContractorRate) || 75,
         specialty: newContractorSpecialty.trim(),
-        status: 'active',
+        status: 'pending',
+        accessStatus: 'Pending',
+        active: false,
         createdAt: serverTimestamp(),
         onboarding: {
           status: 'not_started'
@@ -2524,7 +2574,7 @@ export default function ContractorDashboard() {
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">Technician Lead</label>
                           <select value={adminJobTechnicianLeadId} onChange={(e) => setAdminJobTechnicianLeadId(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500">
                             <option value="">Choose a technician lead</option>
-                            {contractorsList
+                            {assignableContractors
                               .filter((contractor) => adminJobAssignedTechIds.includes('ALL') || adminJobAssignedTechIds.includes(contractor.id))
                               .map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.name}</option>)}
                           </select>
@@ -2542,7 +2592,7 @@ export default function ContractorDashboard() {
                             />
                             Anyone (all technicians)
                           </label>
-                          {contractorsList.map((contractor) => (
+                          {assignableContractors.map((contractor) => (
                             <label key={contractor.id} className="flex items-center gap-2 px-3 py-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/70">
                               <input
                                 type="checkbox"
@@ -2882,8 +2932,16 @@ export default function ContractorDashboard() {
                             {cont.qboVendorId ? `#${cont.qboVendorId}` : 'Not Linked'}
                           </td>
                           <td className="p-3 text-right">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
-                              {cont.status}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                              contractorAccessStatus(cont) === 'Active'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : contractorAccessStatus(cont) === 'Suspended'
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                  : contractorAccessStatus(cont) === 'Pending'
+                                    ? 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+                                    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                            }`}>
+                              {contractorAccessStatus(cont)}
                             </span>
                           </td>
                           <td className="p-3 text-right">
@@ -2919,7 +2977,7 @@ export default function ContractorDashboard() {
                             </button>
                             <button
                               type="button"
-                              disabled={!cont.email || invitingContractorId === cont.id}
+                              disabled={!cont.email || invitingContractorId === cont.id || ['Suspended', 'Offboarded'].includes(contractorAccessStatus(cont))}
                               onClick={async () => {
                                 if (!confirm(`Send a branded TechSavvy portal invitation to ${cont.email}?`)) return;
                                 setInvitingContractorId(cont.id);
@@ -2944,12 +3002,19 @@ export default function ContractorDashboard() {
                               }}
                               className="px-2.5 py-1 rounded border border-amber-500/30 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {invitingContractorId === cont.id
+                              {['Suspended', 'Offboarded'].includes(contractorAccessStatus(cont))
+                                ? 'Activate Before Inviting'
+                                : invitingContractorId === cont.id
                                 ? 'Sending…'
                                 : cont.invitationStatus === 'sent'
                                   ? 'Resend Branded Invite'
                                   : 'Send Branded Invite'}
                             </button>
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {contractorAccessStatus(cont) !== 'Active' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Active')} className="rounded border border-green-500/40 px-2 py-1 text-[10px] font-bold text-green-300 hover:bg-green-500 hover:text-slate-950">Activate</button> : null}
+                              {contractorAccessStatus(cont) === 'Active' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Suspended')} className="rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950">Suspend</button> : null}
+                              {contractorAccessStatus(cont) !== 'Offboarded' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Offboarded')} className="rounded border border-rose-500/40 px-2 py-1 text-[10px] font-bold text-rose-300 hover:bg-rose-500 hover:text-white">Offboard</button> : null}
+                            </div>
                             {cont.invitationDelivery?.emailId ? <button
                               type="button"
                               disabled={checkingInvitationId === cont.id}
@@ -3410,6 +3475,44 @@ export default function ContractorDashboard() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lifecycleTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400">Technician access</p>
+              <h3 className="mt-1 text-lg font-bold text-slate-100">{lifecycleStatus} {lifecycleTarget.name}</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                {lifecycleStatus === 'Active'
+                  ? 'This re-enables sign-in and makes the technician available for new assignments.'
+                  : 'Sign-in will be disabled, current sessions revoked, and this technician will be removed from new assignment lists.'}
+              </p>
+            </div>
+            {lifecycleStatus !== 'Active' ? <>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-300">Reason</label>
+                <textarea value={lifecycleReason} onChange={(event) => setLifecycleReason(event.target.value)} maxLength={500} rows={3} placeholder="Required for the audit record and technician notice" className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 placeholder-slate-600 focus:border-amber-500 focus:outline-none" />
+              </div>
+              {openJobsForContractor.length ? <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <p className="text-xs font-bold text-amber-300">{openJobsForContractor.length} open work order(s) need an assignment decision</p>
+                <ul className="max-h-24 list-inside list-disc overflow-y-auto text-xs text-slate-400">
+                  {openJobsForContractor.map((job) => <li key={job.id}>{job.name || job.jobName || job.workOrderNumber || job.id}</li>)}
+                </ul>
+                <select value={lifecycleReassignToId} onChange={(event) => setLifecycleReassignToId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 focus:border-amber-500 focus:outline-none">
+                  <option value="">Choose what happens to open work</option>
+                  {assignableContractors.filter((contractor) => contractor.id !== lifecycleTarget.id).map((contractor) => <option key={contractor.id} value={contractor.id}>Reassign to {contractor.name}</option>)}
+                  <option value="UNASSIGNED">Leave unassigned for dispatch</option>
+                </select>
+              </div> : <p className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 text-xs text-green-300">No open work orders are assigned to this technician.</p>}
+            </> : null}
+            <p className="text-xs text-slate-500">Completed jobs, timecards, invoices, payment history, and the QuickBooks vendor link will be preserved.</p>
+            <div className="flex justify-end gap-3">
+              <button type="button" disabled={isSavingLifecycle} onClick={() => setLifecycleTarget(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">Cancel</button>
+              <button type="button" disabled={isSavingLifecycle || (lifecycleStatus !== 'Active' && (!lifecycleReason.trim() || (openJobsForContractor.length > 0 && !lifecycleReassignToId)))} onClick={() => void saveLifecycleStatus()} className={`rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${lifecycleStatus === 'Active' ? 'bg-green-600 hover:bg-green-500' : lifecycleStatus === 'Suspended' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-rose-600 hover:bg-rose-500'}`}>{isSavingLifecycle ? 'Saving…' : `Confirm ${lifecycleStatus.toLowerCase()}`}</button>
             </div>
           </div>
         </div>

@@ -289,6 +289,8 @@ type Technician = {
   companyName?: string;
   specialty?: string;
   authUid?: string;
+  accessStatus?: "Pending" | "Active" | "Suspended" | "Offboarded";
+  active?: boolean;
 };
 type InvoiceLine = {
   description: string;
@@ -423,6 +425,11 @@ export default function CRM() {
     null,
   );
   const [assetOpen, setAssetOpen] = useState(false);
+  const assignableTechnicians = technicians.filter(
+    (technician) =>
+      technician.accessStatus === undefined ||
+      (technician.accessStatus === "Active" && technician.active !== false),
+  );
   const currentLabel = modules.find((item) => item.id === module)?.label;
   useEffect(
     () =>
@@ -737,7 +744,7 @@ export default function CRM() {
                 />
                 <LiveScheduleBoard
                   jobs={liveJobs}
-                  technicians={technicians}
+                  technicians={assignableTechnicians}
                   onSchedule={setScheduleJob}
                 />
               </>
@@ -803,7 +810,7 @@ export default function CRM() {
       {scheduleJob && (
         <ScheduleModal
           job={scheduleJob}
-          technicians={technicians}
+          technicians={assignableTechnicians}
           onClose={() => setScheduleJob(null)}
         />
       )}

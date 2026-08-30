@@ -37,6 +37,8 @@ Last updated: 2026-08-30
 - Customer portal access management now shows active, expired, revoked, and not-invited status on customer cards. Administrators can choose 30–180 day access, renew by resending, revoke immediately, and open a separate 15-minute read-only preview that cannot submit service requests or expose live payment links.
 - Automated reminders run daily through the existing contact handler and cover next-day appointments, quotes awaiting a decision, overdue invoices, and maintenance due within 14 days. Deterministic delivery records and Resend idempotency keys prevent scheduled duplicates; administrators can send manually, review delivery results, and set per-customer reminder preferences from CRM Reminders. Every successful reminder is recorded in the Audit Trail.
 - QuickBooks payment reconciliation treats QuickBooks as the balance source for invoices already synced there. A manual **Reconcile QuickBooks** action and the protected daily cycle refresh invoice total, balance, amount paid, status, sync token, hosted payment link, and reconciliation timestamps without creating CRM payment entries. Every changed balance and reconciliation summary is recorded in the Audit Trail.
+- Technician lifecycle management is implemented in Contractor Sync. New technicians begin Pending; invitation activates access; administrators can activate, suspend, reactivate, or offboard a technician with a required reason. Suspension and offboarding disable Firebase sign-in, revoke existing sessions, require open work orders to be reassigned or explicitly returned to dispatch, remove inactive technicians from new scheduling choices, send a branded notice, and add an audit record. Completed work, timecards, billing history, and QuickBooks vendor links are preserved.
+- Technician portal APIs enforce the lifecycle status server-side, so a suspended or offboarded account cannot continue working through a stale browser session.
 
 ## Vercel API-function allowance
 
@@ -59,7 +61,7 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 
 ## Confirm on the next session
 
-1. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock.
+1. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock. Suspend that test account while signed in, confirm the session loses API access, reactivate it, and verify sign-in returns.
 2. Submit a contact-form test and confirm it arrives at `support@techsavvytechs.com` from the TechSavvy Resend sender.
 3. Keep Vercel `QBO_ENVIRONMENT=production`, `APP_URL=https://techsavvytechs.com`, and the Resend variables restricted to production.
 4. Test onboarding with a controlled contractor account: upload a sample PDF W-9, confirm the administrator can review it, request an update, and approve the replacement.
@@ -73,7 +75,6 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 
 Continue operational hardening:
 
-- account activation and offboarding controls for inactive contractors;
 - administrator audit trail for edits, approvals, and invitation delivery;
 - final mobile field test with a real work order and customer signature;
 - periodic review of QuickBooks vendor status versus portal access.

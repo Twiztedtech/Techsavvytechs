@@ -6,6 +6,14 @@ const getUser = async (req) => {
   if (!token) throw new Error('Authentication required.');
   const user = await adminAuth.verifyIdToken(token);
   if (user.admin !== true && user.contractor !== true) throw new Error('Contractor Portal access is required.');
+  if (user.admin !== true) {
+    const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
+    if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
+    const data = contractor.docs[0].data();
+    const accessStatus = data.accessStatus || (data.active === false ? 'Suspended' : 'Active');
+    if (accessStatus === 'Suspended') throw new Error('Your contractor portal access is suspended.');
+    if (accessStatus === 'Offboarded') throw new Error('Your contractor portal access has been offboarded.');
+  }
   return user;
 };
 
@@ -634,7 +642,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({ error: 'Unsupported time-clock action.' });
   } catch (error) {
-    const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.'].includes(error.message) ? 403 : 500;
+    const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.', 'Your contractor portal access is suspended.', 'Your contractor portal access has been offboarded.'].includes(error.message) ? 403 : 500;
     console.error('Time clock error:', error);
     return res.status(status).json({ error: status === 500 ? 'Could not update the time clock.' : error.message });
   }
