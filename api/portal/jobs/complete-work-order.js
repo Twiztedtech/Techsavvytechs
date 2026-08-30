@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from '../../../_lib/firebase-admin.js';
+import { adminAuth, adminDb } from '../../_lib/firebase-admin.js';
 
 const portalToken = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');

@@ -287,7 +287,16 @@ export function WorkOrderSigningModal({ job, technicianName, savedTechnicianSign
           customerName: customerName.trim(),
         }),
       });
-      if (!response.ok) throw new Error((await response.json()).error || 'Could not save the signed work order.');
+      if (!response.ok) {
+        const responseText = await response.text();
+        let responseMessage = '';
+        try {
+          responseMessage = JSON.parse(responseText).error || '';
+        } catch {
+          responseMessage = responseText;
+        }
+        throw new Error(responseMessage || 'Could not save the signed work order.');
+      }
       alert('Signed work order saved. You can open the PDF from this job at any time.');
       onComplete();
     } catch (error) {
