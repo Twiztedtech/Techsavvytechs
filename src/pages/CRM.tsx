@@ -1949,7 +1949,7 @@ function InvoicesView({
     setSyncing(invoice.id);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch("/api/admin/quickbooks/invoices", {
+      const response = await fetch("/api/admin/quickbooks/status?operation=sync-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ invoiceId: invoice.id }),
