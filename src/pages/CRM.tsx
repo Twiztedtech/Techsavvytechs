@@ -312,6 +312,7 @@ type LiveQuote = {
   lineItems: { description: string; quantity: number; unitPrice: number }[];
   total: number;
   createdAt?: unknown;
+  customerDelivery?: { status: string; email: string; sentAt: string };
 };
 type Technician = {
   id: string;
@@ -359,6 +360,7 @@ type LiveInvoice = {
     lastSyncedAt?: string;
     error?: string;
   };
+  customerDelivery?: { status: string; email: string; sentAt: string };
 };
 type CustomerAsset = {
   id: string;
@@ -1252,6 +1254,35 @@ function QuotesView({
   onCreate: () => void;
 }) {
   const [working, setWorking] = useState("");
+  const emailQuote = async (quote: LiveQuote) => {
+    setWorking(`email-${quote.id}`);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch(
+        "/api/contact?operation=send-customer-document",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ type: "quote", documentId: quote.id }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Quote email could not be sent.");
+      alert(`Quote sent to ${result.email}.`);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Quote email could not be sent.",
+      );
+    } finally {
+      setWorking("");
+    }
+  };
   const convert = async (quote: LiveQuote) => {
     setWorking(quote.id);
     try {
@@ -1342,17 +1373,38 @@ function QuotesView({
                     ${(q.total || 0).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      disabled={q.status === "Converted" || working === q.id}
-                      onClick={() => void convert(q)}
-                      className="rounded bg-tech-green px-3 py-1.5 text-[9px] font-bold text-brand-black disabled:opacity-40"
-                    >
-                      {q.status === "Converted"
-                        ? "Job created"
-                        : working === q.id
-                          ? "Converting…"
-                          : "Accept & create job"}
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        disabled={
+                          working === `email-${q.id}` ||
+                          q.status === "Converted"
+                        }
+                        onClick={() => void emailQuote(q)}
+                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
+                      >
+                        {working === `email-${q.id}`
+                          ? "Sending…"
+                          : q.customerDelivery?.status === "sent"
+                            ? "Resend"
+                            : "Email"}
+                      </button>
+                      <button
+                        disabled={q.status !== "Accepted" || working === q.id}
+                        onClick={() => void convert(q)}
+                        title={
+                          q.status !== "Accepted"
+                            ? "Customer approval is required before job conversion."
+                            : "Create work order"
+                        }
+                        className="rounded bg-tech-green px-3 py-1.5 text-[9px] font-bold text-brand-black disabled:opacity-40"
+                      >
+                        {q.status === "Converted"
+                          ? "Job created"
+                          : working === q.id
+                            ? "Converting…"
+                            : "Create job"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1992,6 +2044,7 @@ function InvoicesView({
   );
   const candidates = jobs.filter((job) => !invoicedJobs.has(job.id));
   const [syncing, setSyncing] = useState("");
+  const [delivering, setDelivering] = useState("");
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
   const syncToQuickBooks = async (invoice: LiveInvoice) => {
@@ -2020,6 +2073,35 @@ function InvoicesView({
       );
     } finally {
       setSyncing("");
+    }
+  };
+  const emailInvoice = async (invoice: LiveInvoice) => {
+    setDelivering(invoice.id);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch(
+        "/api/contact?operation=send-customer-document",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ type: "invoice", documentId: invoice.id }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Invoice email could not be sent.");
+      alert(`Invoice sent to ${result.email}.`);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Invoice email could not be sent.",
+      );
+    } finally {
+      setDelivering("");
     }
   };
   const download = async (invoice: LiveInvoice) => {
@@ -2180,6 +2262,17 @@ function InvoicesView({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
+                      <button
+                        disabled={delivering === invoice.id}
+                        onClick={() => void emailInvoice(invoice)}
+                        className="rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-[9px] font-bold text-sky-700 disabled:opacity-50"
+                      >
+                        {delivering === invoice.id
+                          ? "Sending…"
+                          : invoice.customerDelivery?.status === "sent"
+                            ? "Resend"
+                            : "Email"}
+                      </button>
                       <button
                         disabled={
                           syncing === invoice.id ||
