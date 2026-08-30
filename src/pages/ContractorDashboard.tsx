@@ -2788,8 +2788,8 @@ export default function ContractorDashboard() {
                           if (confirm('Are you sure you want to disconnect QuickBooks? This will remove the authentication tokens.')) {
                             try {
                               const idToken = await auth.currentUser?.getIdToken();
-                              const response = await fetch('/api/admin/quickbooks/disconnect', {
-                                method: 'DELETE',
+                              const response = await fetch('/api/admin/quickbooks/status?operation=disconnect', {
+                                method: 'POST',
                                 headers: { Authorization: `Bearer ${idToken}` },
                               });
                               const data = await response.json();

@@ -1,6 +1,7 @@
 import { adminDb } from "./_lib/firebase-admin.js";
 import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "./_lib/firebase-admin.js";
+import { writeAudit } from "./_lib/audit.js";
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;
@@ -58,7 +59,7 @@ function isRateLimited(ip, now) {
 }
 
 async function sendCustomerDocument(req, res) {
-  await requireAdmin(req);
+  const user = await requireAdmin(req);
   const type =
     req.body?.type === "invoice"
       ? "invoice"
@@ -168,6 +169,7 @@ async function sendCustomerDocument(req, res) {
     },
     { merge: true },
   );
+  await writeAudit({ actor: user, action: "emailed", entityType: type, entityId: documentId, summary: `Emailed ${type} ${number} to ${email}`, details: { email, expiresAt }, source: "api" });
   return res.status(200).json({ success: true, email, expiresAt });
 }
 
@@ -224,6 +226,7 @@ async function sendCustomerPortal(req, res) {
     portalDelivery: { status: "sent", email, emailId: deliveryData.id, sentAt: createdAt, expiresAt, tokenHash: hash },
     updatedAt: createdAt,
   }, { merge: true });
+  await writeAudit({ actor: user, action: "portal-invited", entityType: "customer", entityId: customerId, summary: `Sent customer portal access to ${email}`, details: { email, expiresAt }, source: "api" });
   return res.status(200).json({ success: true, email, expiresAt });
 }
 
@@ -297,6 +300,7 @@ async function createPortalServiceRequest(req, res) {
     createdAt,
     deliveryStatus: "portal",
   });
+  await writeAudit({ actor: { email: access.email }, action: "service-requested", entityType: "customer", entityId: customerSnapshot.id, summary: `Customer submitted service request: ${subject}`, details: { requestId: request.id, site, preferredDate }, source: "customer-portal" });
   return res.status(201).json({ success: true, requestId: request.id });
 }
 
@@ -414,6 +418,9 @@ async function respondToQuote(req, res) {
       { merge: true },
     );
   });
+  const accessSnapshot = await adminDb.collection("customer_document_tokens").doc(hash).get();
+  const access = accessSnapshot.data();
+  await writeAudit({ actor: { email: access?.email }, action: decision.toLowerCase(), entityType: "quote", entityId: access?.documentId, summary: `Customer ${decision.toLowerCase()} quote`, details: { customerEmail: access?.email }, source: "customer-document" });
   return res.status(200).json({ success: true, status: decision });
 }
 

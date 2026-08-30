@@ -61,7 +61,8 @@ type Module =
   | "invoices"
   | "catalog"
   | "assets"
-  | "reports";
+  | "reports"
+  | "audit";
 const modules: {
   id: Module;
   label: string;
@@ -77,6 +78,7 @@ const modules: {
   { id: "catalog", label: "Materials & Stock", icon: Boxes },
   { id: "assets", label: "Customer Assets", icon: Wrench },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "audit", label: "Audit Trail", icon: ClipboardCheck },
 ];
 const resources = [
   {
@@ -355,6 +357,39 @@ type CustomerAsset = {
   }[];
 };
 
+type AuditLog = {
+  id: string;
+  actorUid?: string;
+  actorEmail?: string;
+  actorLabel?: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  summary: string;
+  source?: string;
+  createdAt?: unknown;
+};
+
+async function recordAudit(action: string, entityType: string, entityId: string, summary: string, details: Record<string, unknown> = {}) {
+  const user = auth.currentUser;
+  try {
+    await addDoc(collection(db, "audit_logs"), {
+      actorUid: user?.uid || null,
+      actorEmail: user?.email || "Administrator",
+      actorLabel: user?.email || "Administrator",
+      action,
+      entityType,
+      entityId,
+      summary,
+      details,
+      source: "crm",
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Audit log write failed:", error);
+  }
+}
+
 export default function CRM() {
   const [module, setModule] = useState<Module>("dashboard");
   const [mobileNav, setMobileNav] = useState(false);
@@ -371,6 +406,7 @@ export default function CRM() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
   const [assets, setAssets] = useState<CustomerAsset[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [createType, setCreateType] = useState<"customer" | "job" | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
@@ -448,6 +484,9 @@ export default function CRM() {
           ),
         ),
     );
+    const stopAuditLogs = onSnapshot(collection(db, "audit_logs"), (snapshot) =>
+      setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
+    );
     return () => {
       stopCustomers();
       stopJobs();
@@ -455,6 +494,7 @@ export default function CRM() {
       stopTechnicians();
       stopInvoices();
       stopAssets();
+      stopAuditLogs();
     };
   }, [access]);
   const jobsForTable = useMemo(
@@ -724,6 +764,8 @@ export default function CRM() {
                 assets={assets}
                 technicians={technicians}
               />
+            ) : module === "audit" ? (
+              <AuditTrailView logs={auditLogs} />
             ) : module === "dashboard" ? (
               <DashboardView jobs={jobsForTable} go={go} />
             ) : (
@@ -1109,6 +1151,44 @@ function CustomersView({
   );
 }
 
+function AuditTrailView({ logs }: { logs: AuditLog[] }) {
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const timestamp = (value: unknown) => {
+    if (value && typeof value === "object" && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") return (value as { toDate: () => Date }).toDate();
+    const date = new Date(typeof value === "string" ? value : 0);
+    return Number.isNaN(date.getTime()) ? new Date(0) : date;
+  };
+  const visible = logs
+    .filter((log) => filter === "all" || log.entityType === filter)
+    .filter((log) => `${log.summary} ${log.actorEmail} ${log.action} ${log.entityType}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => timestamp(b.createdAt).getTime() - timestamp(a.createdAt).getTime());
+  const categories = Array.from(new Set(logs.map((log) => log.entityType).filter(Boolean))).sort();
+  return (
+    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 lg:flex-row lg:items-center">
+        <div>
+          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-tech-green-deep"><ShieldCheck className="h-3.5 w-3.5" /> Immutable history</div>
+          <h2 className="mt-2 text-base font-bold">Administrator audit trail</h2>
+          <p className="mt-1 text-[10px] text-slate-400">Creation, changes, approvals, scheduling, billing, customer delivery and QuickBooks activity.</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search activity…" className="rounded border border-slate-200 px-3 py-2 text-xs outline-none focus:border-tech-green" />
+          <select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded border border-slate-200 px-3 py-2 text-xs"><option value="all">All records</option>{categories.map((category) => <option key={category} value={category}>{category.replace(/-/g, " ")}</option>)}</select>
+        </div>
+      </header>
+      {visible.length ? <div className="divide-y divide-slate-100">{visible.slice(0, 250).map((log) => {
+        const date = timestamp(log.createdAt);
+        return <article key={log.id} className="grid gap-3 p-4 sm:grid-cols-[150px_1fr_180px] sm:items-center">
+          <div><p className="text-[10px] font-semibold text-slate-600">{date.getTime() ? date.toLocaleDateString() : "Pending"}</p><p className="text-[9px] text-slate-400">{date.getTime() ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Saving…"}</p></div>
+          <div><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-[#e8f7ed] px-2 py-1 text-[8px] font-bold uppercase text-tech-green-deep">{log.entityType}</span><span className="text-[9px] font-semibold uppercase text-slate-400">{log.action.replace(/-/g, " ")}</span></div><p className="mt-2 text-[11px] font-semibold">{log.summary}</p>{log.entityId && <p className="mt-1 font-mono text-[8px] text-slate-400">{log.entityId}</p>}</div>
+          <div className="sm:text-right"><p className="truncate text-[10px] font-semibold">{log.actorLabel || log.actorEmail || "System"}</p><p className="mt-1 text-[8px] uppercase text-slate-400">{log.source || "CRM"}</p></div>
+        </article>;
+      })}</div> : <div className="grid min-h-56 place-items-center p-6 text-center"><div><ClipboardCheck className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-xs font-semibold">No matching audit activity</p><p className="mt-1 text-[10px] text-slate-400">New administrator actions will appear here automatically.</p></div></div>}
+    </section>
+  );
+}
+
 function ReportsView({
   jobs,
   quotes,
@@ -1459,6 +1539,7 @@ function QuotesView({
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("converted", "quote", quote.id, `Converted ${quote.quoteNumber || quote.id} to job ${created.id}`, { jobId: created.id, customer: quote.customer });
     } finally {
       setWorking("");
     }
@@ -1933,6 +2014,7 @@ function JobDetailModal({
         margin,
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("updated", "job", job.id, `Updated job ${job.workOrderNumber || job.id}`, { status: form.status, margin });
       onClose();
     } finally {
       setSaving(false);
@@ -2533,7 +2615,7 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
     setSaving(true);
     try {
       const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
-      await addDoc(collection(db, "invoices"), {
+      const created = await addDoc(collection(db, "invoices"), {
         invoiceNumber,
         jobId: job.id,
         workOrderNumber: job.workOrderNumber || job.id,
@@ -2567,6 +2649,7 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
         invoiceCreatedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("created", "invoice", created.id, `Created invoice ${invoiceNumber} for ${job.vendorName || "customer"}`, { jobId: job.id, total });
       onClose();
     } finally {
       setSaving(false);
@@ -2813,6 +2896,7 @@ function PaymentModal({
           paidAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+      await recordAudit("payment-recorded", "invoice", invoice.id, `Recorded ${form.method} payment on ${invoice.invoiceNumber || invoice.id}`, { amount, balance, reference: form.reference.trim() });
       onClose();
     } finally {
       setSaving(false);
@@ -2907,8 +2991,9 @@ function QuoteModal({
     e.preventDefault();
     setSaving(true);
     try {
-      await addDoc(collection(db, "quotes"), {
-        quoteNumber: `QT-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
+      const quoteNumber = `QT-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
+      const created = await addDoc(collection(db, "quotes"), {
+        quoteNumber,
         ...form,
         lineItems: items
           .filter((i) => i.description.trim())
@@ -2921,6 +3006,7 @@ function QuoteModal({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("created", "quote", created.id, `Created quote ${quoteNumber} for ${form.customer}`, { total, site: form.site });
       onClose();
     } finally {
       setSaving(false);
@@ -3103,6 +3189,7 @@ function ScheduleModal({
         status: "Scheduled",
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${tech.name || tech.companyName || "technician"}`, { technicianId: tech.id, date, start, end });
       onClose();
     } finally {
       setSaving(false);
@@ -3240,6 +3327,7 @@ function AssetsView({
         });
       });
       await batch.commit();
+      await recordAudit("maintenance-jobs-generated", "customer-asset", "batch", `Generated ${readyToGenerate.length} recurring maintenance job${readyToGenerate.length === 1 ? "" : "s"}`, { assetIds: readyToGenerate.map((asset) => asset.id) });
     } finally {
       setGenerating(false);
     }
@@ -3486,7 +3574,7 @@ function AssetModal({
     if (!selectedCustomer) return;
     setSaving(true);
     try {
-      await addDoc(collection(db, "customer_assets"), {
+      const created = await addDoc(collection(db, "customer_assets"), {
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         site: form.site.trim(),
@@ -3509,6 +3597,7 @@ function AssetModal({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("created", "customer-asset", created.id, `Created asset ${form.name.trim()} for ${selectedCustomer.name}`, { site: form.site, maintenanceEnabled: form.maintenanceEnabled });
       onClose();
     } finally {
       setSaving(false);
@@ -3740,6 +3829,7 @@ function ServiceRecordModal({
         lastServicedAt: form.date,
         updatedAt: serverTimestamp(),
       });
+      await recordAudit("service-recorded", "customer-asset", asset.id, `Recorded service for ${asset.name}`, { serviceDate: form.date, nextServiceDate: nextDate(), workOrderNumber: form.workOrderNumber.trim() });
       onClose();
     } finally {
       setSaving(false);
@@ -3919,7 +4009,7 @@ function CreateRecordModal({
     setError("");
     try {
       if (type === "customer") {
-        await addDoc(collection(db, "customers"), {
+        const created = await addDoc(collection(db, "customers"), {
           name: customer.name.trim(),
           contact: customer.contact.trim(),
           email: customer.email.trim(),
@@ -3930,9 +4020,11 @@ function CreateRecordModal({
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        await recordAudit("created", "customer", created.id, `Created customer ${customer.name.trim()}`, { email: customer.email.trim(), site: customer.site.trim() });
       } else {
-        await addDoc(collection(db, "jobs"), {
-          workOrderNumber: `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
+        const workOrderNumber = `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
+        const created = await addDoc(collection(db, "jobs"), {
+          workOrderNumber,
           vendorName: job.customer,
           name: job.name.trim(),
           address: job.address.trim(),
@@ -3943,6 +4035,7 @@ function CreateRecordModal({
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        await recordAudit("created", "job", created.id, `Created job ${workOrderNumber} for ${job.customer}`, { value: Number(job.value || 0), due: job.due });
       }
       onClose();
     } catch {

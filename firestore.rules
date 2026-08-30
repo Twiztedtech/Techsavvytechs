@@ -56,6 +56,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Immutable administrator and system activity history.
+    match /audit_logs/{auditId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();

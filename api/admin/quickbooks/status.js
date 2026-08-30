@@ -1,6 +1,7 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
 import { createQboCustomerInvoice, getQboInvoicePaymentLink } from '../../_lib/qbo-helper.js';
+import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -9,6 +10,11 @@ export default async function handler(req, res) {
 
   try {
     const user = await requireAdmin(req);
+    if (req.method === 'POST' && req.query?.operation === 'disconnect') {
+      await adminDb.collection('settings').doc('quickbooks').delete();
+      await writeAudit({ actor: user, action: 'disconnected', entityType: 'quickbooks', entityId: 'connection', summary: 'Disconnected QuickBooks Online', source: 'api' });
+      return res.status(200).json({ success: true });
+    }
     if (req.method === 'POST' && req.query?.operation === 'sync-invoice') {
       const invoiceId = String(req.body?.invoiceId || '').trim();
       if (!invoiceId) return res.status(400).json({ error: 'Invoice ID is required.' });
@@ -20,6 +26,7 @@ export default async function handler(req, res) {
         const linked = await getQboInvoicePaymentLink(invoice.qboSync.id);
         const qboSync = { ...invoice.qboSync, syncToken: linked.invoice?.SyncToken || invoice.qboSync.syncToken, invoiceLink: linked.invoiceLink, onlinePaymentEnabled: Boolean(linked.invoiceLink), lastSyncedAt: new Date().toISOString() };
         await invoiceRef.update({ qboSync, updatedAt: new Date().toISOString() });
+        await writeAudit({ actor: user, action: 'refreshed-payment-link', entityType: 'invoice', entityId: invoiceId, summary: `Refreshed QuickBooks payment link for ${invoice.invoiceNumber || invoiceId}`, details: { qboInvoiceId: invoice.qboSync.id }, source: 'api' });
         return res.status(200).json({ synced: true, duplicatePrevented: true, qboSync });
       }
       const customerSnapshot = await adminDb.collection('customers').where('name', '==', invoice.customer).limit(1).get();
@@ -29,6 +36,7 @@ export default async function handler(req, res) {
         const result = await createQboCustomerInvoice(invoice, customerData);
         const qboSync = { status: 'synced', id: result.invoice.Id, syncToken: result.invoice.SyncToken, customerId: result.customer.Id, itemId: result.item.Id, invoiceLink: result.invoice.InvoiceLink || null, onlinePaymentEnabled: Boolean(result.invoice.InvoiceLink), lastSyncedAt: new Date().toISOString(), error: null, syncedByUid: user.uid };
         await invoiceRef.update({ qboSync, updatedAt: new Date().toISOString() });
+        await writeAudit({ actor: user, action: 'synced', entityType: 'invoice', entityId: invoiceId, summary: `Synced ${invoice.invoiceNumber || invoiceId} to QuickBooks`, details: { qboInvoiceId: result.invoice.Id }, source: 'api' });
         return res.status(200).json({ synced: true, qboSync });
       } catch (error) {
         await invoiceRef.update({ qboSync: { status: 'error', lastAttemptAt: new Date().toISOString(), error: error.message }, updatedAt: new Date().toISOString() });

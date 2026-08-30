@@ -32,10 +32,12 @@ Last updated: 2026-08-30
 - Customer portal access is delivered by branded secure email links. Customers can view their own jobs, quotes, invoices, managed assets, recurring-maintenance dates, and submit service requests without a shared password.
 - QuickBooks-synced invoices enable hosted card/ACH payment when QuickBooks Payments returns an invoice link. Payment details remain on Intuit's hosted page; TechSavvy stores only the link and accounting status. Re-syncing an existing invoice refreshes its link without creating a duplicate.
 - Live operational reporting is available in CRM Reports. It derives job pipeline, unassigned work, average margin, quote conversion, technician workload, billed/collected totals, receivables aging, overdue invoices, and the 30-day recurring-maintenance forecast directly from Firestore. Administrators can download a timestamped CSV snapshot.
+- The CRM Audit Trail stores immutable administrator, customer-document, customer-portal, billing, scheduling, asset-maintenance, email-delivery, and QuickBooks activity. Audit records can be created and read by administrators but cannot be edited or deleted from the client.
+- QuickBooks disconnect was consolidated into the existing QuickBooks administration handler, reducing the deployment footprint to 11 API functions while preserving administrator authentication and audit logging.
 
 ## Vercel API-function allowance
 
-**Important pre-deployment constraint:** this project currently uses all **12 deployable Vercel API functions** allowed by the active project plan. Adding another standalone JavaScript file under `api/` will cause the production deployment to build successfully and then fail while Vercel packages the output.
+**Important pre-deployment constraint:** this project currently uses **11 of 12 deployable Vercel API functions** allowed by the active project plan. Only one slot remains; continue consolidating related operations instead of treating that slot as normal expansion capacity.
 
 Before adding any new API operation:
 
