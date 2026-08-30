@@ -327,6 +327,8 @@ type LiveInvoice = {
     id?: string;
     syncToken?: string;
     lastSyncedAt?: string;
+    lastReconciledAt?: string;
+    reconciliationStatus?: string;
     error?: string;
   };
   customerDelivery?: { status: string; email: string; sentAt: string };
@@ -2360,6 +2362,7 @@ function InvoicesView({
   const candidates = jobs.filter((job) => !invoicedJobs.has(job.id));
   const [syncing, setSyncing] = useState("");
   const [delivering, setDelivering] = useState("");
+  const [reconciling, setReconciling] = useState(false);
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
   const syncToQuickBooks = async (invoice: LiveInvoice) => {
@@ -2418,6 +2421,17 @@ function InvoicesView({
     } finally {
       setDelivering("");
     }
+  };
+  const reconcileInvoices = async () => {
+    setReconciling(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/admin/quickbooks/status?operation=reconcile-invoices", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "QuickBooks reconciliation failed.");
+      alert(`QuickBooks reconciliation complete: ${result.checked} checked, ${result.updated} balance${result.updated === 1 ? "" : "s"} changed.`);
+    } catch (error) { alert(error instanceof Error ? error.message : "QuickBooks reconciliation failed."); }
+    finally { setReconciling(false); }
   };
   const download = async (invoice: LiveInvoice) => {
     const { jsPDF } = await import("jspdf");
@@ -2498,6 +2512,8 @@ function InvoicesView({
             Generate billing from job labor and materials, then track collection
           </p>
         </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+        <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[10px] font-bold text-tech-green-deep disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
         <select
           defaultValue=""
           onChange={(e) => {
@@ -2516,6 +2532,7 @@ function InvoicesView({
             </option>
           ))}
         </select>
+        </div>
       </header>
       {invoices.length ? (
         <div className="overflow-x-auto">
@@ -2543,6 +2560,7 @@ function InvoicesView({
                 <tr key={invoice.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-[10px] font-bold text-tech-green-deep">
                     {invoice.invoiceNumber || invoice.id}
+                    {invoice.qboSync?.lastReconciledAt && <span className="mt-1 block font-sans text-[8px] font-normal text-slate-400">QB checked {new Date(invoice.qboSync.lastReconciledAt).toLocaleDateString()}</span>}
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[10px] font-semibold">
@@ -2561,7 +2579,7 @@ function InvoicesView({
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-1 text-[9px] ${invoice.status === "Paid" ? "bg-green-50 text-green-700" : invoice.status === "Partially Paid" ? "bg-sky-50 text-sky-700" : "bg-orange-50 text-orange-700"}`}
+                      className={`rounded-full px-2 py-1 text-[9px] ${invoice.status === "Paid" ? "bg-green-50 text-green-700" : invoice.status === "Partially Paid" ? "bg-sky-50 text-sky-700" : invoice.status === "Overdue" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}
                     >
                       {invoice.status}
                     </span>

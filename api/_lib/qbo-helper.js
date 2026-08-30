@@ -335,6 +335,56 @@ export async function getQboInvoicePaymentLink(invoiceId) {
   return { invoice, invoiceLink: invoice?.InvoiceLink || null };
 }
 
+export async function reconcileQboInvoices() {
+  const localSnapshot = await adminDb.collection("invoices").get();
+  const localInvoices = localSnapshot.docs
+    .map((doc) => ({ id: doc.id, ref: doc.ref, ...doc.data() }))
+    .filter((invoice) => invoice.qboSync?.id);
+  if (!localInvoices.length) return { checked: 0, updated: 0, changes: [] };
+
+  const { accessToken, realmId } = await getValidQboToken();
+  const query = encodeURIComponent("select * from Invoice maxresults 1000");
+  const response = await fetch(
+    `${qboCompanyBaseUrl(realmId)}/query?query=${query}&include=invoiceLink&minorversion=75`,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } },
+  );
+  if (!response.ok)
+    throw new Error("QuickBooks invoice reconciliation failed: " + (await response.text()));
+  const qboInvoices = (await response.json()).QueryResponse?.Invoice || [];
+  const byId = new Map(qboInvoices.map((invoice) => [String(invoice.Id), invoice]));
+  const now = new Date();
+  const changes = [];
+  for (const local of localInvoices) {
+    const remote = byId.get(String(local.qboSync.id));
+    if (!remote) continue;
+    const total = Number(remote.TotalAmt ?? local.total ?? 0);
+    const balance = Math.max(0, Number(remote.Balance ?? local.balance ?? total));
+    const amountPaid = Math.max(0, total - balance);
+    const remoteStatus = String(remote.invoiceStatus || "").toUpperCase();
+    const status = remoteStatus.includes("VOID") ? "Void" : balance === 0 ? "Paid" : amountPaid > 0 ? "Partially Paid" : remote.DueDate && new Date(`${remote.DueDate}T00:00:00`) < now ? "Overdue" : "Open";
+    const changed = Number(local.balance ?? local.total ?? 0) !== balance || Number(local.amountPaid || 0) !== amountPaid || local.status !== status;
+    const reconciledAt = new Date().toISOString();
+    await local.ref.update({
+      total,
+      balance,
+      amountPaid,
+      status,
+      qboSync: {
+        ...local.qboSync,
+        syncToken: remote.SyncToken || local.qboSync.syncToken,
+        invoiceLink: remote.InvoiceLink || local.qboSync.invoiceLink || null,
+        onlinePaymentEnabled: Boolean(remote.InvoiceLink || local.qboSync.invoiceLink),
+        lastReconciledAt: reconciledAt,
+        qboLastUpdatedAt: remote.MetaData?.LastUpdatedTime || null,
+        reconciliationStatus: "current",
+      },
+      updatedAt: reconciledAt,
+    });
+    if (changed) changes.push({ id: local.id, invoiceNumber: local.invoiceNumber || local.id, previousBalance: Number(local.balance ?? local.total ?? 0), balance, amountPaid, status });
+  }
+  return { checked: localInvoices.length, updated: changes.length, changes };
+}
+
 /**
  * Creates a Vendor Bill in QBO for an Approved Timecard
  */

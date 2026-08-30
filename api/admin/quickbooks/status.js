@@ -1,6 +1,6 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
-import { createQboCustomerInvoice, getQboInvoicePaymentLink } from '../../_lib/qbo-helper.js';
+import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices } from '../../_lib/qbo-helper.js';
 import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
@@ -14,6 +14,12 @@ export default async function handler(req, res) {
       await adminDb.collection('settings').doc('quickbooks').delete();
       await writeAudit({ actor: user, action: 'disconnected', entityType: 'quickbooks', entityId: 'connection', summary: 'Disconnected QuickBooks Online', source: 'api' });
       return res.status(200).json({ success: true });
+    }
+    if (req.method === 'POST' && req.query?.operation === 'reconcile-invoices') {
+      const result = await reconcileQboInvoices();
+      for (const change of result.changes) await writeAudit({ actor: user, action: 'payment-reconciled', entityType: 'invoice', entityId: change.id, summary: `QuickBooks updated ${change.invoiceNumber}: balance ${change.previousBalance} → ${change.balance}`, details: change, source: 'api' });
+      await writeAudit({ actor: user, action: 'reconciled', entityType: 'quickbooks', entityId: 'invoices', summary: `Reconciled ${result.checked} QuickBooks invoice${result.checked === 1 ? '' : 's'}; ${result.updated} balance${result.updated === 1 ? '' : 's'} changed`, details: { checked: result.checked, updated: result.updated }, source: 'api' });
+      return res.status(200).json({ success: true, ...result });
     }
     if (req.method === 'POST' && req.query?.operation === 'sync-invoice') {
       const invoiceId = String(req.body?.invoiceId || '').trim();

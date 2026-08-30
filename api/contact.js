@@ -2,6 +2,7 @@ import { adminDb } from "./_lib/firebase-admin.js";
 import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "./_lib/firebase-admin.js";
 import { writeAudit } from "./_lib/audit.js";
+import { reconcileQboInvoices } from "./_lib/qbo-helper.js";
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;
@@ -412,7 +413,14 @@ async function runReminderCycle(req, res) {
     try { results.push(await deliverReminder(candidate)); }
     catch (error) { results.push({ failed: true, error: error.message }); }
   }
-  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length });
+  let reconciliation = { skipped: true };
+  try {
+    reconciliation = await reconcileQboInvoices();
+    for (const change of reconciliation.changes) await writeAudit({ actor: { email: "Scheduled reconciliation" }, action: "payment-reconciled", entityType: "invoice", entityId: change.id, summary: `QuickBooks updated ${change.invoiceNumber}: balance ${change.previousBalance} → ${change.balance}`, details: change, source: "scheduled-reconciliation" });
+    await writeAudit({ actor: { email: "Scheduled reconciliation" }, action: "reconciled", entityType: "quickbooks", entityId: "invoices", summary: `Scheduled reconciliation checked ${reconciliation.checked} QuickBooks invoice${reconciliation.checked === 1 ? "" : "s"}; ${reconciliation.updated} balance${reconciliation.updated === 1 ? "" : "s"} changed`, details: { checked: reconciliation.checked, updated: reconciliation.updated }, source: "scheduled-reminder" });
+  }
+  catch (error) { reconciliation = { failed: true, error: error.message }; }
+  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length, reconciliation });
 }
 
 async function sendManualReminder(req, res) {

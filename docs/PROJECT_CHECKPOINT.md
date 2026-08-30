@@ -36,6 +36,7 @@ Last updated: 2026-08-30
 - QuickBooks disconnect was consolidated into the existing QuickBooks administration handler, reducing the deployment footprint to 11 API functions while preserving administrator authentication and audit logging.
 - Customer portal access management now shows active, expired, revoked, and not-invited status on customer cards. Administrators can choose 30–180 day access, renew by resending, revoke immediately, and open a separate 15-minute read-only preview that cannot submit service requests or expose live payment links.
 - Automated reminders run daily through the existing contact handler and cover next-day appointments, quotes awaiting a decision, overdue invoices, and maintenance due within 14 days. Deterministic delivery records and Resend idempotency keys prevent scheduled duplicates; administrators can send manually, review delivery results, and set per-customer reminder preferences from CRM Reminders. Every successful reminder is recorded in the Audit Trail.
+- QuickBooks payment reconciliation treats QuickBooks as the balance source for invoices already synced there. A manual **Reconcile QuickBooks** action and the protected daily cycle refresh invoice total, balance, amount paid, status, sync token, hosted payment link, and reconciliation timestamps without creating CRM payment entries. Every changed balance and reconciliation summary is recorded in the Audit Trail.
 
 ## Vercel API-function allowance
 
@@ -66,6 +67,7 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 6. Before every deployment that changes `api/`, confirm the Vercel API-function count remains at 12 or fewer and consolidate related handlers when necessary.
 7. Send a portal invite to a controlled customer, confirm customer-only data visibility, submit a service request, and test the QuickBooks hosted payment link with a sandbox or zero-risk test invoice before using it with a real customer.
 8. Before relying on automated reminders, use controlled customer records to test each reminder type and confirm delivery, secure document links, preference opt-outs, and duplicate suppression. The schedule endpoint is protected by Vercel `CRON_SECRET`.
+9. Run the first manual QuickBooks reconciliation against controlled invoices and compare CRM totals, balances, status, and Audit Trail entries with QuickBooks before treating reconciliation as the production receivables source of truth.
 
 ## Next development milestone
 
