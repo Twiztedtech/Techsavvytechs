@@ -31,6 +31,7 @@ Last updated: 2026-08-30
 - Production deployment `c87cf5b` was verified READY on Vercel. The public `/crm` route returns HTTP 200 and the consolidated QuickBooks administration endpoint is deployed behind administrator authentication.
 - Customer portal access is delivered by branded secure email links. Customers can view their own jobs, quotes, invoices, managed assets, recurring-maintenance dates, and submit service requests without a shared password.
 - QuickBooks-synced invoices enable hosted card/ACH payment when QuickBooks Payments returns an invoice link. Payment details remain on Intuit's hosted page; TechSavvy stores only the link and accounting status. Re-syncing an existing invoice refreshes its link without creating a duplicate.
+- Live operational reporting is available in CRM Reports. It derives job pipeline, unassigned work, average margin, quote conversion, technician workload, billed/collected totals, receivables aging, overdue invoices, and the 30-day recurring-maintenance forecast directly from Firestore. Administrators can download a timestamped CSV snapshot.
 
 ## Vercel API-function allowance
 
@@ -69,4 +70,3 @@ Continue operational hardening:
 - administrator audit trail for edits, approvals, and invitation delivery;
 - final mobile field test with a real work order and customer signature;
 - periodic review of QuickBooks vendor status versus portal access.
-- live operational reporting for jobs, utilization, margins, receivables, and recurring maintenance.

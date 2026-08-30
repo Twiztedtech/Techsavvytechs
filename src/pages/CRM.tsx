@@ -78,43 +78,6 @@ const modules: {
   { id: "assets", label: "Customer Assets", icon: Wrench },
   { id: "reports", label: "Reports", icon: BarChart3 },
 ];
-const lifecycle = [
-  {
-    label: "New requests",
-    value: 6,
-    icon: Inbox,
-    tone: "sky",
-    sub: "2 unassigned",
-  },
-  {
-    label: "Quotes pending",
-    value: 8,
-    icon: FileText,
-    tone: "orange",
-    sub: "$74,300",
-  },
-  {
-    label: "Jobs in progress",
-    value: 14,
-    icon: HardHat,
-    tone: "green",
-    sub: "6 on site",
-  },
-  {
-    label: "Ready to invoice",
-    value: 5,
-    icon: ReceiptText,
-    tone: "violet",
-    sub: "$21,840",
-  },
-  {
-    label: "Overdue",
-    value: 3,
-    icon: AlertTriangle,
-    tone: "red",
-    sub: "Needs action",
-  },
-];
 const resources = [
   {
     name: "Marcus Johnson",
@@ -518,6 +481,24 @@ export default function CRM() {
         ),
     [liveJobs, query],
   );
+  const liveLifecycle = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const invoicedJobs = new Set(liveInvoices.map((invoice) => invoice.jobId).filter(Boolean));
+    const newJobs = liveJobs.filter((job) => (job.status || "New") === "New");
+    const pendingQuotes = liveQuotes.filter((quote) => !["Accepted", "Rejected"].includes(quote.status));
+    const activeJobs = liveJobs.filter((job) => !["Complete", "Completed", "Closed", "Cancelled"].includes(job.status || ""));
+    const readyToInvoice = liveJobs.filter((job) => ["Complete", "Completed", "Closed"].includes(job.status || "") && !invoicedJobs.has(job.id));
+    const overdue = liveInvoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today);
+    const currency = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    return [
+      { label: "New requests", value: newJobs.length, icon: Inbox, tone: "sky", sub: `${newJobs.filter((job) => !job.assignedTechId && !job.assignedTechName).length} unassigned` },
+      { label: "Quotes pending", value: pendingQuotes.length, icon: FileText, tone: "orange", sub: currency(pendingQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0)) },
+      { label: "Jobs in progress", value: activeJobs.length, icon: HardHat, tone: "green", sub: `${activeJobs.filter((job) => job.schedule?.date).length} scheduled` },
+      { label: "Ready to invoice", value: readyToInvoice.length, icon: ReceiptText, tone: "violet", sub: currency(readyToInvoice.reduce((sum, job) => sum + Number(job.quotedValue || 0), 0)) },
+      { label: "Overdue", value: overdue.length, icon: AlertTriangle, tone: "red", sub: currency(overdue.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0)) },
+    ];
+  }, [liveInvoices, liveJobs, liveQuotes]);
   const go = (target: Module) => {
     setModule(target);
     setMobileNav(false);
@@ -677,7 +658,7 @@ export default function CRM() {
           </div>
           <div className="space-y-5 p-4 lg:p-6">
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {lifecycle.map(({ label, value, icon: Icon, tone, sub }) => (
+              {liveLifecycle.map(({ label, value, icon: Icon, tone, sub }) => (
                 <button
                   key={label}
                   className="rounded border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md"
@@ -686,7 +667,7 @@ export default function CRM() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       {label}
                     </span>
-                    <span className={`rounded border p-1.5 ${tones[tone]}`}>
+                    <span className={`rounded border p-1.5 ${tones[tone as keyof typeof tones]}`}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                   </div>
@@ -735,6 +716,14 @@ export default function CRM() {
               />
             ) : module === "assets" ? (
               <AssetsView assets={assets} onCreate={() => setAssetOpen(true)} />
+            ) : module === "reports" ? (
+              <ReportsView
+                jobs={liveJobs}
+                quotes={liveQuotes}
+                invoices={liveInvoices}
+                assets={assets}
+                technicians={technicians}
+              />
             ) : module === "dashboard" ? (
               <DashboardView jobs={jobsForTable} go={go} />
             ) : (
@@ -1119,6 +1108,140 @@ function CustomersView({
     </section>
   );
 }
+
+function ReportsView({
+  jobs,
+  quotes,
+  invoices,
+  assets,
+  technicians,
+}: {
+  jobs: LiveJob[];
+  quotes: LiveQuote[];
+  invoices: LiveInvoice[];
+  assets: CustomerAsset[];
+  technicians: Technician[];
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const money = (value = 0) =>
+    value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const accepted = quotes.filter((quote) => quote.status === "Accepted");
+  const decidedQuotes = quotes.filter((quote) => ["Accepted", "Rejected"].includes(quote.status));
+  const quoteConversion = decidedQuotes.length ? (accepted.length / decidedQuotes.length) * 100 : 0;
+  const receivables = invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.balance || 0)), 0);
+  const overdueInvoices = invoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today);
+  const overdueBalance = overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0);
+  const billed = invoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+  const collected = invoices.reduce((sum, invoice) => sum + Number(invoice.amountPaid || 0), 0);
+  const activeJobs = jobs.filter((job) => !["Complete", "Completed", "Cancelled", "Closed"].includes(job.status || ""));
+  const completedJobs = jobs.filter((job) => ["Complete", "Completed", "Closed"].includes(job.status || ""));
+  const marginJobs = jobs.filter((job) => Number.isFinite(Number(job.margin)) && Number(job.margin) !== 0);
+  const averageMargin = marginJobs.length ? marginJobs.reduce((sum, job) => sum + Number(job.margin || 0), 0) / marginJobs.length : 0;
+  const unassigned = activeJobs.filter((job) => !job.assignedTechId && !job.assignedTechName).length;
+  const maintenanceAssets = assets.filter((asset) => asset.maintenance?.enabled);
+  const dueMaintenance = maintenanceAssets.filter((asset) => asset.maintenance?.nextServiceDate && new Date(`${asset.maintenance.nextServiceDate}T00:00:00`) <= new Date(today.getTime() + 30 * 86400000));
+
+  const stages = ["New", "Scheduled", "In Progress", "Complete"].map((label) => ({
+    label,
+    value: jobs.filter((job) => {
+      const status = (job.status || "New").toLowerCase();
+      if (label === "In Progress") return status.includes("progress") || status.includes("onsite") || status.includes("on site");
+      if (label === "Complete") return status.includes("complete") || status.includes("closed");
+      return status === label.toLowerCase();
+    }).length,
+  }));
+  const maxStage = Math.max(1, ...stages.map((stage) => stage.value));
+  const workloads = technicians.map((technician) => {
+    const name = technician.name || technician.companyName || "Technician";
+    const assigned = activeJobs.filter((job) => job.assignedTechId === technician.id || job.assignedTechName === name);
+    const scheduledHours = assigned.reduce((sum, job) => sum + Number(job.estimatedHours || 0), 0);
+    return { id: technician.id, name, jobs: assigned.length, hours: scheduledHours };
+  }).sort((a, b) => b.jobs - a.jobs);
+  const aging = [
+    { label: "Current", min: -Infinity, max: 0 },
+    { label: "1–30 days", min: 1, max: 30 },
+    { label: "31–60 days", min: 31, max: 60 },
+    { label: "61+ days", min: 61, max: Infinity },
+  ].map((bucket) => ({
+    label: bucket.label,
+    value: invoices.reduce((sum, invoice) => {
+      if (!invoice.balance) return sum;
+      const due = invoice.dueDate ? new Date(`${invoice.dueDate}T00:00:00`) : today;
+      const days = Math.floor((today.getTime() - due.getTime()) / 86400000);
+      return days >= bucket.min && days <= bucket.max ? sum + Number(invoice.balance) : sum;
+    }, 0),
+  }));
+  const maxAging = Math.max(1, ...aging.map((bucket) => bucket.value));
+
+  const exportCsv = () => {
+    const rows = [
+      ["TechSavvy live operations report", new Date().toISOString()],
+      ["Active jobs", activeJobs.length],
+      ["Completed jobs", completedJobs.length],
+      ["Unassigned jobs", unassigned],
+      ["Average job margin", `${averageMargin.toFixed(1)}%`],
+      ["Quote conversion", `${quoteConversion.toFixed(1)}%`],
+      ["Total billed", billed],
+      ["Collected", collected],
+      ["Receivables", receivables],
+      ["Overdue receivables", overdueBalance],
+      ["Maintenance due within 30 days", dueMaintenance.length],
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    link.download = `techsavvy-operations-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="flex flex-col justify-between gap-3 rounded border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+        <div>
+          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-tech-green-deep"><Activity className="h-3.5 w-3.5" /> Live Firestore data</div>
+          <h2 className="mt-2 text-base font-bold">Operational performance</h2>
+          <p className="mt-1 text-[10px] text-slate-400">Updated automatically from CRM jobs, quotes, invoices, technicians and assets.</p>
+        </div>
+        <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-[#17251b] px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
+      </section>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <ReportKpi label="Active jobs" value={String(activeJobs.length)} detail={`${unassigned} unassigned`} tone={unassigned ? "orange" : "green"} />
+        <ReportKpi label="Average margin" value={`${averageMargin.toFixed(1)}%`} detail={`${marginJobs.length} costed jobs`} tone={averageMargin >= 30 ? "green" : "orange"} />
+        <ReportKpi label="Quote conversion" value={`${quoteConversion.toFixed(1)}%`} detail={`${accepted.length} accepted of ${decidedQuotes.length} decided`} tone="sky" />
+        <ReportKpi label="Receivables" value={money(receivables)} detail={`${money(overdueBalance)} overdue`} tone={overdueBalance ? "red" : "green"} />
+        <ReportKpi label="Maintenance due" value={String(dueMaintenance.length)} detail={`Next 30 days · ${maintenanceAssets.length} plans`} tone={dueMaintenance.length ? "violet" : "green"} />
+      </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ReportPanel title="Job pipeline" subtitle={`${jobs.length} total work orders`}>
+          <div className="space-y-4">{stages.map((stage) => <ReportBar key={stage.label} label={stage.label} value={stage.value} width={(stage.value / maxStage) * 100} display={String(stage.value)} />)}</div>
+        </ReportPanel>
+        <ReportPanel title="Accounts receivable aging" subtitle={`${money(collected)} collected of ${money(billed)} billed`}>
+          <div className="space-y-4">{aging.map((bucket) => <ReportBar key={bucket.label} label={bucket.label} value={bucket.value} width={(bucket.value / maxAging) * 100} display={money(bucket.value)} danger={bucket.label === "61+ days" && bucket.value > 0} />)}</div>
+        </ReportPanel>
+        <ReportPanel title="Technician workload" subtitle="Active assigned work and estimated hours">
+          {workloads.length ? <div className="divide-y divide-slate-100">{workloads.slice(0, 8).map((tech) => <div key={tech.id} className="flex items-center justify-between py-3"><div><p className="text-[11px] font-bold">{tech.name}</p><p className="text-[9px] text-slate-400">{tech.hours ? `${tech.hours.toFixed(1)} estimated hours` : "Hours not estimated"}</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${tech.jobs >= 5 ? "bg-red-100 text-red-700" : tech.jobs ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-500"}`}>{tech.jobs} jobs</span></div>)}</div> : <ReportEmpty text="No technician records are available." />}
+        </ReportPanel>
+        <ReportPanel title="Maintenance forecast" subtitle="Recurring customer service due within 30 days">
+          {dueMaintenance.length ? <div className="divide-y divide-slate-100">{dueMaintenance.slice(0, 8).map((asset) => <div key={asset.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-[11px] font-bold">{asset.name}</p><p className="text-[9px] text-slate-400">{asset.customerName} · {asset.site}</p></div><span className="whitespace-nowrap text-[9px] font-bold text-tech-green-deep">{asset.maintenance?.nextServiceDate}</span></div>)}</div> : <ReportEmpty text="No recurring maintenance is due in the next 30 days." />}
+        </ReportPanel>
+      </div>
+      {overdueInvoices.length > 0 && <ReportPanel title="Receivables requiring attention" subtitle={`${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`}><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left"><thead className="bg-slate-50 text-[9px] uppercase text-slate-400"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-slate-100">{overdueInvoices.map((invoice) => <tr key={invoice.id}><td className="px-3 py-3 text-[10px] font-bold">{invoice.invoiceNumber || invoice.id}</td><td className="px-3 py-3 text-[10px]">{invoice.customer}</td><td className="px-3 py-3 text-[10px] text-red-600">{invoice.dueDate}</td><td className="px-3 py-3 text-right text-[10px] font-bold">{money(invoice.balance)}</td></tr>)}</tbody></table></div></ReportPanel>}
+    </div>
+  );
+}
+
+function ReportKpi({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: keyof typeof tones }) {
+  return <section className="rounded border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p><span className={`h-2 w-2 rounded-full border ${tones[tone]}`} /></div><p className="mt-3 font-display text-xl">{value}</p><p className="mt-1 text-[9px] text-slate-400">{detail}</p></section>;
+}
+function ReportPanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><header className="mb-5 border-b border-slate-100 pb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-[9px] text-slate-400">{subtitle}</p></header>{children}</section>;
+}
+function ReportBar({ label, width, display, danger = false }: { label: string; value: number; width: number; display: string; danger?: boolean }) {
+  return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-tech-green"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
+}
+function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-[10px] text-slate-400">{text}</div>; }
 
 function WorkModuleView({
   module,
