@@ -46,6 +46,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Customer invoices and payment records are restricted to CRM admins.
+    match /invoices/{invoiceId} {
+      allow read, write: if isAdmin();
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();
