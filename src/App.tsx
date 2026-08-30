@@ -33,6 +33,7 @@ const ContractorDashboard = lazy(() => import("./pages/ContractorDashboard"));
 const ContractorOnboarding = lazy(() => import("./pages/ContractorOnboarding"));
 const CRM = lazy(() => import("./pages/CRM"));
 const CustomerDocument = lazy(() => import("./pages/CustomerDocument"));
+const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -54,7 +55,7 @@ export default function App() {
 function AppShell() {
   const { pathname } = useLocation();
   const isContractorPortal = pathname.startsWith("/contractor");
-  const isSecureCustomerDocument = pathname === "/customer/document";
+  const isSecureCustomerDocument = pathname.startsWith("/customer/");
 
   return (
     <>
@@ -106,6 +107,14 @@ function AppShell() {
                   }
                 >
                   <CustomerDocument />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/customer/portal"
+              element={
+                <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading customer portal…</div>}>
+                  <CustomerPortal />
                 </Suspense>
               }
             />

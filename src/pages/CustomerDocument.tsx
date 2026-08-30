@@ -18,6 +18,7 @@ type CustomerDocumentData = {
   issueDate: string;
   dueDate: string;
   customerMessage: string;
+  paymentLink?: string;
 };
 
 export default function CustomerDocument() {
@@ -239,6 +240,19 @@ export default function CustomerDocument() {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+          {type === "invoice" && document.balance > 0 && (
+            <div className="mt-7 border-t border-slate-200 pt-6">
+              {document.paymentLink ? (
+                <a href={document.paymentLink} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded bg-tech-green px-5 py-3 text-xs font-bold text-brand-black">
+                  Pay securely with QuickBooks
+                </a>
+              ) : (
+                <p className="rounded bg-slate-50 p-4 text-xs text-slate-500">
+                  Online payment is not enabled for this invoice yet. Contact TechSavvy for payment assistance.
+                </p>
               )}
             </div>
           )}

@@ -1,6 +1,6 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
-import { createQboCustomerInvoice } from '../../_lib/qbo-helper.js';
+import { createQboCustomerInvoice, getQboInvoicePaymentLink } from '../../_lib/qbo-helper.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -16,13 +16,18 @@ export default async function handler(req, res) {
       const invoiceSnapshot = await invoiceRef.get();
       if (!invoiceSnapshot.exists) return res.status(404).json({ error: 'Invoice not found.' });
       const invoice = { id: invoiceSnapshot.id, ...invoiceSnapshot.data() };
-      if (invoice.qboSync?.id) return res.status(200).json({ synced: true, duplicatePrevented: true, qboSync: invoice.qboSync });
+      if (invoice.qboSync?.id) {
+        const linked = await getQboInvoicePaymentLink(invoice.qboSync.id);
+        const qboSync = { ...invoice.qboSync, syncToken: linked.invoice?.SyncToken || invoice.qboSync.syncToken, invoiceLink: linked.invoiceLink, onlinePaymentEnabled: Boolean(linked.invoiceLink), lastSyncedAt: new Date().toISOString() };
+        await invoiceRef.update({ qboSync, updatedAt: new Date().toISOString() });
+        return res.status(200).json({ synced: true, duplicatePrevented: true, qboSync });
+      }
       const customerSnapshot = await adminDb.collection('customers').where('name', '==', invoice.customer).limit(1).get();
       const customerData = customerSnapshot.empty ? { name: invoice.customer, address: invoice.site } : { name: invoice.customer, ...customerSnapshot.docs[0].data(), address: invoice.site };
       await invoiceRef.update({ qboSync: { status: 'syncing', lastAttemptAt: new Date().toISOString(), error: null }, updatedAt: new Date().toISOString() });
       try {
         const result = await createQboCustomerInvoice(invoice, customerData);
-        const qboSync = { status: 'synced', id: result.invoice.Id, syncToken: result.invoice.SyncToken, customerId: result.customer.Id, itemId: result.item.Id, lastSyncedAt: new Date().toISOString(), error: null, syncedByUid: user.uid };
+        const qboSync = { status: 'synced', id: result.invoice.Id, syncToken: result.invoice.SyncToken, customerId: result.customer.Id, itemId: result.item.Id, invoiceLink: result.invoice.InvoiceLink || null, onlinePaymentEnabled: Boolean(result.invoice.InvoiceLink), lastSyncedAt: new Date().toISOString(), error: null, syncedByUid: user.uid };
         await invoiceRef.update({ qboSync, updatedAt: new Date().toISOString() });
         return res.status(200).json({ synced: true, qboSync });
       } catch (error) {

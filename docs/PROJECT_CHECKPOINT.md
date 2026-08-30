@@ -29,6 +29,8 @@ Last updated: 2026-08-30
 - CRM jobs and technician assignments use the same `jobs` and `contractors` collections as the contractor portal, preventing duplicate operational records.
 - QuickBooks customer-invoice export uses the existing server-side OAuth connection. It creates or resolves the customer and Product/Service item, stores the QuickBooks ID and sync token, reports sync errors, and prevents duplicate exports on retry.
 - Production deployment `c87cf5b` was verified READY on Vercel. The public `/crm` route returns HTTP 200 and the consolidated QuickBooks administration endpoint is deployed behind administrator authentication.
+- Customer portal access is delivered by branded secure email links. Customers can view their own jobs, quotes, invoices, managed assets, recurring-maintenance dates, and submit service requests without a shared password.
+- QuickBooks-synced invoices enable hosted card/ACH payment when QuickBooks Payments returns an invoice link. Payment details remain on Intuit's hosted page; TechSavvy stores only the link and accounting status. Re-syncing an existing invoice refreshes its link without creating a duplicate.
 
 ## Vercel API-function allowance
 
@@ -57,6 +59,7 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 4. Test onboarding with a controlled contractor account: upload a sample PDF W-9, confirm the administrator can review it, request an update, and approve the replacement.
 5. Create a controlled CRM invoice and use **Sync QB** to verify the first production customer/invoice export, Product/Service mapping, stored QuickBooks ID, and duplicate protection. Do not use a real customer invoice for the first test.
 6. Before every deployment that changes `api/`, confirm the Vercel API-function count remains at 12 or fewer and consolidate related handlers when necessary.
+7. Send a portal invite to a controlled customer, confirm customer-only data visibility, submit a service request, and test the QuickBooks hosted payment link with a sandbox or zero-risk test invoice before using it with a real customer.
 
 ## Next development milestone
 
@@ -66,3 +69,4 @@ Continue operational hardening:
 - administrator audit trail for edits, approvals, and invitation delivery;
 - final mobile field test with a real work order and customer signature;
 - periodic review of QuickBooks vendor status versus portal access.
+- live operational reporting for jobs, utilization, margins, receivables, and recurring maintenance.

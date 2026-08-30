@@ -281,6 +281,7 @@ type LiveCustomer = {
   sites?: string[];
   assets?: number;
   lifetimeValue?: number;
+  portalDelivery?: { status: string; email: string; sentAt: string };
 };
 type LiveJob = {
   id: string;
@@ -1029,6 +1030,25 @@ function CustomersView({
   jobs: LiveJob[];
   onCreate: () => void;
 }) {
+  const [inviting, setInviting] = useState("");
+  const invite = async (customer: LiveCustomer) => {
+    setInviting(customer.id);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=send-customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerId: customer.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
+      alert(`Customer portal sent to ${result.email}.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Portal invitation could not be sent.");
+    } finally {
+      setInviting("");
+    }
+  };
   return (
     <section className="rounded border border-slate-200 bg-white shadow-sm">
       <header className="flex items-center justify-between border-b border-slate-100 p-4">
@@ -1078,6 +1098,13 @@ function CustomersView({
                     ${(c.lifetimeValue || 0).toLocaleString()}
                   </b>
                 </div>
+                <button
+                  onClick={() => void invite(c)}
+                  disabled={inviting === c.id || !c.email}
+                  className="mt-3 w-full rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-tech-green-deep disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {inviting === c.id ? "Sending…" : c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
+                </button>
               </article>
             );
           })}

@@ -283,6 +283,12 @@ export async function createQboCustomerInvoice(invoice, customer) {
     },
     Line: lines,
   };
+  if (customer.email) {
+    payload.BillEmail = { Address: customer.email };
+    payload.AllowOnlinePayment = true;
+    payload.AllowOnlineCreditCardPayment = true;
+    payload.AllowOnlineACHPayment = true;
+  }
   const response = await fetch(`${baseUrl}/invoice`, {
     method: "POST",
     headers: {
@@ -296,11 +302,37 @@ export async function createQboCustomerInvoice(invoice, customer) {
     throw new Error(
       "QuickBooks invoice export failed: " + (await response.text()),
     );
+  const createdInvoice = (await response.json()).Invoice;
+  let linkedInvoice = createdInvoice;
+  if (createdInvoice?.Id) {
+    const linkedResponse = await fetch(
+      `${baseUrl}/invoice/${createdInvoice.Id}?include=invoiceLink&minorversion=75`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+        },
+      },
+    );
+    if (linkedResponse.ok) linkedInvoice = (await linkedResponse.json()).Invoice;
+  }
   return {
-    invoice: (await response.json()).Invoice,
+    invoice: linkedInvoice,
     customer: qboCustomer,
     item,
   };
+}
+
+export async function getQboInvoicePaymentLink(invoiceId) {
+  const { accessToken, realmId } = await getValidQboToken();
+  const response = await fetch(
+    `${qboCompanyBaseUrl(realmId)}/invoice/${invoiceId}?include=invoiceLink&minorversion=75`,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } },
+  );
+  if (!response.ok)
+    throw new Error("QuickBooks invoice link lookup failed: " + (await response.text()));
+  const invoice = (await response.json()).Invoice;
+  return { invoice, invoiceLink: invoice?.InvoiceLink || null };
 }
 
 /**
