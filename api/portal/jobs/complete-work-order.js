@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
     const completed = Array.isArray(job.data().signedWorkOrders) ? job.data().signedWorkOrders : [];
     const workOrder = { id: `signed-${Date.now()}`, fileName, url, completedAt, technicianName, customerName };
-    await jobRef.set({ signedWorkOrders: [...completed, workOrder], updatedAt: new Date().toISOString() }, { merge: true });
+    await jobRef.set({ signedWorkOrders: [...completed, workOrder], signatureStatus: 'signed', signatureReceivedAt: completedAt, updatedAt: new Date().toISOString() }, { merge: true });
     return res.status(200).json({ success: true, workOrder });
   } catch (error) {
     if (error.message === 'Authentication required.') return res.status(403).json({ error: error.message });

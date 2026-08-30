@@ -335,6 +335,45 @@ export default async function handler(req, res) {
       const travelCost = Number(req.body?.travelCost) || 0;
       const notes = req.body?.notes || '';
       const photos = Array.isArray(req.body?.photos) ? req.body.photos : [];
+      const completionIntent = req.body?.completionIntent === 'final' ? 'final' : 'progress';
+      const allowedExceptionReasons = new Set(['customer_unavailable', 'customer_declined', 'remote_unattended', 'not_required_for_visit', 'other']);
+      const signatureExceptionReason = allowedExceptionReasons.has(req.body?.signatureExceptionReason) ? req.body.signatureExceptionReason : '';
+      const signatureExceptionNotes = cleanReason(req.body?.signatureExceptionNotes);
+
+      let assignedJob = null;
+      if (jobId) {
+        assignedJob = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId) || null;
+        if (!assignedJob) return res.status(403).json({ error: 'You are not assigned to this work order.' });
+        if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
+          return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
+        }
+      }
+
+      let completionUpdate = null;
+      if (completionIntent === 'final') {
+        if (!assignedJob) return res.status(422).json({ error: 'An administrator-issued work order is required for final completion.' });
+        const job = assignedJob.data();
+        const hasSignedWorkOrder = Array.isArray(job.signedWorkOrders) && job.signedWorkOrders.length > 0;
+        if (job.signatureRequired === true && !hasSignedWorkOrder) {
+          return res.status(409).json({ error: 'The administrator requires a signed work order before this job can be completed.' });
+        }
+        if (!hasSignedWorkOrder && !signatureExceptionReason) {
+          return res.status(422).json({ error: 'Obtain the customer signature or document why it was not needed or available.' });
+        }
+        if (!hasSignedWorkOrder && signatureExceptionReason === 'other' && !signatureExceptionNotes) {
+          return res.status(422).json({ error: 'Explain the customer-signature exception.' });
+        }
+        const completedAt = new Date().toISOString();
+        completionUpdate = {
+          status: 'completed',
+          completionStatus: 'completed',
+          completedAt,
+          completedByUid: user.uid,
+          signatureStatus: hasSignedWorkOrder ? 'signed' : 'technician_exception',
+          updatedAt: completedAt,
+          ...(!hasSignedWorkOrder ? { signatureException: { reason: signatureExceptionReason, notes: signatureExceptionNotes, technicianUid: user.uid, createdAt: completedAt } } : {}),
+        };
+      }
 
       const now = new Date();
       const entry = {
@@ -357,14 +396,31 @@ export default async function handler(req, res) {
         status: 'pending',
         qbStatus: 'pending',
         photos,
+        completionIntent,
+        signatureDisposition: completionIntent === 'final' ? (completionUpdate?.signatureStatus || 'signed') : 'not_applicable',
+        ...(completionIntent === 'final' && completionUpdate?.signatureStatus === 'technician_exception' ? { signatureExceptionReason, signatureExceptionNotes } : {}),
         technicianUid: user.uid,
         active: false,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
 
-      const created = await adminDb.collection('time_entries').add(entry);
-      return res.status(201).json({ entry: { id: created.id, ...entry } });
+      const entryRef = adminDb.collection('time_entries').doc();
+      const batch = adminDb.batch();
+      batch.set(entryRef, entry);
+      if (assignedJob && completionUpdate) batch.set(assignedJob.ref, completionUpdate, { merge: true });
+      await batch.commit();
+
+      if (assignedJob && completionUpdate?.signatureStatus === 'technician_exception') {
+        await sendPortalNotice({
+          to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
+          subject: `Customer signature exception: ${assignedJob.data().name || jobSite || 'completed work order'}`,
+          heading: 'Work order completed without customer signature',
+          message: 'A technician used the permitted exception workflow. Review the reason in the administrator work-order record.',
+          details: [['Work order', assignedJob.data().workOrderNumber || assignedJob.id], ['Job', assignedJob.data().name || jobSite || 'Unknown'], ['Reason', signatureExceptionReason], ['Notes', signatureExceptionNotes || 'None provided']],
+        });
+      }
+      return res.status(201).json({ entry: { id: entryRef.id, ...entry }, ...(assignedJob && completionUpdate ? { job: { id: assignedJob.id, ...assignedJob.data(), ...completionUpdate } } : {}) });
     }
 
     if (action === 'approve_item') {
