@@ -61,6 +61,18 @@ Before adding any new API operation:
 
 If the application outgrows safe handler consolidation, upgrade the Vercel plan or move grouped operations behind a single router before adding more standalone functions.
 
+## Dependency maintenance deadline
+
+Complete the Firebase dependency and lockfile cleanup **by September 30, 2026**. Do it sooner if any work changes Firebase Authentication, Firestore, Storage, Firebase Admin initialization, or the Vercel Node.js runtime.
+
+The maintenance phase must:
+
+1. Upgrade `firebase-admin` from `12.7.0` to a supported current release in a dedicated branch.
+2. Confirm whether the Node `DEP0169` `url.parse()` warning disappears; if it remains, trace it to the exact transitive package or Vercel runtime layer.
+3. Re-test administrator login, contractor invitations, activation/suspension, session revocation, W-9 storage, Firestore reads/writes, customer links, scheduled reminders, and QuickBooks operations.
+4. Run TypeScript, production build, mobile workflow, health endpoint, and post-deployment runtime-log checks before promotion.
+5. Remove the obsolete uncommitted `package-lock.json` only after confirming `pnpm-lock.yaml` remains the single deployment lockfile.
+
 ## Confirm on the next session
 
 1. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock. Suspend that test account while signed in, confirm the session loses API access, reactivate it, and verify sign-in returns.
@@ -78,7 +90,8 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 
 Continue operational hardening:
 
-- administrator audit trail for edits, approvals, and invitation delivery;
-- final mobile field test with a real work order and customer signature;
-- periodic review of QuickBooks vendor status versus portal access;
-- review Web Analytics and Speed Insights after enough real production traffic has accumulated.
+1. Controlled end-to-end production acceptance test using dedicated technician and customer test accounts.
+2. Complete administrator audit coverage for record edits, approvals, and invitation-delivery changes.
+3. Add periodic QuickBooks vendor-status versus portal-access review.
+4. Review Web Analytics and Speed Insights after enough real production traffic has accumulated.
+5. Complete the dependency maintenance phase by September 30, 2026.
