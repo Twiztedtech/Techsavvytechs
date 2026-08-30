@@ -34,6 +34,7 @@ Last updated: 2026-08-30
 - Live operational reporting is available in CRM Reports. It derives job pipeline, unassigned work, average margin, quote conversion, technician workload, billed/collected totals, receivables aging, overdue invoices, and the 30-day recurring-maintenance forecast directly from Firestore. Administrators can download a timestamped CSV snapshot.
 - The CRM Audit Trail stores immutable administrator, customer-document, customer-portal, billing, scheduling, asset-maintenance, email-delivery, and QuickBooks activity. Audit records can be created and read by administrators but cannot be edited or deleted from the client.
 - QuickBooks disconnect was consolidated into the existing QuickBooks administration handler, reducing the deployment footprint to 11 API functions while preserving administrator authentication and audit logging.
+- Customer portal access management now shows active, expired, revoked, and not-invited status on customer cards. Administrators can choose 30–180 day access, renew by resending, revoke immediately, and open a separate 15-minute read-only preview that cannot submit service requests or expose live payment links.
 
 ## Vercel API-function allowance
 

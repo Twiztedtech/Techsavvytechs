@@ -192,7 +192,9 @@ async function sendCustomerPortal(req, res) {
   const rawToken = randomBytes(32).toString("base64url");
   const hash = tokenHash(rawToken);
   const createdAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 90 * 86400000).toISOString();
+  const requestedDays = Number(req.body?.expiresInDays || 90);
+  const expiresInDays = Math.min(365, Math.max(7, Number.isFinite(requestedDays) ? requestedDays : 90));
+  const expiresAt = new Date(Date.now() + expiresInDays * 86400000).toISOString();
   await adminDb.collection("customer_portal_tokens").doc(hash).set({
     customerId,
     customerName: customer.name,
@@ -230,6 +232,33 @@ async function sendCustomerPortal(req, res) {
   return res.status(200).json({ success: true, email, expiresAt });
 }
 
+async function manageCustomerPortal(req, res) {
+  const user = await requireAdmin(req);
+  const customerId = String(req.body?.customerId || "").trim();
+  const action = req.body?.action;
+  if (!customerId || !["preview", "revoke"].includes(action))
+    return res.status(400).json({ error: "A valid customer portal action is required." });
+  const customerRef = adminDb.collection("customers").doc(customerId);
+  const customerSnapshot = await customerRef.get();
+  if (!customerSnapshot.exists)
+    return res.status(404).json({ error: "The customer was not found." });
+  const customer = customerSnapshot.data();
+  if (action === "revoke") {
+    const revokedAt = new Date().toISOString();
+    await customerRef.set({ portalDelivery: { ...(customer.portalDelivery || {}), status: "revoked", tokenHash: null, revokedAt, revokedByUid: user.uid }, updatedAt: revokedAt }, { merge: true });
+    await writeAudit({ actor: user, action: "portal-revoked", entityType: "customer", entityId: customerId, summary: `Revoked customer portal access for ${customer.name}`, source: "api" });
+    return res.status(200).json({ success: true, status: "revoked" });
+  }
+  const rawToken = randomBytes(32).toString("base64url");
+  const hash = tokenHash(rawToken);
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 15 * 60000).toISOString();
+  await adminDb.collection("customer_portal_tokens").doc(hash).set({ customerId, customerName: customer.name, email: user.email || user.token?.email || "Administrator", preview: true, createdAt, expiresAt, createdByUid: user.uid });
+  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+  await writeAudit({ actor: user, action: "portal-previewed", entityType: "customer", entityId: customerId, summary: `Opened administrator portal preview for ${customer.name}`, details: { expiresAt }, source: "api" });
+  return res.status(200).json({ success: true, url: `${appUrl}/customer/portal?preview=1&token=${encodeURIComponent(rawToken)}`, expiresAt });
+}
+
 async function getPortalAccess(rawToken) {
   const hash = rawToken ? tokenHash(rawToken) : "";
   const tokenSnapshot = hash ? await adminDb.collection("customer_portal_tokens").doc(hash).get() : null;
@@ -237,7 +266,7 @@ async function getPortalAccess(rawToken) {
   if (!tokenSnapshot?.exists || !access || access.expiresAt < new Date().toISOString())
     throw Object.assign(new Error("This customer portal link is invalid or has expired."), { statusCode: 410 });
   const customerSnapshot = await adminDb.collection("customers").doc(access.customerId).get();
-  if (!customerSnapshot.exists || customerSnapshot.data()?.portalDelivery?.tokenHash !== hash)
+  if (!customerSnapshot.exists || (!access.preview && customerSnapshot.data()?.portalDelivery?.tokenHash !== hash))
     throw Object.assign(new Error("A newer customer portal link has replaced this one."), { statusCode: 410 });
   return { access, customerSnapshot };
 }
@@ -262,13 +291,14 @@ async function loadCustomerPortal(req, res) {
   });
   const invoices = invoicesSnapshot.docs.map((doc) => {
     const value = doc.data();
-    return { id: doc.id, number: value.invoiceNumber || doc.id, status: value.status || "Open", issueDate: value.issueDate || "", dueDate: value.dueDate || "", total: Number(value.total || 0), balance: Number(value.balance ?? value.total ?? 0), paymentLink: value.qboSync?.invoiceLink || null, onlinePaymentEnabled: Boolean(value.qboSync?.invoiceLink) };
+    return { id: doc.id, number: value.invoiceNumber || doc.id, status: value.status || "Open", issueDate: value.issueDate || "", dueDate: value.dueDate || "", total: Number(value.total || 0), balance: Number(value.balance ?? value.total ?? 0), paymentLink: access.preview ? null : value.qboSync?.invoiceLink || null, onlinePaymentEnabled: !access.preview && Boolean(value.qboSync?.invoiceLink) };
   });
   const assets = assetsSnapshot.docs.map((doc) => {
     const value = doc.data();
     return { id: doc.id, name: value.name || "Customer asset", site: value.site || "", category: value.category || "Equipment", manufacturer: value.manufacturer || "", model: value.model || "", serialNumber: value.serialNumber || "", status: value.status || "Active", nextServiceDate: value.maintenance?.enabled ? value.maintenance?.nextServiceDate || "" : "" };
   });
   return res.status(200).json({
+    preview: Boolean(access.preview),
     customer: { id: customerSnapshot.id, name: customer.name, contact: customer.contact || "", email: access.email, phone: customer.phone || "", sites: customer.sites || [] },
     jobs,
     quotes,
@@ -280,6 +310,8 @@ async function loadCustomerPortal(req, res) {
 async function createPortalServiceRequest(req, res) {
   const rawToken = typeof req.body?.token === "string" ? req.body.token : "";
   const { access, customerSnapshot } = await getPortalAccess(rawToken);
+  if (access.preview)
+    return res.status(403).json({ error: "Administrator preview is read-only." });
   const subject = String(req.body?.subject || "").trim().slice(0, 120);
   const message = String(req.body?.message || "").trim().slice(0, 3000);
   const site = String(req.body?.site || "").trim().slice(0, 250);
@@ -425,6 +457,14 @@ async function respondToQuote(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (req.query?.operation === "manage-customer-portal" && req.method === "POST") {
+    try { return await manageCustomerPortal(req, res); }
+    catch (error) {
+      if (error.message === "Authentication required." || error.message === "Administrator access required.") return res.status(403).json({ error: error.message });
+      console.error("Customer portal management failed:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message || "Customer portal management failed." });
+    }
+  }
   if (req.query?.operation === "send-customer-portal" && req.method === "POST") {
     try { return await sendCustomerPortal(req, res); }
     catch (error) {

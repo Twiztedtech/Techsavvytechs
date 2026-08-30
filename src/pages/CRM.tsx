@@ -246,7 +246,7 @@ type LiveCustomer = {
   sites?: string[];
   assets?: number;
   lifetimeValue?: number;
-  portalDelivery?: { status: string; email: string; sentAt: string };
+  portalDelivery?: { status: string; email: string; sentAt: string; expiresAt?: string; revokedAt?: string };
 };
 type LiveJob = {
   id: string;
@@ -1062,6 +1062,8 @@ function CustomersView({
   onCreate: () => void;
 }) {
   const [inviting, setInviting] = useState("");
+  const [managing, setManaging] = useState("");
+  const [portalDays, setPortalDays] = useState(90);
   const invite = async (customer: LiveCustomer) => {
     setInviting(customer.id);
     try {
@@ -1069,7 +1071,7 @@ function CustomersView({
       const response = await fetch("/api/contact?operation=send-customer-portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId: customer.id }),
+        body: JSON.stringify({ customerId: customer.id, expiresInDays: portalDays }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
@@ -1080,16 +1082,35 @@ function CustomersView({
       setInviting("");
     }
   };
+  const managePortal = async (customer: LiveCustomer, action: "preview" | "revoke") => {
+    if (action === "revoke" && !confirm(`Revoke portal access for ${customer.name}? Their current link will stop working immediately.`)) return;
+    setManaging(`${action}-${customer.id}`);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=manage-customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerId: customer.id, action }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Portal access could not be updated.");
+      if (action === "preview") window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Portal access could not be updated.");
+    } finally {
+      setManaging("");
+    }
+  };
   return (
     <section className="rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex items-center justify-between border-b border-slate-100 p-4">
+      <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-sm font-bold">Customer card files</h2>
           <p className="text-[10px] text-slate-400">
             Live contacts, sites, assets and transaction history
           </p>
         </div>
-        <Building2 className="h-4 w-4 text-tech-green-deep" />
+        <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-400">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-slate-200 px-2 py-1.5 text-[10px] font-semibold normal-case text-slate-700"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
       </header>
       {records.length ? (
         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1109,6 +1130,13 @@ function CustomersView({
                 <p className="text-[10px] text-slate-400">
                   Primary: {c.contact || "Not set"}
                 </p>
+                {(() => {
+                  const expiresAt = c.portalDelivery?.expiresAt;
+                  const expired = Boolean(expiresAt && expiresAt < new Date().toISOString());
+                  const revoked = c.portalDelivery?.status === "revoked";
+                  const active = c.portalDelivery?.status === "sent" && !expired;
+                  return <div className="mt-3 flex items-center justify-between rounded bg-slate-50 px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-green-700" : revoked ? "text-red-600" : "text-slate-400"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-slate-400">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
+                })()}
                 <div className="mt-4 grid grid-cols-3 border-y border-slate-100 py-3 text-center">
                   <div>
                     <b className="block text-xs">{c.sites?.length || 0}</b>
@@ -1136,6 +1164,10 @@ function CustomersView({
                 >
                   {inviting === c.id ? "Sending…" : c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
                 </button>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-slate-200 px-2 py-2 text-[8px] font-bold uppercase text-slate-600 disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
+                  <button onClick={() => void managePortal(c, "revoke")} disabled={managing === `revoke-${c.id}` || c.portalDelivery?.status !== "sent"} className="rounded border border-red-200 px-2 py-2 text-[8px] font-bold uppercase text-red-600 disabled:opacity-30">{managing === `revoke-${c.id}` ? "Revoking…" : "Revoke access"}</button>
+                </div>
               </article>
             );
           })}
