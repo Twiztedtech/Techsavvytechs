@@ -51,6 +51,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Installed customer equipment and its recurring maintenance schedule.
+    match /customer_assets/{assetId} {
+      allow read, write: if isAdmin();
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();

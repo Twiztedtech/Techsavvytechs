@@ -43,6 +43,7 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import {
   onAuthStateChanged,
@@ -359,6 +360,34 @@ type LiveInvoice = {
     error?: string;
   };
 };
+type CustomerAsset = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  site: string;
+  name: string;
+  category: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  installDate?: string;
+  warrantyExpiration?: string;
+  status: "Active" | "Out of Service" | "Retired";
+  maintenance?: {
+    enabled: boolean;
+    frequencyMonths: number;
+    nextServiceDate: string;
+    description: string;
+    estimatedHours: number;
+  };
+  lastGeneratedDueDate?: string;
+  serviceHistory?: {
+    date: string;
+    jobId?: string;
+    workOrderNumber?: string;
+    notes?: string;
+  }[];
+};
 
 export default function CRM() {
   const [module, setModule] = useState<Module>("dashboard");
@@ -375,6 +404,7 @@ export default function CRM() {
   const [liveQuotes, setLiveQuotes] = useState<LiveQuote[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
+  const [assets, setAssets] = useState<CustomerAsset[]>([]);
   const [createType, setCreateType] = useState<"customer" | "job" | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
@@ -383,6 +413,7 @@ export default function CRM() {
   const [paymentInvoice, setPaymentInvoice] = useState<LiveInvoice | null>(
     null,
   );
+  const [assetOpen, setAssetOpen] = useState(false);
   const currentLabel = modules.find((item) => item.id === module)?.label;
   useEffect(
     () =>
@@ -442,12 +473,22 @@ export default function CRM() {
         ),
       ),
     );
+    const stopAssets = onSnapshot(
+      collection(db, "customer_assets"),
+      (snapshot) =>
+        setAssets(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as CustomerAsset,
+          ),
+        ),
+    );
     return () => {
       stopCustomers();
       stopJobs();
       stopQuotes();
       stopTechnicians();
       stopInvoices();
+      stopAssets();
     };
   }, [access]);
   const jobsForTable = useMemo(
@@ -689,6 +730,8 @@ export default function CRM() {
                 onCreate={setInvoiceJob}
                 onPayment={setPaymentInvoice}
               />
+            ) : module === "assets" ? (
+              <AssetsView assets={assets} onCreate={() => setAssetOpen(true)} />
             ) : module === "dashboard" ? (
               <DashboardView jobs={jobsForTable} go={go} />
             ) : (
@@ -730,6 +773,12 @@ export default function CRM() {
         <PaymentModal
           invoice={paymentInvoice}
           onClose={() => setPaymentInvoice(null)}
+        />
+      )}
+      {assetOpen && (
+        <AssetModal
+          customers={liveCustomers}
+          onClose={() => setAssetOpen(false)}
         />
       )}
     </div>
@@ -1949,15 +1998,26 @@ function InvoicesView({
     setSyncing(invoice.id);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch("/api/admin/quickbooks/status?operation=sync-invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ invoiceId: invoice.id }),
-      });
+      const response = await fetch(
+        "/api/admin/quickbooks/status?operation=sync-invoice",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ invoiceId: invoice.id }),
+        },
+      );
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "QuickBooks synchronization failed.");
+      if (!response.ok)
+        throw new Error(result.error || "QuickBooks synchronization failed.");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "QuickBooks synchronization failed.");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "QuickBooks synchronization failed.",
+      );
     } finally {
       setSyncing("");
     }
@@ -2121,12 +2181,22 @@ function InvoicesView({
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button
-                        disabled={syncing === invoice.id || invoice.qboSync?.status === "synced"}
+                        disabled={
+                          syncing === invoice.id ||
+                          invoice.qboSync?.status === "synced"
+                        }
                         onClick={() => void syncToQuickBooks(invoice)}
-                        title={invoice.qboSync?.error || "Export to QuickBooks Online"}
+                        title={
+                          invoice.qboSync?.error ||
+                          "Export to QuickBooks Online"
+                        }
                         className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[9px] font-bold text-emerald-700 disabled:opacity-50"
                       >
-                        {invoice.qboSync?.status === "synced" ? "QB synced" : syncing === invoice.id ? "Syncing…" : "Sync QB"}
+                        {invoice.qboSync?.status === "synced"
+                          ? "QB synced"
+                          : syncing === invoice.id
+                            ? "Syncing…"
+                            : "Sync QB"}
                       </button>
                       <button
                         onClick={() => void download(invoice)}
@@ -2201,7 +2271,11 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
     .slice(0, 10);
   const [dates, setDates] = useState({ issueDate: today, dueDate: dueDefault });
   const [taxRate, setTaxRate] = useState("0");
-  const [accounting, setAccounting] = useState({ paymentTerms: "Net 30", discount: "0", customerMessage: "Thank you for choosing TechSavvy." });
+  const [accounting, setAccounting] = useState({
+    paymentTerms: "Net 30",
+    discount: "0",
+    customerMessage: "Thank you for choosing TechSavvy.",
+  });
   const [saving, setSaving] = useState(false);
   const subtotal = items.reduce(
     (sum, item) =>
@@ -2294,14 +2368,41 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
           />
           <label className="text-[9px] font-bold uppercase text-slate-500">
             Payment terms
-            <select value={accounting.paymentTerms} onChange={(e) => setAccounting({ ...accounting, paymentTerms: e.target.value })} className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs">
-              {["Due on receipt", "Net 15", "Net 30", "Net 45", "Net 60"].map((term) => <option key={term}>{term}</option>)}
+            <select
+              value={accounting.paymentTerms}
+              onChange={(e) =>
+                setAccounting({ ...accounting, paymentTerms: e.target.value })
+              }
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              {["Due on receipt", "Net 15", "Net 30", "Net 45", "Net 60"].map(
+                (term) => (
+                  <option key={term}>{term}</option>
+                ),
+              )}
             </select>
           </label>
-          <Field label="Discount amount" value={accounting.discount} onChange={(value) => setAccounting({ ...accounting, discount: value })} type="number" />
+          <Field
+            label="Discount amount"
+            value={accounting.discount}
+            onChange={(value) =>
+              setAccounting({ ...accounting, discount: value })
+            }
+            type="number"
+          />
           <label className="col-span-2 text-[9px] font-bold uppercase text-slate-500">
             Customer message
-            <textarea value={accounting.customerMessage} onChange={(e) => setAccounting({ ...accounting, customerMessage: e.target.value })} rows={2} className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs" />
+            <textarea
+              value={accounting.customerMessage}
+              onChange={(e) =>
+                setAccounting({
+                  ...accounting,
+                  customerMessage: e.target.value,
+                })
+              }
+              rows={2}
+              className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs"
+            />
           </label>
         </div>
         <div className="mt-5">
@@ -2831,6 +2932,629 @@ function ScheduleModal({
           className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
         >
           {saving ? "Scheduling…" : "Confirm assignment"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function AssetsView({
+  assets,
+  onCreate,
+}: {
+  assets: CustomerAsset[];
+  onCreate: () => void;
+}) {
+  const [generating, setGenerating] = useState(false);
+  const [serviceAsset, setServiceAsset] = useState<CustomerAsset | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const dueAssets = assets.filter(
+    (asset) =>
+      asset.status === "Active" &&
+      asset.maintenance?.enabled &&
+      asset.maintenance.nextServiceDate <= today,
+  );
+  const readyToGenerate = dueAssets.filter(
+    (asset) =>
+      asset.lastGeneratedDueDate !== asset.maintenance?.nextServiceDate,
+  );
+  const generateJobs = async () => {
+    if (!readyToGenerate.length) return;
+    setGenerating(true);
+    try {
+      const batch = writeBatch(db);
+      readyToGenerate.forEach((asset, index) => {
+        const jobRef = doc(collection(db, "jobs"));
+        const workOrderNumber = `PM-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}-${index + 1}`;
+        batch.set(jobRef, {
+          id: jobRef.id,
+          workOrderNumber,
+          assetId: asset.id,
+          recurringMaintenance: true,
+          vendorName: asset.customerName,
+          name:
+            asset.maintenance?.description ||
+            `Preventative maintenance · ${asset.name}`,
+          address: asset.site,
+          notes: `Asset: ${asset.name}\nManufacturer/model: ${asset.manufacturer || "—"} ${asset.model || ""}\nSerial: ${asset.serialNumber || "—"}`,
+          targetCompletion: asset.maintenance?.nextServiceDate,
+          estimatedHours: asset.maintenance?.estimatedHours || 1,
+          status: "New",
+          assignedTechIds: [],
+          scopeTasks: [
+            "Inspect asset condition",
+            "Perform scheduled maintenance",
+            "Record test results and exceptions",
+            "Update customer asset service history",
+          ],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        batch.update(doc(db, "customer_assets", asset.id), {
+          lastGeneratedDueDate: asset.maintenance?.nextServiceDate,
+          lastGeneratedJobId: jobRef.id,
+          updatedAt: serverTimestamp(),
+        });
+      });
+      await batch.commit();
+    } finally {
+      setGenerating(false);
+    }
+  };
+  return (
+    <>
+      <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-sm font-bold">
+              Customer assets & recurring maintenance
+            </h2>
+            <p className="text-[10px] text-slate-400">
+              Installed equipment, warranty coverage, service history and
+              preventative work
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              disabled={!readyToGenerate.length || generating}
+              onClick={() => void generateJobs()}
+              className="rounded border border-orange-200 bg-orange-50 px-3 py-2 text-[10px] font-bold text-orange-700 disabled:opacity-40"
+            >
+              {generating
+                ? "Generating…"
+                : `Generate due jobs (${readyToGenerate.length})`}
+            </button>
+            <button
+              onClick={onCreate}
+              className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white"
+            >
+              <Plus className="mr-1 inline h-3 w-3" /> Add asset
+            </button>
+          </div>
+        </header>
+        <div className="grid grid-cols-2 gap-px border-b border-slate-100 bg-slate-100 sm:grid-cols-4">
+          <AssetMetric label="Registered assets" value={assets.length} />
+          <AssetMetric
+            label="Active"
+            value={assets.filter((asset) => asset.status === "Active").length}
+          />
+          <AssetMetric
+            label="Service due"
+            value={dueAssets.length}
+            warning={dueAssets.length > 0}
+          />
+          <AssetMetric
+            label="Under warranty"
+            value={
+              assets.filter(
+                (asset) =>
+                  asset.warrantyExpiration && asset.warrantyExpiration >= today,
+              ).length
+            }
+          />
+        </div>
+        {assets.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left">
+              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+                <tr>
+                  {[
+                    "Asset",
+                    "Customer / Site",
+                    "Identification",
+                    "Warranty",
+                    "Maintenance",
+                    "History",
+                    "Actions",
+                  ].map((head) => (
+                    <th key={head} className="px-4 py-3">
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {assets.map((asset) => {
+                  const isDue = Boolean(
+                    asset.maintenance?.enabled &&
+                    asset.maintenance.nextServiceDate <= today,
+                  );
+                  return (
+                    <tr key={asset.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <p className="text-[11px] font-semibold">
+                          {asset.name}
+                        </p>
+                        <p className="text-[9px] text-slate-400">
+                          {asset.category} · {asset.status}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-[10px] font-semibold">
+                          {asset.customerName}
+                        </p>
+                        <p className="text-[9px] text-slate-400">
+                          {asset.site}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-[10px]">
+                          {asset.manufacturer} {asset.model}
+                        </p>
+                        <p className="font-mono text-[9px] text-slate-400">
+                          S/N {asset.serialNumber || "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-[9px]">
+                        {asset.warrantyExpiration || "Not recorded"}
+                        <br />
+                        {asset.warrantyExpiration && (
+                          <span
+                            className={
+                              asset.warrantyExpiration >= today
+                                ? "text-green-700"
+                                : "text-red-600"
+                            }
+                          >
+                            {asset.warrantyExpiration >= today
+                              ? "Covered"
+                              : "Expired"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-1 text-[9px] ${isDue ? "bg-orange-50 text-orange-700" : "bg-green-50 text-green-700"}`}
+                        >
+                          {asset.maintenance?.enabled
+                            ? isDue
+                              ? "Due now"
+                              : `Next ${asset.maintenance.nextServiceDate}`
+                            : "Not scheduled"}
+                        </span>
+                        <p className="mt-1 text-[9px] text-slate-400">
+                          {asset.maintenance?.enabled
+                            ? `Every ${asset.maintenance.frequencyMonths} month(s)`
+                            : "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-[10px]">
+                        {asset.serviceHistory?.length || 0} service event
+                        {asset.serviceHistory?.length === 1 ? "" : "s"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setServiceAsset(asset)}
+                          className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                        >
+                          Record service
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid min-h-64 place-items-center p-6 text-center">
+            <div>
+              <Wrench className="mx-auto h-8 w-8 text-slate-300" />
+              <p className="mt-3 text-xs font-semibold">
+                No customer assets yet
+              </p>
+              <p className="mt-1 text-[10px] text-slate-400">
+                Register installed equipment to begin recurring maintenance
+                planning.
+              </p>
+              <button
+                onClick={onCreate}
+                className="mt-4 rounded bg-[#17251b] px-4 py-2 text-[10px] font-bold text-white"
+              >
+                Add first asset
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+      {serviceAsset && (
+        <ServiceRecordModal
+          asset={serviceAsset}
+          onClose={() => setServiceAsset(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function AssetMetric({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string;
+  value: number;
+  warning?: boolean;
+}) {
+  return (
+    <div className="bg-white p-4">
+      <p className="text-[9px] font-semibold uppercase text-slate-400">
+        {label}
+      </p>
+      <p
+        className={`mt-1 font-display text-xl ${warning ? "text-orange-600" : "text-slate-900"}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AssetModal({
+  customers,
+  onClose,
+}: {
+  customers: LiveCustomer[];
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    customerId: "",
+    site: "",
+    name: "",
+    category: "Network Equipment",
+    manufacturer: "",
+    model: "",
+    serialNumber: "",
+    installDate: "",
+    warrantyExpiration: "",
+    status: "Active",
+    maintenanceEnabled: true,
+    frequencyMonths: "12",
+    nextServiceDate: "",
+    maintenanceDescription: "Preventative inspection and service",
+    estimatedHours: "1",
+  });
+  const [saving, setSaving] = useState(false);
+  const selectedCustomer = customers.find(
+    (customer) => customer.id === form.customerId,
+  );
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+    setSaving(true);
+    try {
+      await addDoc(collection(db, "customer_assets"), {
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        site: form.site.trim(),
+        name: form.name.trim(),
+        category: form.category,
+        manufacturer: form.manufacturer.trim(),
+        model: form.model.trim(),
+        serialNumber: form.serialNumber.trim(),
+        installDate: form.installDate,
+        warrantyExpiration: form.warrantyExpiration,
+        status: form.status,
+        maintenance: {
+          enabled: form.maintenanceEnabled,
+          frequencyMonths: Number(form.frequencyMonths || 12),
+          nextServiceDate: form.nextServiceDate,
+          description: form.maintenanceDescription.trim(),
+          estimatedHours: Number(form.estimatedHours || 1),
+        },
+        serviceHistory: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={save}
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+              Customer equipment register
+            </p>
+            <h2 className="font-display text-lg uppercase">New asset</h2>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Customer
+            <select
+              required
+              value={form.customerId}
+              onChange={(e) =>
+                setForm({ ...form, customerId: e.target.value, site: "" })
+              }
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              <option value="">Select customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Customer site
+            <select
+              required
+              value={form.site}
+              onChange={(e) => setForm({ ...form, site: e.target.value })}
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              <option value="">Select site</option>
+              {(selectedCustomer?.sites || []).map((site) => (
+                <option key={site}>{site}</option>
+              ))}
+              <option value="Address on file">Address on file</option>
+            </select>
+          </label>
+          <Field
+            label="Asset name"
+            value={form.name}
+            onChange={(value) => setForm({ ...form, name: value })}
+            required
+          />
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Category
+            <select
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              {[
+                "Network Equipment",
+                "Low Voltage",
+                "Security System",
+                "Cell Booster",
+                "Server / Storage",
+                "Power / UPS",
+                "Other",
+              ].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Manufacturer"
+            value={form.manufacturer}
+            onChange={(value) => setForm({ ...form, manufacturer: value })}
+          />
+          <Field
+            label="Model"
+            value={form.model}
+            onChange={(value) => setForm({ ...form, model: value })}
+          />
+          <Field
+            label="Serial number"
+            value={form.serialNumber}
+            onChange={(value) => setForm({ ...form, serialNumber: value })}
+          />
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Status
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              {["Active", "Out of Service", "Retired"].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Installation date"
+            value={form.installDate}
+            onChange={(value) => setForm({ ...form, installDate: value })}
+            type="date"
+          />
+          <Field
+            label="Warranty expiration"
+            value={form.warrantyExpiration}
+            onChange={(value) =>
+              setForm({ ...form, warrantyExpiration: value })
+            }
+            type="date"
+          />
+        </div>
+        <div className="mt-6 rounded border border-green-200 bg-green-50 p-4">
+          <label className="flex items-center gap-2 text-xs font-bold text-green-900">
+            <input
+              type="checkbox"
+              checked={form.maintenanceEnabled}
+              onChange={(e) =>
+                setForm({ ...form, maintenanceEnabled: e.target.checked })
+              }
+            />{" "}
+            Enable recurring maintenance
+          </label>
+          {form.maintenanceEnabled && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Frequency in months"
+                value={form.frequencyMonths}
+                onChange={(value) =>
+                  setForm({ ...form, frequencyMonths: value })
+                }
+                type="number"
+                required
+              />
+              <Field
+                label="Next service date"
+                value={form.nextServiceDate}
+                onChange={(value) =>
+                  setForm({ ...form, nextServiceDate: value })
+                }
+                type="date"
+                required
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  label="Maintenance scope"
+                  value={form.maintenanceDescription}
+                  onChange={(value) =>
+                    setForm({ ...form, maintenanceDescription: value })
+                  }
+                  required
+                />
+              </div>
+              <Field
+                label="Estimated hours"
+                value={form.estimatedHours}
+                onChange={(value) =>
+                  setForm({ ...form, estimatedHours: value })
+                }
+                type="number"
+                required
+              />
+            </div>
+          )}
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border px-4 py-2 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={saving}
+            className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save asset"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ServiceRecordModal({
+  asset,
+  onClose,
+}: {
+  asset: CustomerAsset;
+  onClose: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    date: today,
+    notes: "Scheduled maintenance completed",
+    workOrderNumber: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const nextDate = () => {
+    const date = new Date(`${form.date}T12:00:00`);
+    date.setMonth(date.getMonth() + (asset.maintenance?.frequencyMonths || 12));
+    return date.toISOString().slice(0, 10);
+  };
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "customer_assets", asset.id), {
+        serviceHistory: arrayUnion({
+          date: form.date,
+          workOrderNumber: form.workOrderNumber.trim(),
+          notes: form.notes.trim(),
+        }),
+        "maintenance.nextServiceDate": nextDate(),
+        lastGeneratedDueDate: null,
+        lastServicedAt: form.date,
+        updatedAt: serverTimestamp(),
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4">
+      <form
+        onSubmit={save}
+        className="w-full max-w-md rounded bg-white p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+              {asset.customerName}
+            </p>
+            <h2 className="font-display text-lg uppercase">
+              Record asset service
+            </h2>
+            <p className="text-xs text-slate-500">{asset.name}</p>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 space-y-3">
+          <Field
+            label="Service date"
+            value={form.date}
+            onChange={(value) => setForm({ ...form, date: value })}
+            type="date"
+            required
+          />
+          <Field
+            label="Work order number"
+            value={form.workOrderNumber}
+            onChange={(value) => setForm({ ...form, workOrderNumber: value })}
+          />
+          <label className="block text-[9px] font-bold uppercase text-slate-500">
+            Service notes
+            <textarea
+              required
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={4}
+              className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs"
+            />
+          </label>
+          <p className="rounded bg-slate-50 p-3 text-[10px] text-slate-500">
+            Next maintenance date:{" "}
+            <b className="text-slate-800">{nextDate()}</b>
+          </p>
+        </div>
+        <button
+          disabled={saving}
+          className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
+        >
+          {saving ? "Saving…" : "Complete service record"}
         </button>
       </form>
     </div>
