@@ -1,14 +1,14 @@
-import { adminDb } from './firebase-admin.js';
-import { qboCompanyBaseUrl, qboEnvironment } from './quickbooks-config.js';
+import { adminDb } from "./firebase-admin.js";
+import { qboCompanyBaseUrl, qboEnvironment } from "./quickbooks-config.js";
 
 /**
  * Ensures we have a valid access token for QBO and returns it along with realmId
  */
 export async function getValidQboToken() {
-  const qboSettingDoc = adminDb.collection('settings').doc('quickbooks');
+  const qboSettingDoc = adminDb.collection("settings").doc("quickbooks");
   const qboSnap = await qboSettingDoc.get();
   if (!qboSnap.exists) {
-    throw new Error('QuickBooks is not connected.');
+    throw new Error("QuickBooks is not connected.");
   }
 
   const qboData = qboSnap.data();
@@ -16,30 +16,41 @@ export async function getValidQboToken() {
   const realmId = qboData?.realmId;
 
   if (!accessToken || !realmId) {
-    throw new Error('QuickBooks settings are missing access token or Realm ID.');
+    throw new Error(
+      "QuickBooks settings are missing access token or Realm ID.",
+    );
   }
 
   // Refresh token if expired or about to expire (within 60 seconds)
-  if (qboData.accessTokenExpiresAt && Date.now() >= qboData.accessTokenExpiresAt - 60_000) {
-    const { QBO_CLIENT_ID: clientId, QBO_CLIENT_SECRET: clientSecret } = process.env;
+  if (
+    qboData.accessTokenExpiresAt &&
+    Date.now() >= qboData.accessTokenExpiresAt - 60_000
+  ) {
+    const { QBO_CLIENT_ID: clientId, QBO_CLIENT_SECRET: clientSecret } =
+      process.env;
     if (!clientId || !clientSecret || !qboData.refreshToken) {
-      throw new Error('QuickBooks authorization needs to be renewed.');
+      throw new Error("QuickBooks authorization needs to be renewed.");
     }
 
-    const refreshResponse = await fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+    const refreshResponse = await fetch(
+      "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: qboData.refreshToken,
+        }).toString(),
       },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: qboData.refreshToken,
-      }).toString(),
-    });
+    );
 
     if (!refreshResponse.ok) {
-      throw new Error('QuickBooks token refresh failed: ' + await refreshResponse.text());
+      throw new Error(
+        "QuickBooks token refresh failed: " + (await refreshResponse.text()),
+      );
     }
 
     const refreshData = await refreshResponse.json();
@@ -48,7 +59,8 @@ export async function getValidQboToken() {
       accessToken: refreshData.access_token,
       refreshToken: refreshData.refresh_token,
       accessTokenExpiresAt: Date.now() + refreshData.expires_in * 1000,
-      refreshTokenExpiresAt: Date.now() + refreshData.x_refresh_token_expires_in * 1000,
+      refreshTokenExpiresAt:
+        Date.now() + refreshData.x_refresh_token_expires_in * 1000,
     });
   }
 
@@ -59,21 +71,33 @@ export async function getValidQboToken() {
  * Resolves a QBO Vendor ID by email, or creates a new Vendor in QBO if not found
  */
 export async function getOrCreateVendor(name, email) {
-  console.log('[DEBUG getOrCreateVendor] Called with name:', name, 'email:', email);
+  console.log(
+    "[DEBUG getOrCreateVendor] Called with name:",
+    name,
+    "email:",
+    email,
+  );
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
 
   // 1. Query Vendor by DisplayName (PrimaryEmailAddr is not queryable in QBO)
   const escapedName = name.replace(/'/g, "\\'");
-  const query = encodeURIComponent(`select * from Vendor where DisplayName = '${escapedName}'`);
+  const query = encodeURIComponent(
+    `select * from Vendor where DisplayName = '${escapedName}'`,
+  );
   const queryUrl = `${baseUrl}/query?query=${query}`;
 
   const searchRes = await fetch(queryUrl, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
   });
 
   if (!searchRes.ok) {
-    throw new Error('Failed to search vendor in QBO: ' + await searchRes.text());
+    throw new Error(
+      "Failed to search vendor in QBO: " + (await searchRes.text()),
+    );
   }
 
   const searchData = await searchRes.json();
@@ -86,18 +110,18 @@ export async function getOrCreateVendor(name, email) {
   const createUrl = `${baseUrl}/vendor`;
   const vendorPayload = {
     DisplayName: name,
-    PrimaryEmailAddr: { Address: email }
+    PrimaryEmailAddr: { Address: email },
   };
 
   try {
     const createRes = await fetch(createUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: JSON.stringify(vendorPayload)
+      body: JSON.stringify(vendorPayload),
     });
 
     if (createRes.ok) {
@@ -112,47 +136,189 @@ export async function getOrCreateVendor(name, email) {
     } catch (_) {}
 
     const code = errorObj?.Fault?.Error?.[0]?.code;
-    if (code === '6240') {
+    if (code === "6240") {
       // Duplicate Name Error: retry with " (Contractor)" suffix
       const fallbackPayload = {
         DisplayName: `${name} (Contractor)`,
-        PrimaryEmailAddr: { Address: email }
+        PrimaryEmailAddr: { Address: email },
       };
 
       const retryRes = await fetch(createUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        body: JSON.stringify(fallbackPayload)
+        body: JSON.stringify(fallbackPayload),
       });
 
       if (!retryRes.ok) {
-        throw new Error('Failed to create vendor in QBO after duplicate retry: ' + await retryRes.text());
+        throw new Error(
+          "Failed to create vendor in QBO after duplicate retry: " +
+            (await retryRes.text()),
+        );
       }
 
       const retryData = await retryRes.json();
       return retryData.Vendor.Id;
     }
 
-    throw new Error('Failed to create vendor in QBO: ' + errorText);
+    throw new Error("Failed to create vendor in QBO: " + errorText);
   } catch (err) {
     throw err;
   }
+}
+
+export async function getOrCreateCustomer(customer) {
+  const { accessToken, realmId } = await getValidQboToken();
+  const baseUrl = qboCompanyBaseUrl(realmId);
+  const displayName = String(customer.name || "TechSavvy Customer").trim();
+  const escapedName = displayName.replace(/'/g, "\\'");
+  const query = encodeURIComponent(
+    `select * from Customer where DisplayName = '${escapedName}'`,
+  );
+  const searchRes = await fetch(`${baseUrl}/query?query=${query}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+  if (!searchRes.ok)
+    throw new Error(
+      "QuickBooks customer lookup failed: " + (await searchRes.text()),
+    );
+  const existing = (await searchRes.json()).QueryResponse?.Customer?.[0];
+  if (existing) return existing;
+
+  const payload = { DisplayName: displayName };
+  if (customer.email) payload.PrimaryEmailAddr = { Address: customer.email };
+  if (customer.phone) payload.PrimaryPhone = { FreeFormNumber: customer.phone };
+  if (customer.address) payload.BillAddr = { Line1: customer.address };
+  const createRes = await fetch(`${baseUrl}/customer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!createRes.ok)
+    throw new Error(
+      "QuickBooks customer creation failed: " + (await createRes.text()),
+    );
+  return (await createRes.json()).Customer;
+}
+
+export async function getDefaultSalesItem() {
+  const { accessToken, realmId } = await getValidQboToken();
+  const baseUrl = qboCompanyBaseUrl(realmId);
+  if (process.env.QBO_DEFAULT_ITEM_ID)
+    return {
+      Id: process.env.QBO_DEFAULT_ITEM_ID,
+      Name: "Configured service item",
+    };
+  const query = encodeURIComponent(
+    "select * from Item where Active = true maxresults 100",
+  );
+  const response = await fetch(`${baseUrl}/query?query=${query}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+  if (!response.ok)
+    throw new Error(
+      "QuickBooks product/service lookup failed: " + (await response.text()),
+    );
+  const items = (await response.json()).QueryResponse?.Item || [];
+  const item =
+    items.find(
+      (candidate) =>
+        candidate.Type === "Service" && /service/i.test(candidate.Name),
+    ) ||
+    items.find((candidate) => candidate.Type === "Service") ||
+    items[0];
+  if (!item)
+    throw new Error(
+      "QuickBooks has no active Product/Service item. Create one or configure QBO_DEFAULT_ITEM_ID.",
+    );
+  return item;
+}
+
+export async function createQboCustomerInvoice(invoice, customer) {
+  const { accessToken, realmId } = await getValidQboToken();
+  const baseUrl = qboCompanyBaseUrl(realmId);
+  const [qboCustomer, item] = await Promise.all([
+    getOrCreateCustomer(customer),
+    getDefaultSalesItem(),
+  ]);
+  const lines = (invoice.lineItems || []).map((line) => ({
+    Amount: Number(line.quantity || 0) * Number(line.unitPrice || 0),
+    Description: line.description,
+    DetailType: "SalesItemLineDetail",
+    SalesItemLineDetail: {
+      ItemRef: { value: item.Id, name: item.Name },
+      Qty: Number(line.quantity || 0),
+      UnitPrice: Number(line.unitPrice || 0),
+    },
+  }));
+  if (Number(invoice.discount || 0) > 0)
+    lines.push({
+      Amount: Number(invoice.discount),
+      DetailType: "DiscountLineDetail",
+      DiscountLineDetail: { PercentBased: false },
+    });
+  const payload = {
+    CustomerRef: { value: qboCustomer.Id, name: qboCustomer.DisplayName },
+    DocNumber: invoice.invoiceNumber,
+    TxnDate: invoice.issueDate,
+    DueDate: invoice.dueDate,
+    PrivateNote: `TechSavvy CRM invoice ${invoice.id}`,
+    CustomerMemo: {
+      value:
+        invoice.customerMessage ||
+        `Thank you for choosing TechSavvy. Terms: ${invoice.paymentTerms || "Net 30"}.`,
+    },
+    Line: lines,
+  };
+  const response = await fetch(`${baseUrl}/invoice`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok)
+    throw new Error(
+      "QuickBooks invoice export failed: " + (await response.text()),
+    );
+  return {
+    invoice: (await response.json()).Invoice,
+    customer: qboCustomer,
+    item,
+  };
 }
 
 /**
  * Creates a Vendor Bill in QBO for an Approved Timecard
  */
 export async function createQBOBillForTimecard(timecard, payoutDueDate) {
-  console.log('[DEBUG createQBOBillForTimecard] Called with timecard payload:', JSON.stringify(timecard, null, 2));
+  console.log(
+    "[DEBUG createQBOBillForTimecard] Called with timecard payload:",
+    JSON.stringify(timecard, null, 2),
+  );
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
 
   // Resolve QBO Vendor ID
-  const vendorId = await getOrCreateVendor(timecard.technicianName, timecard.technicianEmail);
+  const vendorId = await getOrCreateVendor(
+    timecard.technicianName,
+    timecard.technicianEmail,
+  );
 
   const promises = [];
   let laborPromiseIdx = -1;
@@ -161,32 +327,34 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
   // 1. Labor -> TimeActivity
   const decimalHours = Number(timecard.totalHours || 0);
   const laborRate = Number(timecard.rate || 75);
-  if (timecard.laborStatus === 'approved' && decimalHours > 0) {
+  if (timecard.laborStatus === "approved" && decimalHours > 0) {
     const hours = Math.floor(decimalHours);
     const minutes = Math.round((decimalHours - hours) * 60);
 
     const timeActivityPayload = {
-      NameOf: 'Vendor',
+      NameOf: "Vendor",
       VendorRef: { value: vendorId },
       TxnDate: timecard.date,
       Hours: hours,
       Minutes: minutes,
       HourlyRate: laborRate,
-      Description: `Labor: ${timecard.totalHours} hrs @ $${laborRate}/hr (${timecard.jobSite})`
+      Description: `Labor: ${timecard.totalHours} hrs @ $${laborRate}/hr (${timecard.jobSite})`,
     };
 
     const timeActivityUrl = `${baseUrl}/timeactivity`;
     const timePromise = fetch(timeActivityUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: JSON.stringify(timeActivityPayload)
-    }).then(async res => {
+      body: JSON.stringify(timeActivityPayload),
+    }).then(async (res) => {
       if (!res.ok) {
-        throw new Error('Failed to create TimeActivity in QBO: ' + await res.text());
+        throw new Error(
+          "Failed to create TimeActivity in QBO: " + (await res.text()),
+        );
       }
       return res.json();
     });
@@ -200,37 +368,37 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
   const travel = Number(timecard.travelCost || 0);
 
   const expenseLines = [];
-  if (timecard.suppliesStatus === 'approved' && supplies > 0) {
+  if (timecard.suppliesStatus === "approved" && supplies > 0) {
     expenseLines.push({
-      DetailType: 'AccountBasedExpenseLineDetail',
+      DetailType: "AccountBasedExpenseLineDetail",
       Amount: supplies,
       Description: `Supplies Reimbursement (${timecard.jobSite})`,
       AccountBasedExpenseLineDetail: {
-        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_SUPPLIES || '81' }
-      }
+        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_SUPPLIES || "81" },
+      },
     });
   }
 
-  if (timecard.travelStatus === 'approved' && travel > 0) {
+  if (timecard.travelStatus === "approved" && travel > 0) {
     expenseLines.push({
-      DetailType: 'AccountBasedExpenseLineDetail',
+      DetailType: "AccountBasedExpenseLineDetail",
       Amount: travel,
       Description: `Travel Expense (${timecard.jobSite})`,
       AccountBasedExpenseLineDetail: {
-        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_TRAVEL || '82' }
-      }
+        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_TRAVEL || "82" },
+      },
     });
   }
 
   const bonus = Number(timecard.bonusCost || 0);
-  if (timecard.bonusStatus === 'approved' && bonus > 0) {
+  if (timecard.bonusStatus === "approved" && bonus > 0) {
     expenseLines.push({
-      DetailType: 'AccountBasedExpenseLineDetail',
+      DetailType: "AccountBasedExpenseLineDetail",
       Amount: bonus,
       Description: `Bonus / Misc Payroll Adjustment (${timecard.jobSite})`,
       AccountBasedExpenseLineDetail: {
-        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_BONUS || '83' }
-      }
+        AccountRef: { value: process.env.QBO_EXPENSE_ACCOUNT_BONUS || "83" },
+      },
     });
   }
 
@@ -238,23 +406,23 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
     const billPayload = {
       VendorRef: { value: vendorId },
       TxnDate: timecard.date,
-      DueDate: payoutDueDate.toISOString().split('T')[0],
+      DueDate: payoutDueDate.toISOString().split("T")[0],
       PrivateNote: `TechSavvyTechs Approval ID: ${timecard.id}`,
-      Line: expenseLines
+      Line: expenseLines,
     };
 
     const billUrl = `${baseUrl}/bill`;
     const billPromise = fetch(billUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: JSON.stringify(billPayload)
-    }).then(async res => {
+      body: JSON.stringify(billPayload),
+    }).then(async (res) => {
       if (!res.ok) {
-        throw new Error('Failed to create Bill in QBO: ' + await res.text());
+        throw new Error("Failed to create Bill in QBO: " + (await res.text()));
       }
       return res.json();
     });
