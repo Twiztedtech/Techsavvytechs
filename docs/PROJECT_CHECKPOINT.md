@@ -1,6 +1,6 @@
-# Contractor Portal Checkpoint
+# TechSavvy Platform Checkpoint
 
-Last updated: 2026-08-04
+Last updated: 2026-08-30
 
 ## Completed
 
@@ -25,6 +25,29 @@ Last updated: 2026-08-04
 - Contact-form submissions are stored in Firestore and sent directly to the support inbox through Resend. The previous uninstalled Firebase email-extension dependency was removed.
 - Public navigation, client/contractor portal paths, phone number, support email, page-level metadata, robots file, and sitemap are current.
 - Contractor onboarding is implemented: technicians submit a PDF W-9 and terms acknowledgement through a protected endpoint; administrators review the submission in Contractor Sync. Storage rules are published and restrict each W-9 to its uploader and administrators; administrator review uses a five-minute signed link rather than a permanent download token.
+- The administrator-only CRM is live at `/crm` with Firestore-backed customers, sites, quotes, jobs, technician scheduling, job costing, invoices, payments, and PDF invoice generation.
+- CRM jobs and technician assignments use the same `jobs` and `contractors` collections as the contractor portal, preventing duplicate operational records.
+- QuickBooks customer-invoice export uses the existing server-side OAuth connection. It creates or resolves the customer and Product/Service item, stores the QuickBooks ID and sync token, reports sync errors, and prevents duplicate exports on retry.
+- Production deployment `c87cf5b` was verified READY on Vercel. The public `/crm` route returns HTTP 200 and the consolidated QuickBooks administration endpoint is deployed behind administrator authentication.
+
+## Vercel API-function allowance
+
+**Important pre-deployment constraint:** this project currently uses all **12 deployable Vercel API functions** allowed by the active project plan. Adding another standalone JavaScript file under `api/` will cause the production deployment to build successfully and then fail while Vercel packages the output.
+
+Before adding any new API operation:
+
+1. Count deployable handlers, excluding shared modules under `api/_lib/`:
+
+   ```powershell
+   ((rg --files api -g '*.js' | Where-Object { $_ -notmatch '\\_lib\\' }) | Measure-Object).Count
+   ```
+
+2. Keep the result at **12 or fewer**.
+3. Prefer consolidating related operations into an existing authenticated handler using a query or body operation value. For example, customer-invoice synchronization is handled by `POST /api/admin/quickbooks/status?operation=sync-invoice` instead of a separate invoice function.
+4. Preserve method validation, administrator authentication, and operation-specific input validation when consolidating handlers.
+5. After pushing, confirm the deployment reaches **READY** with `vercel ls` or `vercel inspect`; a successful local or Vercel build alone does not prove the deployment was accepted.
+
+If the application outgrows safe handler consolidation, upgrade the Vercel plan or move grouped operations behind a single router before adding more standalone functions.
 
 ## Confirm on the next session
 
@@ -32,6 +55,8 @@ Last updated: 2026-08-04
 2. Submit a contact-form test and confirm it arrives at `support@techsavvytechs.com` from the TechSavvy Resend sender.
 3. Keep Vercel `QBO_ENVIRONMENT=production`, `APP_URL=https://techsavvytechs.com`, and the Resend variables restricted to production.
 4. Test onboarding with a controlled contractor account: upload a sample PDF W-9, confirm the administrator can review it, request an update, and approve the replacement.
+5. Create a controlled CRM invoice and use **Sync QB** to verify the first production customer/invoice export, Product/Service mapping, stored QuickBooks ID, and duplicate protection. Do not use a real customer invoice for the first test.
+6. Before every deployment that changes `api/`, confirm the Vercel API-function count remains at 12 or fewer and consolidate related handlers when necessary.
 
 ## Next development milestone
 
