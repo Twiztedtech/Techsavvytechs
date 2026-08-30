@@ -563,6 +563,10 @@ export default function ContractorDashboard() {
     ? timeEntries
     : timeEntries.filter((entry) => entry.technicianUid === adminTechnicianFilter);
 
+  const qboReadyEntries = filteredAdminTimeEntries.filter((entry) =>
+    entry.status === 'approved' && entry.qbStatus !== 'synced'
+  );
+
   const totalLifetimeHours = timeEntries
     .filter((entry) => entry.status !== 'voided')
     .reduce((acc, curr) => acc + Number(curr.totalHours || 0), 0)
@@ -2171,6 +2175,21 @@ export default function ContractorDashboard() {
                     ))}
                   </select>
                 </div>
+                {qboReadyEntries.length > 0 && (
+                  <div role="alert" className="mb-4 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-blue-100">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold">QuickBooks action required</p>
+                        <p className="mt-1 text-[10px] text-blue-200">
+                          {qboReadyEntries.length} approved timecard{qboReadyEntries.length === 1 ? '' : 's'} waiting to be synced. Review each record and select Sync to QuickBooks.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-blue-400/30 bg-blue-950/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+                        {qboReadyEntries.length} ready
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {/* Overview Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
@@ -2188,7 +2207,7 @@ export default function ContractorDashboard() {
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">QBO Sync Queue</div>
                     <div className="text-2xl font-bold mt-1 text-blue-400">
-                      {filteredAdminTimeEntries.filter(tc => tc.qbStatus === 'synced').length}
+                      {qboReadyEntries.length}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
@@ -2226,7 +2245,11 @@ export default function ContractorDashboard() {
                           {entry.voidStatus === 'requested' && entry.status !== 'voided' && <div className="mt-2 rounded border border-violet-500/30 bg-violet-500/10 p-2 text-[10px] text-violet-300"><strong>Technician requests void:</strong> {entry.voidRequestReason}</div>}
                           <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-500">QBO status:</span>
-                            {entry.qbStatus === 'synced' ? (
+                            {entry.status === 'voided' ? (
+                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-semibold rounded">
+                                Not eligible — voided
+                              </span>
+                            ) : entry.qbStatus === 'synced' ? (
                               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-semibold rounded">
                                 QBO Synced #{entry.qboBillId}
                               </span>
@@ -2243,18 +2266,22 @@ export default function ContractorDashboard() {
                                   🔄 Retry Sync
                                 </button>
                               </span>
-                            ) : (
+                            ) : entry.status === 'approved' ? (
                               <span className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
-                                  Pending QBO Sync
+                                <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[9px] font-semibold rounded">
+                                  Ready for QBO Sync
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleRetrySync(entry.id)}
                                   className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow"
                                 >
-                                  🔄 Retry Sync
+                                  Sync to QuickBooks
                                 </button>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
+                                Awaiting full approval
                               </span>
                             )}
                           </div>
@@ -2271,7 +2298,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">{entry.totalHours} hrs @ ${entry.rate || 75}/hr</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.laborStatus !== 'approved' && entry.laborStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.laborStatus !== 'approved' && entry.laborStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2298,7 +2327,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.suppliesCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.suppliesStatus !== 'approved' && entry.suppliesStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.suppliesStatus !== 'approved' && entry.suppliesStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2325,7 +2356,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.travelCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.travelStatus !== 'approved' && entry.travelStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.travelStatus !== 'approved' && entry.travelStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2352,7 +2385,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.bonusCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.bonusStatus !== 'approved' && entry.bonusStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.bonusStatus !== 'approved' && entry.bonusStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2371,7 +2406,9 @@ export default function ContractorDashboard() {
                           ) : (
                             <div className="bg-slate-950/20 p-2.5 rounded-xl border border-slate-900 border-dashed flex items-center justify-between gap-3">
                               <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Bonus / Misc</span>
-                              <div className="flex gap-1.5 items-center">
+                              {entry.status === 'voided' ? (
+                                <span className="text-[9px] font-bold uppercase text-slate-600">Read only</span>
+                              ) : <div className="flex gap-1.5 items-center">
                                 <input
                                   type="number"
                                   placeholder="$0.00"
@@ -2411,14 +2448,14 @@ export default function ContractorDashboard() {
                                 >
                                   ➕ Add
                                 </button>
-                              </div>
+                              </div>}
                             </div>
                           )}
                         </div>
 
                         <div className="text-right min-w-[120px]">
-                          <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Total Payable</span>
-                          <span className="text-xl font-bold text-slate-100 font-mono">${totals.totalGross.toFixed(2)}</span>
+                          <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">{entry.status === 'voided' ? 'Voided Amount' : 'Total Payable'}</span>
+                          <span className={`text-xl font-bold font-mono ${entry.status === 'voided' ? 'text-slate-500 line-through' : 'text-slate-100'}`}>${totals.totalGross.toFixed(2)}</span>
                           {entry.status !== 'voided' && entry.qbStatus !== 'synced' && !entry.active && (
                             <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'void', label: `${entry.jobSite} · ${entry.date}` })} className="mt-3 block w-full rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/20">{entry.voidStatus === 'requested' ? 'Approve void request' : 'Void submission'}</button>
                           )}

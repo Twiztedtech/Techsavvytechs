@@ -86,6 +86,13 @@ const signatureFor = (contractor) => {
 
 const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
 
+const getApprovedTotal = (entry) => (
+  (Number(entry.totalHours || 0) * Number(entry.rate || 75))
+  + Number(entry.suppliesCost || 0)
+  + Number(entry.travelCost || 0)
+  + Number(entry.bonusCost || 0)
+);
+
 const escapeHtml = (value) => String(value || '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -423,6 +430,14 @@ export default async function handler(req, res) {
       const isFullyApproved = isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved;
 
       if (isFullyApproved) {
+        const approvedAt = new Date().toISOString();
+        await docRef.update({
+          qbStatus: 'pending',
+          qboReadyAt: updatedTimecard.qboReadyAt || approvedAt,
+          updatedAt: approvedAt,
+        });
+        updatedTimecard.qbStatus = 'pending';
+        updatedTimecard.qboReadyAt = updatedTimecard.qboReadyAt || approvedAt;
         const jobDate = new Date(updatedTimecard.date);
         const payoutDueDate = new Date(jobDate);
         payoutDueDate.setDate(payoutDueDate.getDate() + 15);
@@ -455,10 +470,7 @@ export default async function handler(req, res) {
           const supportEmail = process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com';
 
           if (apiKey) {
-            const laborAmt = Number(updatedTimecard.totalHours || 0) * (updatedTimecard.rate || 75);
-            const suppliesAmt = Number(updatedTimecard.suppliesCost || 0);
-            const travelAmt = Number(updatedTimecard.travelCost || 0);
-            const totalPayable = laborAmt + suppliesAmt + travelAmt;
+            const totalPayable = getApprovedTotal(updatedTimecard);
 
             try {
               await fetch('https://api.resend.com/emails', {
@@ -495,21 +507,22 @@ export default async function handler(req, res) {
           }
         }
 
-        console.log('[DEBUG approve_item] Calling QBO helper with updatedTimecard:', JSON.stringify(updatedTimecard, null, 2));
-        try {
-          const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
-          await docRef.update({
-            qbStatus: 'synced',
-            qboBillId: qboResult.Bill?.Id || '',
-            qboTimeActivityId: qboResult.TimeActivity?.Id || '',
-            qboSyncedAt: new Date().toISOString()
+        if (!updatedTimecard.qboReminderSentAt) {
+          const reminderSent = await sendPortalNotice({
+            to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
+            subject: `QuickBooks sync required: ${updatedTimecard.jobSite || 'approved timecard'}`,
+            heading: 'Approved timecard is ready for QuickBooks',
+            message: 'An approved contractor timecard is waiting in the portal. Sign in to review it and select Sync to QuickBooks.',
+            details: [
+              ['Technician', techName || techEmail || 'Unknown technician'],
+              ['Job', updatedTimecard.jobSite || 'Unknown'],
+              ['Service date', updatedTimecard.date || 'Unknown'],
+              ['Approved total', `$${getApprovedTotal(updatedTimecard).toFixed(2)}`],
+            ],
           });
-        } catch (qboError) {
-          console.error('QBO Sync Error:', qboError);
-          await docRef.update({
-            qbStatus: 'failed',
-            qboSyncError: qboError.message
-          });
+          if (reminderSent) {
+            await docRef.update({ qboReminderSentAt: new Date().toISOString() });
+          }
         }
       }
 
@@ -533,6 +546,9 @@ export default async function handler(req, res) {
       }
       if (snapshot.data().status === 'voided') {
         return res.status(409).json({ error: 'Voided submissions cannot be synced to QuickBooks.' });
+      }
+      if (snapshot.data().status !== 'approved') {
+        return res.status(409).json({ error: 'Only fully approved submissions can be synced to QuickBooks.' });
       }
 
       const updatedTimecard = { id: snapshot.id, ...snapshot.data() };
