@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { CalendarDays, CheckCircle2, CircleDollarSign, FileText, HardHat, LifeBuoy, MapPin, ShieldCheck, Wrench, XCircle } from "lucide-react";
 
 type PortalData = {
@@ -29,7 +30,7 @@ export default function CustomerPortal() {
       .catch((reason) => setError(reason.message));
   }, [token]);
 
-  const submitRequest = async (event: React.FormEvent) => {
+  const submitRequest = async (event: FormEvent) => {
     event.preventDefault(); setSending(true);
     try {
       const response = await fetch("/api/contact?operation=portal-service-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...request }) });
@@ -62,6 +63,6 @@ export default function CustomerPortal() {
 }
 
 function Stat({ icon: Icon, label, value, detail }: { icon: typeof HardHat; label: string; value: string; detail: string }) { return <section className="rounded border border-slate-200 bg-white p-4 shadow-sm"><Icon className="h-4 w-4 text-tech-green-deep"/><p className="mt-4 text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 font-display text-xl">{value}</p><p className="mt-2 text-[9px] text-slate-400">{detail}</p></section>; }
-function List({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) { const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children); return <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h2 className="text-sm font-bold">{title}</h2></header>{hasChildren ? children : <p className="p-6 text-xs text-slate-400">{empty}</p>}</section>; }
-function Row({ title, detail, status }: { title: string; detail: string; status: string }) { return <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 last:border-0"><div><p className="text-xs font-bold">{title}</p><p className="mt-1 text-[10px] text-slate-400">{detail}</p></div><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${badge(status)}`}>{status}</span></div>; }
+function List({ title, empty, children }: { title: string; empty: string; children: ReactNode }) { const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children); return <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h2 className="text-sm font-bold">{title}</h2></header>{hasChildren ? children : <p className="p-6 text-xs text-slate-400">{empty}</p>}</section>; }
+function Row({ title, detail, status }: { key?: string; title: string; detail: string; status: string }) { return <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 last:border-0"><div><p className="text-xs font-bold">{title}</p><p className="mt-1 text-[10px] text-slate-400">{detail}</p></div><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${badge(status)}`}>{status}</span></div>; }
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block text-[10px] font-bold uppercase text-slate-500">{label}<input required value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded border border-slate-200 p-3 text-xs font-normal normal-case"/></label>; }

@@ -1273,7 +1273,7 @@ export default function ContractorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="contractor-dashboard min-h-screen bg-slate-950 text-slate-100 font-sans">
       <DashboardHeader
         role={userRole}
         canAccessAdmin={canAccessAdmin}

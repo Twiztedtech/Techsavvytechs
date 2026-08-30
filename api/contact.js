@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "./_lib/firebase-admin.js";
 import { writeAudit } from "./_lib/audit.js";
 import { reconcileQboInvoices } from "./_lib/qbo-helper.js";
+import { reportOperationalError, runOperationalHealthCheck } from "./_lib/monitoring.js";
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 150;
@@ -560,9 +561,26 @@ async function respondToQuote(req, res) {
 }
 
 export default async function handler(req, res) {
+  const requestId = req.headers["x-vercel-id"] || null;
+  if (req.query?.operation === "health" && req.method === "GET") {
+    try {
+      const health = await runOperationalHealthCheck();
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.status(health.status === "critical" ? 503 : 200).json(health);
+    } catch (error) {
+      await reportOperationalError({ route: "/api/contact?operation=health", error, requestId });
+      return res.status(503).json({ status: "critical", checkedAt: new Date().toISOString() });
+    }
+  }
   if (req.query?.operation === "run-reminders" && req.method === "GET") {
-    try { return await runReminderCycle(req, res); }
-    catch (error) { console.error("Scheduled reminder cycle failed:", error); return res.status(500).json({ error: error.message || "Reminder cycle failed." }); }
+    try {
+      await runOperationalHealthCheck({ notify: true, persist: true });
+      return await runReminderCycle(req, res);
+    }
+    catch (error) {
+      await reportOperationalError({ route: "/api/contact?operation=run-reminders", error, requestId });
+      return res.status(500).json({ error: error.message || "Reminder cycle failed." });
+    }
   }
   if (req.query?.operation === "send-reminder" && req.method === "POST") {
     try { return await sendManualReminder(req, res); }

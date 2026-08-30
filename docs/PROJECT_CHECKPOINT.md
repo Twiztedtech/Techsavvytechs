@@ -39,6 +39,8 @@ Last updated: 2026-08-30
 - QuickBooks payment reconciliation treats QuickBooks as the balance source for invoices already synced there. A manual **Reconcile QuickBooks** action and the protected daily cycle refresh invoice total, balance, amount paid, status, sync token, hosted payment link, and reconciliation timestamps without creating CRM payment entries. Every changed balance and reconciliation summary is recorded in the Audit Trail.
 - Technician lifecycle management is implemented in Contractor Sync. New technicians begin Pending; invitation activates access; administrators can activate, suspend, reactivate, or offboard a technician with a required reason. Suspension and offboarding disable Firebase sign-in, revoke existing sessions, require open work orders to be reassigned or explicitly returned to dispatch, remove inactive technicians from new scheduling choices, send a branded notice, and add an audit record. Completed work, timecards, billing history, and QuickBooks vendor links are preserved.
 - Technician portal APIs enforce the lifecycle status server-side, so a suspended or offboarded account cannot continue working through a stale browser session.
+- Production monitoring now combines Vercel project-scoped 5xx and usage anomaly alerts, Web Analytics, Speed Insights, structured health logs, a public dependency health probe, daily emailed dependency alerts with suppression, and a GitHub synthetic check every 15 minutes. The health operations remain consolidated in `/api/contact`, preserving the 11-function deployment footprint.
+- The live contractor workflow was verified at a 390×844 mobile viewport. Job selection, directions, work-order/SOW viewing, documents, time entry fields, photo capture input, signing entry point, and history all render without horizontal overflow. Mobile portal actions now enforce a 44px minimum touch target.
 
 ## Vercel API-function allowance
 
@@ -70,6 +72,7 @@ If the application outgrows safe handler consolidation, upgrade the Vercel plan 
 7. Send a portal invite to a controlled customer, confirm customer-only data visibility, submit a service request, and test the QuickBooks hosted payment link with a sandbox or zero-risk test invoice before using it with a real customer.
 8. Before relying on automated reminders, use controlled customer records to test each reminder type and confirm delivery, secure document links, preference opt-outs, and duplicate suppression. The schedule endpoint is protected by Vercel `CRON_SECRET`.
 9. Run the first manual QuickBooks reconciliation against controlled invoices and compare CRM totals, balances, status, and Audit Trail entries with QuickBooks before treating reconciliation as the production receivables source of truth.
+10. Confirm repository owners receive the first Vercel anomaly notification test and enable GitHub Actions failure notifications for the **Production health monitor** workflow if they are not already enabled at the account level.
 
 ## Next development milestone
 
@@ -77,4 +80,5 @@ Continue operational hardening:
 
 - administrator audit trail for edits, approvals, and invitation delivery;
 - final mobile field test with a real work order and customer signature;
-- periodic review of QuickBooks vendor status versus portal access.
+- periodic review of QuickBooks vendor status versus portal access;
+- review Web Analytics and Speed Insights after enough real production traffic has accumulated.

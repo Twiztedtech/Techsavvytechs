@@ -35,6 +35,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   addDoc,
   arrayUnion,
@@ -1407,10 +1408,10 @@ function ReportsView({
 function ReportKpi({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: keyof typeof tones }) {
   return <section className="rounded border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p><span className={`h-2 w-2 rounded-full border ${tones[tone]}`} /></div><p className="mt-3 font-display text-xl">{value}</p><p className="mt-1 text-[9px] text-slate-400">{detail}</p></section>;
 }
-function ReportPanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function ReportPanel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><header className="mb-5 border-b border-slate-100 pb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-[9px] text-slate-400">{subtitle}</p></header>{children}</section>;
 }
-function ReportBar({ label, width, display, danger = false }: { label: string; value: number; width: number; display: string; danger?: boolean }) {
+function ReportBar({ label, width, display, danger = false }: { key?: string; label: string; value: number; width: number; display: string; danger?: boolean }) {
   return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-tech-green"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
 }
 function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-[10px] text-slate-400">{text}</div>; }
