@@ -1,9 +1,41 @@
 import { adminDb, requireAdmin } from './firebase-admin.js';
 import { clean, hashValue, nowIso, opaqueToken, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
 
+function normalizePortalRequest(doc) {
+  const value = doc.data();
+  const status = String(value.status || 'requested').toLowerCase();
+  const preferredDate = clean(value.preferredDate, 20);
+  return {
+    id: doc.id,
+    ...value,
+    requestNumber: value.requestNumber || `CP-${doc.id.slice(-6).toUpperCase()}`,
+    companyName: value.companyName || value.name || 'Customer portal request',
+    siteName: value.siteName || value.site || 'Customer portal request',
+    requesterName: value.requesterName || value.name || 'Customer',
+    requesterEmail: value.requesterEmail || value.email || '',
+    requesterPhone: value.requesterPhone || value.phone || '',
+    scopeSummary: value.scopeSummary || [value.subject, value.message].filter(Boolean).join(' — '),
+    address: value.address || value.site || '',
+    requestedWindows: value.requestedWindows || (preferredDate ? [{ date: preferredDate, start: '', end: '' }] : []),
+    status: status === 'new' ? 'requested' : status,
+    source: 'secure_customer_portal',
+  };
+}
+
+async function findRequest(requestId) {
+  const vendorRef = adminDb.collection('vendor_requests').doc(requestId);
+  const vendorSnapshot = await vendorRef.get();
+  if (vendorSnapshot.exists) return { ref: vendorRef, request: vendorSnapshot.data() };
+  const portalRef = adminDb.collection('contacts').doc(requestId);
+  const portalSnapshot = await portalRef.get();
+  if (!portalSnapshot.exists || portalSnapshot.data()?.type !== 'customer-portal-service-request') return null;
+  return { ref: portalRef, request: normalizePortalRequest(portalSnapshot) };
+}
+
 async function listDashboard(res) {
-  const [requests, organizations, users, settings, appointments, failedNotifications, scopeChanges] = await Promise.all([
+  const [requests, portalRequests, organizations, users, settings, appointments, failedNotifications, scopeChanges] = await Promise.all([
     adminDb.collection('vendor_requests').limit(100).get(),
+    adminDb.collection('contacts').where('type', '==', 'customer-portal-service-request').limit(100).get(),
     adminDb.collection('client_organizations').limit(100).get(),
     adminDb.collection('client_users').limit(200).get(),
     adminDb.collection('settings').doc('client_portal').get(),
@@ -11,8 +43,12 @@ async function listDashboard(res) {
     adminDb.collection('notification_deliveries').where('status', '==', 'failed').limit(50).get(),
     adminDb.collection('scope_versions').where('status', '==', 'client_requested').limit(50).get(),
   ]);
+  const combinedRequests = [
+    ...requests.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    ...portalRequests.docs.map(normalizePortalRequest),
+  ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   return res.status(200).json({
-    requests: requests.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    requests: combinedRequests,
     organizations: organizations.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     users: users.docs.map((doc) => { const data = doc.data(); return { id: doc.id, ...data, verificationCodeHash: undefined }; }),
     appointments: appointments.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
@@ -54,22 +90,21 @@ async function updateRequest(req, res, admin) {
   const requestId = clean(req.body?.requestId, 120);
   const status = clean(req.body?.status, 40);
   if (!['reviewing', 'clarification_needed', 'approved', 'declined'].includes(status)) return res.status(422).json({ error: 'Invalid request status.' });
-  const ref = adminDb.collection('vendor_requests').doc(requestId);
-  const snapshot = await ref.get();
-  if (!snapshot.exists) return res.status(404).json({ error: 'Request not found.' });
+  const found = await findRequest(requestId);
+  if (!found) return res.status(404).json({ error: 'Request not found.' });
+  const { ref, request } = found;
   await ref.set({ status, reviewNote: clean(req.body?.reviewNote, 2000), reviewedAt: nowIso(), reviewedByUid: admin.uid, updatedAt: nowIso() }, { merge: true });
   await recordEvent({ requestId, type: `request_${status}`, actorUid: admin.uid, actorRole: 'admin', visibility: 'client', message: status === 'clarification_needed' ? clean(req.body?.reviewNote, 2000) : `Request marked ${status.replace(/_/g, ' ')}.` });
-  await sendEmail({ to: snapshot.data().requesterEmail, subject: `${snapshot.data().requestNumber} update`, text: clean(req.body?.reviewNote, 2000) || `Your request is now ${status.replace(/_/g, ' ')}.`, html: `<p>${clean(req.body?.reviewNote, 2000) || `Your request is now ${status.replace(/_/g, ' ')}.`}</p>`, type: 'request_status' }).catch(() => null);
+  await sendEmail({ to: request.requesterEmail, subject: `${request.requestNumber} update`, text: clean(req.body?.reviewNote, 2000) || `Your request is now ${status.replace(/_/g, ' ')}.`, html: `<p>${clean(req.body?.reviewNote, 2000) || `Your request is now ${status.replace(/_/g, ' ')}.`}</p>`, type: 'request_status' }).catch(() => null);
   return res.status(200).json({ success: true });
 }
 
 async function convertRequest(req, res, admin) {
   const requestId = clean(req.body?.requestId, 120);
-  const requestRef = adminDb.collection('vendor_requests').doc(requestId);
-  const snapshot = await requestRef.get();
-  if (!snapshot.exists) return res.status(404).json({ error: 'Request not found.' });
-  if (snapshot.data().convertedJobId) return res.status(409).json({ error: 'This request already has a work order.' });
-  const request = snapshot.data();
+  const found = await findRequest(requestId);
+  if (!found) return res.status(404).json({ error: 'Request not found.' });
+  const { ref: requestRef, request } = found;
+  if (request.convertedJobId) return res.status(409).json({ error: 'This request already has a work order.' });
   let organizationId = request.organizationId;
   if (!organizationId) {
     const orgRef = adminDb.collection('client_organizations').doc();
