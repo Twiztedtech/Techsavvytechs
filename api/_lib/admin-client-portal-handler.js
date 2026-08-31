@@ -152,8 +152,8 @@ async function convertRequest(req, res, admin) {
   const conversationToken = opaqueToken();
   const job = {
     id: jobRef.id, name: request.siteName, address: request.address, notes: request.accessInstructions || request.scopeSummary,
-    clientVisibleNotes: request.scopeSummary, workOrderNumber, clientReference: request.clientReference,
-    vendorName: request.companyName, siteContact: request.siteContact || `${request.requesterName} · ${request.requesterPhone}`,
+    clientVisibleNotes: request.scopeSummary || '', workOrderNumber, clientReference: request.clientReference || '',
+    vendorName: request.companyName, siteContact: request.siteContact || [request.requesterName, request.requesterPhone].filter(Boolean).join(' · '),
     dateIssued: nowIso().slice(0, 10), targetCompletion: request.requestedWindows?.[0]?.date || '',
     workOrderTemplate: request.serviceType || 'general', hourlyRate: Number(req.body?.hourlyRate || 55), travelRate: Number(req.body?.travelRate || 35),
     equipment: request.equipment || [], scopeTasks: request.scopeTasks?.length ? request.scopeTasks : [request.scopeSummary],
