@@ -2,9 +2,17 @@ import { adminDb } from './firebase-admin.js';
 import { addBusinessDays, nowIso, renewGoogleCalendarWatch, sendEmail, sendSms, syncGoogleCalendarChanges } from './client-portal.js';
 
 async function recipientsFor(jobId) {
-  const participants = await adminDb.collection('job_participants').where('jobId', '==', jobId).get();
+  const [participants, job] = await Promise.all([
+    adminDb.collection('job_participants').where('jobId', '==', jobId).get(),
+    adminDb.collection('jobs').doc(jobId).get(),
+  ]);
   const users = await Promise.all(participants.docs.map((doc) => adminDb.collection('client_users').doc(doc.data().clientUid).get()));
-  return users.filter((doc) => doc.exists && doc.data().status === 'active').map((doc) => doc.data());
+  const recipients = users.filter((doc) => doc.exists && doc.data().status === 'active').map((doc) => doc.data());
+  const existing = new Set(recipients.map((recipient) => String(recipient.email || '').toLowerCase()));
+  for (const email of job.data()?.clientNotificationEmails || []) {
+    if (!existing.has(String(email).toLowerCase())) recipients.push({ email });
+  }
+  return recipients;
 }
 
 async function notify(recipients, subject, message, jobId, type) {

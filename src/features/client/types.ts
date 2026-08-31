@@ -18,6 +18,8 @@ export interface ClientOrganization {
   approvedDomains: string[];
   referencePrefixes: string[];
   defaultContactPolicy: 'techsavvy_only' | 'direct_required' | 'per_job';
+  personnel?: Array<{ id: string; name: string; email: string; role: 'requester' | 'sales' | 'project_manager' | 'payroll' | 'accounts_payable' | 'manager' | 'other'; active: boolean }>;
+  billingRecipientEmails?: string[];
 }
 
 export interface ClientJobSummary {

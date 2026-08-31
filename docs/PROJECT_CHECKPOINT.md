@@ -1,6 +1,6 @@
 # TechSavvy Platform Checkpoint
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 ## Completed
 
@@ -30,6 +30,7 @@ Last updated: 2026-08-30
 - QuickBooks customer-invoice export uses the existing server-side OAuth connection. It creates or resolves the customer and Product/Service item, stores the QuickBooks ID and sync token, reports sync errors, and prevents duplicate exports on retry.
 - Production deployment `c87cf5b` was verified READY on Vercel. The public `/crm` route returns HTTP 200 and the consolidated QuickBooks administration endpoint is deployed behind administrator authentication.
 - Customer portal access is delivered by branded secure email links. Customers can view their own jobs, quotes, invoices, managed assets, recurring-maintenance dates, and submit service requests without a shared password.
+- Client companies now retain a role-based personnel directory. Administrators can select multiple default billing recipients, choose the salesperson/requester/payroll contacts for each work order, and carry those recipients into conversion, scheduling, client-visible progress, and reminder emails.
 - QuickBooks-synced invoices enable hosted card/ACH payment when QuickBooks Payments returns an invoice link. Payment details remain on Intuit's hosted page; TechSavvy stores only the link and accounting status. Re-syncing an existing invoice refreshes its link without creating a duplicate.
 - Live operational reporting is available in CRM Reports. It derives job pipeline, unassigned work, average margin, quote conversion, technician workload, billed/collected totals, receivables aging, overdue invoices, and the 30-day recurring-maintenance forecast directly from Firestore. Administrators can download a timestamped CSV snapshot.
 - The CRM Audit Trail stores immutable administrator, customer-document, customer-portal, billing, scheduling, asset-maintenance, email-delivery, and QuickBooks activity. Audit records can be created and read by administrators but cannot be edited or deleted from the client.

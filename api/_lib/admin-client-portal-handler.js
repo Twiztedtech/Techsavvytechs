@@ -22,6 +22,26 @@ function normalizePortalRequest(doc) {
   };
 }
 
+const PERSONNEL_ROLES = new Set(['requester', 'sales', 'project_manager', 'payroll', 'accounts_payable', 'manager', 'other']);
+const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+
+function normalizePersonnel(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.slice(0, 50).map((person) => {
+    const email = clean(person?.email, 254).toLowerCase();
+    if (!validEmail(email) || seen.has(email)) return null;
+    seen.add(email);
+    return {
+      id: clean(person?.id, 120) || hashValue(email).slice(0, 20),
+      name: clean(person?.name, 120) || email,
+      email,
+      role: PERSONNEL_ROLES.has(person?.role) ? person.role : 'other',
+      active: person?.active !== false,
+    };
+  }).filter(Boolean);
+}
+
 async function findRequest(requestId) {
   const vendorRef = adminDb.collection('vendor_requests').doc(requestId);
   const vendorSnapshot = await vendorRef.get();
@@ -63,10 +83,14 @@ async function saveOrganization(req, res, admin) {
   const current = await adminDb.collection('client_organizations').doc(organizationId).get();
   const domains = Array.isArray(req.body?.approvedDomains) ? req.body.approvedDomains.map((v) => clean(v, 120).toLowerCase().replace(/^@/, '')).filter(Boolean) : (current.data()?.approvedDomains || []);
   const prefixes = Array.isArray(req.body?.referencePrefixes) ? req.body.referencePrefixes.map((v) => clean(v, 40)).filter(Boolean) : (current.data()?.referencePrefixes || []);
+  const personnel = req.body?.personnel ? normalizePersonnel(req.body.personnel) : normalizePersonnel(current.data()?.personnel || []);
+  const personnelEmails = new Set(personnel.map((person) => person.email));
+  const requestedBillingRecipients = Array.isArray(req.body?.billingRecipientEmails) ? req.body.billingRecipientEmails : (current.data()?.billingRecipientEmails || [current.data()?.billingEmail].filter(Boolean));
+  const billingRecipientEmails = [...new Set(requestedBillingRecipients.map((value) => clean(value, 254).toLowerCase()).filter((email) => personnelEmails.has(email)))];
   const data = {
     name: clean(req.body?.name || current.data()?.name, 150), approvedDomains: [...new Set(domains)], referencePrefixes: [...new Set(prefixes)],
     defaultContactPolicy: ['techsavvy_only', 'direct_required', 'per_job'].includes(req.body?.defaultContactPolicy) ? req.body.defaultContactPolicy : (current.data()?.defaultContactPolicy || 'techsavvy_only'),
-    billingEmail: clean(req.body?.billingEmail || current.data()?.billingEmail, 254).toLowerCase(), status: req.body?.status === 'suspended' ? 'suspended' : 'active',
+    personnel, billingRecipientEmails, billingEmail: billingRecipientEmails[0] || '', status: req.body?.status === 'suspended' ? 'suspended' : 'active',
     updatedAt: nowIso(), updatedByUid: admin.uid, ...(current.exists ? {} : { createdAt: nowIso() }),
   };
   if (!data.name) return res.status(422).json({ error: 'Company name is required.' });
@@ -106,11 +130,22 @@ async function convertRequest(req, res, admin) {
   const { ref: requestRef, request } = found;
   if (request.convertedJobId) return res.status(409).json({ error: 'This request already has a work order.' });
   let organizationId = request.organizationId;
+  let organization;
   if (!organizationId) {
     const orgRef = adminDb.collection('client_organizations').doc();
-    await orgRef.set({ name: request.companyName, approvedDomains: [request.requesterEmail.split('@')[1]], referencePrefixes: [String(request.clientReference || '').replace(/[\d]+$/, '')].filter(Boolean), defaultContactPolicy: 'techsavvy_only', status: 'active', createdAt: nowIso(), updatedAt: nowIso(), createdByUid: admin.uid });
+    organization = { name: request.companyName, approvedDomains: [request.requesterEmail.split('@')[1]], referencePrefixes: [String(request.clientReference || '').replace(/[\d]+$/, '')].filter(Boolean), defaultContactPolicy: 'techsavvy_only', personnel: normalizePersonnel([{ name: request.requesterName, email: request.requesterEmail, role: 'requester' }]), billingRecipientEmails: [], status: 'active', createdAt: nowIso(), updatedAt: nowIso(), createdByUid: admin.uid };
+    await orgRef.set(organization);
     organizationId = orgRef.id;
+  } else {
+    const organizationSnapshot = await adminDb.collection('client_organizations').doc(organizationId).get();
+    organization = organizationSnapshot.exists ? organizationSnapshot.data() : {};
   }
+  const personnel = normalizePersonnel(organization?.personnel || []);
+  const allowedRecipients = new Set([request.requesterEmail, ...personnel.map((person) => person.email)].map((email) => clean(email, 254).toLowerCase()).filter(validEmail));
+  const requestedRecipients = Array.isArray(req.body?.recipientEmails) ? req.body.recipientEmails : [];
+  const recipientEmails = [...new Set(requestedRecipients.map((email) => clean(email, 254).toLowerCase()).filter((email) => allowedRecipients.has(email)))];
+  if (!recipientEmails.length && validEmail(request.requesterEmail)) recipientEmails.push(request.requesterEmail.toLowerCase());
+  const billingRecipientEmails = (organization?.billingRecipientEmails || []).filter((email) => recipientEmails.includes(email));
   const jobRef = adminDb.collection('jobs').doc();
   const workOrderNumber = clean(req.body?.workOrderNumber, 80) || `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
   const assignedTechIds = Array.isArray(req.body?.assignedTechIds) && req.body.assignedTechIds.length ? req.body.assignedTechIds.map((v) => clean(v, 120)) : ['ALL'];
@@ -124,7 +159,7 @@ async function convertRequest(req, res, admin) {
     equipment: request.equipment || [], scopeTasks: request.scopeTasks?.length ? request.scopeTasks : [request.scopeSummary],
     qaChecklist: ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'],
     attachments: request.attachments || [], assignedTechIds, assignedTechId: assignedTechIds[0], technicianLeadId: clean(req.body?.technicianLeadId, 120),
-    clientOrganizationId: organizationId, sourceRequestId: requestId, createdByClientUid: request.createdByClientUid || '',
+    clientOrganizationId: organizationId, sourceRequestId: requestId, createdByClientUid: request.createdByClientUid || '', clientNotificationEmails: recipientEmails, billingRecipientEmails,
     clientStatus: 'scheduling', clientContactPolicy: req.body?.directContactApproved === true ? 'direct_approved' : 'techsavvy_only',
     currentScopeVersion: 1, closeoutStatus: '', conversationTokenHash: hashValue(conversationToken), createdAt: nowIso(), updatedAt: nowIso(),
   };
@@ -137,7 +172,7 @@ async function convertRequest(req, res, admin) {
   const requested = request.requestedWindows?.[0];
   if (requested) await adminDb.collection('appointments').add({ jobId: jobRef.id, requestedWindows: request.requestedWindows, status: 'requested', technicianId: clean(req.body?.technicianLeadId, 120), history: [], createdAt: nowIso(), updatedAt: nowIso() });
   await recordEvent({ jobId: jobRef.id, requestId, type: 'request_converted', actorUid: admin.uid, actorRole: 'admin', visibility: 'client', message: 'Request approved and converted to a work order.' });
-  await sendEmail({ to: request.requesterEmail, subject: `${workOrderNumber} approved`, text: `Your request ${request.requestNumber} was approved as work order ${workOrderNumber}. TechSavvy is confirming the appointment and assignment.`, html: `<h1>Request approved</h1><p>Your request ${request.requestNumber} is now work order <strong>${workOrderNumber}</strong>.</p>`, jobId: jobRef.id, type: 'request_converted' }).catch(() => null);
+  await sendEmail({ to: recipientEmails, subject: `${workOrderNumber} approved`, text: `Request ${request.requestNumber} was approved as work order ${workOrderNumber}. TechSavvy is confirming the appointment and assignment.`, html: `<h1>Request approved</h1><p>Request ${request.requestNumber} is now work order <strong>${workOrderNumber}</strong>.</p>`, jobId: jobRef.id, type: 'request_converted' }).catch(() => null);
   if (job.technicianLeadId) {
     const technician = await adminDb.collection('contractors').doc(job.technicianLeadId).get();
     if (technician.exists) await sendEmail({ to: technician.data().email, subject: `New assignment ${workOrderNumber}`, text: `You have been assigned to ${job.name}. Sign in to the Contractor Portal to review the SOW.`, html: `<h1>New assignment</h1><p>You have been assigned to <strong>${job.name}</strong>. Sign in to review the SOW.</p>`, jobId: jobRef.id, type: 'technician_assignment' }).catch(() => null);
@@ -161,10 +196,13 @@ async function scheduleAppointment(req, res, admin) {
   await recordEvent({ jobId: previous.jobId, appointmentId, type: 'appointment_scheduled', actorUid: admin.uid, actorRole: 'admin', visibility: 'client', message: 'Appointment confirmed.', metadata: { start, end } });
   const participants = await adminDb.collection('job_participants').where('jobId', '==', previous.jobId).get();
   const clients = await Promise.all(participants.docs.map((doc) => adminDb.collection('client_users').doc(doc.data().clientUid).get()));
-  await Promise.allSettled(clients.filter((doc) => doc.exists && doc.data().status === 'active').map(async (client) => {
+  const recipients = clients.filter((doc) => doc.exists && doc.data().status === 'active').map((client) => client.data());
+  const existingEmails = new Set(recipients.map((recipient) => String(recipient.email || '').toLowerCase()));
+  for (const email of jobDoc.data()?.clientNotificationEmails || []) if (!existingEmails.has(String(email).toLowerCase())) recipients.push({ email });
+  await Promise.allSettled(recipients.map(async (client) => {
     const text = `TechSavvy appointment confirmed for ${new Date(start).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}.`;
-    await sendEmail({ to: client.data().email, subject: `${jobDoc.data().workOrderNumber} appointment confirmed`, text, html: `<p>${text}</p>`, jobId: previous.jobId, type: 'appointment_confirmed' });
-    if (client.data().smsConsent?.optedIn === true) await sendSms({ to: client.data().phone, body: text, jobId: previous.jobId, type: 'appointment_confirmed' });
+    await sendEmail({ to: client.email, subject: `${jobDoc.data().workOrderNumber} appointment confirmed`, text, html: `<p>${text}</p>`, jobId: previous.jobId, type: 'appointment_confirmed' });
+    if (client.smsConsent?.optedIn === true) await sendSms({ to: client.phone, body: text, jobId: previous.jobId, type: 'appointment_confirmed' });
   }));
   return res.status(200).json({ success: true, calendarSyncStatus: calendar.error ? 'failed' : calendar.skipped ? 'not_configured' : 'synced' });
 }
