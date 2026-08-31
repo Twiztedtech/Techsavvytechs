@@ -7,6 +7,7 @@ import { reportOperationalError, runOperationalHealthCheck } from "./_lib/monito
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
 import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
+import { uploadInlineFiles } from './_lib/client-portal.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -335,18 +336,28 @@ async function createPortalServiceRequest(req, res) {
   const subject = String(req.body?.subject || "").trim().slice(0, 120);
   const message = String(req.body?.message || "").trim().slice(0, 3000);
   const site = String(req.body?.site || "").trim().slice(0, 250);
+  const address = String(req.body?.address || site).trim().slice(0, 300);
+  const siteContact = String(req.body?.siteContact || "").trim().slice(0, 300);
+  const clientReference = String(req.body?.clientReference || "").trim().slice(0, 100);
+  const serviceType = String(req.body?.serviceType || "general").trim().slice(0, 80);
+  const deliverables = String(req.body?.deliverables || "").trim().slice(0, 3000);
+  const accessInstructions = String(req.body?.accessInstructions || "").trim().slice(0, 3000);
+  const safetyRequirements = String(req.body?.safetyRequirements || "").trim().slice(0, 3000);
   const preferredDate = String(req.body?.preferredDate || "").trim().slice(0, 20);
-  if (!subject || !message)
-    return res.status(400).json({ error: "Please add a subject and service details." });
+  const scopeTasks = Array.isArray(req.body?.scopeTasks) ? req.body.scopeTasks.map((value) => String(value || "").trim().slice(0, 500)).filter(Boolean).slice(0, 30) : [];
+  const equipment = Array.isArray(req.body?.equipment) ? req.body.equipment.map((item) => ({ description: String(item?.description || "").trim().slice(0, 300), quantity: String(item?.quantity || "").trim().slice(0, 40), notes: String(item?.notes || "").trim().slice(0, 500) })).filter((item) => item.description).slice(0, 30) : [];
+  if (!subject || !message || !address || !preferredDate)
+    return res.status(400).json({ error: "Please add a subject, site address, preferred date, and scope summary." });
   const createdAt = new Date().toISOString();
-  const request = await adminDb.collection("contacts").add({
+  const request = adminDb.collection("contacts").doc();
+  const attachments = await uploadInlineFiles(req.body?.attachments, request.id);
+  await request.set({
     type: "customer-portal-service-request",
     name: customerSnapshot.data()?.name,
     customerId: customerSnapshot.id,
     email: access.email,
-    subject,
-    message,
-    site,
+    subject, message, site: site || address, siteName: site || subject, address, siteContact, clientReference, serviceType,
+    scopeSummary: message, scopeTasks: scopeTasks.length ? scopeTasks : [message], equipment, deliverables, accessInstructions, safetyRequirements, attachments,
     preferredDate,
     status: "New",
     createdAt,
