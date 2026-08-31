@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, Plus, Trash2, Users } from 'lucide-react';
+import type { AdminActionResult } from './ClientRequestsAdmin';
 
 type PersonnelRole = 'requester' | 'sales' | 'project_manager' | 'payroll' | 'accounts_payable' | 'manager' | 'other';
 type Personnel = { id?: string; name: string; email: string; role: PersonnelRole; active?: boolean };
@@ -21,11 +22,14 @@ const roleLabels: Record<PersonnelRole, string> = {
   requester: 'Requester', sales: 'Sales', project_manager: 'Project manager', payroll: 'Payroll', accounts_payable: 'Accounts payable', manager: 'Manager', other: 'Other',
 };
 
-export function ClientCompanyEditor({ organizations, post }: { organizations: Organization[]; post: (action: string, body: unknown) => Promise<void> }) {
+export function ClientCompanyEditor({ organizations, post }: { organizations: Organization[]; post: (action: string, body: unknown) => Promise<AdminActionResult> }) {
   const [company, setCompany] = useState(blankCompany);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const personnelEmails = useMemo(() => company.personnel.map((person) => person.email.trim().toLowerCase()).filter(Boolean), [company.personnel]);
 
   const chooseCompany = (organizationId: string) => {
+    setFeedback(null);
     if (!organizationId) { setCompany(blankCompany()); return; }
     const selected = organizations.find((organization) => organization.id === organizationId);
     if (!selected) return;
@@ -59,8 +63,13 @@ export function ClientCompanyEditor({ organizations, post }: { organizations: Or
   }));
 
   const save = async () => {
+    setFeedback(null);
+    if (!company.name.trim()) { setFeedback({ ok: false, message: 'Enter a company name before saving.' }); return; }
     const personnel = company.personnel.filter((person) => person.name.trim() || person.email.trim());
-    await post('organization', {
+    const incompletePerson = personnel.find((person) => !person.name.trim() || !person.email.trim());
+    if (incompletePerson) { setFeedback({ ok: false, message: 'Each company person needs both a name and an email address.' }); return; }
+    setSaving(true);
+    const result = await post('organization', {
       organizationId: company.organizationId || undefined,
       name: company.name,
       approvedDomains: company.approvedDomains.split(',').map((value) => value.trim()).filter(Boolean),
@@ -69,7 +78,11 @@ export function ClientCompanyEditor({ organizations, post }: { organizations: Or
       billingRecipientEmails: company.billingRecipientEmails.filter((email) => personnelEmails.includes(email)),
       defaultContactPolicy: company.defaultContactPolicy,
     });
-    if (!company.organizationId) setCompany(blankCompany());
+    setSaving(false);
+    if (result.ok) {
+      setFeedback({ ok: true, message: company.organizationId ? 'Company information updated.' : 'Company and personnel saved.' });
+      if (!company.organizationId) setCompany(blankCompany());
+    } else setFeedback({ ok: false, message: 'error' in result ? result.error : 'Could not save the company.' });
   };
 
   return <section className="rounded-xl border border-slate-800 bg-slate-950 p-5">
@@ -108,7 +121,8 @@ export function ClientCompanyEditor({ organizations, post }: { organizations: Or
         </div>
       </details>
       <p className="text-[10px] text-slate-500">Billing recipients are stored with the company. You can select the requester, salesperson, payroll, or any combination when creating each work order.</p>
-      <button type="button" onClick={() => void save()} className="mt-1 rounded bg-green-500 p-2.5 text-xs font-bold text-slate-950">{company.organizationId ? 'Update company' : 'Save company'}</button>
+      <button type="button" disabled={saving} onClick={() => void save()} className="mt-1 rounded bg-green-500 p-2.5 text-xs font-bold text-slate-950 disabled:opacity-50">{saving ? 'Saving company…' : company.organizationId ? 'Update company' : 'Save company'}</button>
+      {feedback && <div role="status" className={`rounded border p-3 text-xs ${feedback.ok ? 'border-green-500/30 bg-green-500/10 text-green-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}>{feedback.message}</div>}
     </div>
   </section>;
 }

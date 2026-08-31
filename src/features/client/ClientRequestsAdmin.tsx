@@ -8,6 +8,7 @@ type RequestRecord = Record<string, any> & { id: string; requestNumber: string; 
 type ContractorOption = { id: string; name: string; email: string };
 type Personnel = { id?: string; name: string; email: string; role: string };
 type Organization = { id: string; name: string; personnel?: Personnel[]; billingRecipientEmails?: string[] };
+export type AdminActionResult = { ok: true; data: any } | { ok: false; error: string };
 
 async function adminApi(action: string, options: RequestInit = {}) {
   const token = await auth.currentUser?.getIdToken();
@@ -23,12 +24,14 @@ export function ClientRequestsAdmin({ contractors }: { contractors: ContractorOp
   const [data, setData] = useState<any>({ requests: [], organizations: [], users: [], appointments: [], failedNotifications: [] });
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
+  const [converting, setConverting] = useState(false);
+  const [conversionFeedback, setConversionFeedback] = useState<{ requestId: string; ok: boolean; message: string } | null>(null);
   const [convert, setConvert] = useState({ requestId: '', technicianLeadId: '', hourlyRate: '55', travelRate: '35', directContactApproved: false, recipientEmails: [] as string[] });
   const [schedule, setSchedule] = useState({ appointmentId: '', start: '', end: '', technicianId: '' });
 
   const load = async () => { setLoading(true); try { setData(await adminApi('dashboard')); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not load requests.'); } finally { setLoading(false); } };
   useEffect(() => { void load(); }, []);
-  const post = async (action: string, body: unknown) => { setNotice(''); try { await adminApi(action, { method: 'POST', body: JSON.stringify(body) }); await load(); setNotice('Saved successfully.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save.'); } };
+  const post = async (action: string, body: unknown): Promise<AdminActionResult> => { setNotice(''); try { const result = await adminApi(action, { method: 'POST', body: JSON.stringify(body) }); await load(); setNotice('Saved successfully.'); return { ok: true, data: result }; } catch (error) { const message = error instanceof Error ? error.message : 'Could not save.'; setNotice(message); return { ok: false, error: message }; } };
 
   if (loading) return <div className="grid min-h-64 place-items-center text-sm text-slate-400"><RefreshCw className="h-5 w-5 animate-spin" /></div>;
   const pendingUsers = data.users.filter((user: any) => user.status !== 'active');
@@ -44,8 +47,20 @@ export function ClientRequestsAdmin({ contractors }: { contractors: ContractorOp
   const openConversion = (request: RequestRecord) => {
     const organization = organizationFor(request);
     setConvert({ requestId: request.id, technicianLeadId: '', hourlyRate: '55', travelRate: '35', directContactApproved: false, recipientEmails: uniqueEmails([request.requesterEmail || '', ...(organization?.billingRecipientEmails || [])]) });
+    setConversionFeedback(null);
   };
   const toggleRecipient = (email: string) => setConvert((current) => ({ ...current, recipientEmails: current.recipientEmails.includes(email) ? current.recipientEmails.filter((value) => value !== email) : [...current.recipientEmails, email] }));
+  const createWorkOrder = async () => {
+    if (!convert.recipientEmails.length) {
+      setConversionFeedback({ requestId: convert.requestId, ok: false, message: 'Select at least one job email recipient before creating the work order.' });
+      return;
+    }
+    setConverting(true);
+    setConversionFeedback(null);
+    const result = await post('convert', { ...convert, assignedTechIds: convert.technicianLeadId ? [convert.technicianLeadId] : ['ALL'] });
+    setConverting(false);
+    setConversionFeedback({ requestId: convert.requestId, ok: result.ok, message: result.ok ? `Work order ${result.data?.workOrderNumber || ''} created successfully.`.replace('  ', ' ') : ('error' in result ? result.error : 'Could not create the work order.') });
+  };
 
   return <div className="space-y-6">
     {notice && <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">{notice}</div>}
@@ -56,15 +71,16 @@ export function ClientRequestsAdmin({ contractors }: { contractors: ContractorOp
       const recipients = recipientsFor(request);
       return <article key={request.id} className="rounded-xl border border-slate-800 bg-slate-950 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><span className="font-mono text-[10px] text-green-400">{request.requestNumber}</span>{request.urgent && <span className="rounded bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-300">URGENT</span>}</div><h4 className="mt-1 text-lg font-bold text-white">{request.siteName}</h4><p className="text-xs text-slate-400">{request.companyName} · {request.clientReference} · {request.requesterName}</p><p className="mt-2 text-xs text-slate-300">{request.scopeSummary}</p><p className="mt-2 text-[10px] text-slate-500">Preferred: {request.requestedWindows?.[0]?.date} {request.requestedWindows?.[0]?.start}–{request.requestedWindows?.[0]?.end}</p></div><span className="rounded bg-white/5 px-3 py-1 text-xs capitalize text-amber-300">{request.status.replace(/_/g, ' ')}</span></div>
-        <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => post('request-status', { requestId: request.id, status: 'reviewing' })} className="rounded border border-slate-700 px-3 py-2 text-[10px] font-bold text-slate-300">Reviewing</button><button onClick={() => { const note = window.prompt('What clarification is needed?'); if (note) void post('request-status', { requestId: request.id, status: 'clarification_needed', reviewNote: note }); }} className="rounded border border-amber-500/30 px-3 py-2 text-[10px] font-bold text-amber-300">Request clarification</button><button onClick={() => openConversion(request)} disabled={Boolean(request.convertedJobId)} className="rounded bg-green-500 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">{request.convertedJobId ? 'Converted' : 'Convert to work order'}</button><button onClick={() => { const note = window.prompt('Reason for declining'); if (note) void post('request-status', { requestId: request.id, status: 'declined', reviewNote: note }); }} className="rounded border border-red-500/30 px-3 py-2 text-[10px] font-bold text-red-300">Decline</button></div>
+        <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => post('request-status', { requestId: request.id, status: 'reviewing' })} className="rounded border border-slate-700 px-3 py-2 text-[10px] font-bold text-slate-300">Reviewing</button><button onClick={() => { const note = window.prompt('What clarification is needed?'); if (note) void post('request-status', { requestId: request.id, status: 'clarification_needed', reviewNote: note }); }} className="rounded border border-amber-500/30 px-3 py-2 text-[10px] font-bold text-amber-300">Request clarification</button><button onClick={() => openConversion(request)} disabled={Boolean(request.convertedJobId)} className="rounded bg-green-500 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">{request.convertedJobId ? 'Converted' : 'Open work order setup'}</button><button onClick={() => { const note = window.prompt('Reason for declining'); if (note) void post('request-status', { requestId: request.id, status: 'declined', reviewNote: note }); }} className="rounded border border-red-500/30 px-3 py-2 text-[10px] font-bold text-red-300">Decline</button></div>
         {convert.requestId === request.id && <div className="mt-4 grid gap-2 rounded border border-green-500/20 bg-green-500/5 p-4 md:grid-cols-4">
           <select value={convert.technicianLeadId} onChange={(event) => setConvert((current) => ({ ...current, technicianLeadId: event.target.value }))} className="rounded bg-slate-900 p-2 text-xs text-white"><option value="">Choose technician</option>{contractors.map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.name}</option>)}</select>
           <input type="number" value={convert.hourlyRate} onChange={(event) => setConvert((current) => ({ ...current, hourlyRate: event.target.value }))} className="rounded bg-slate-900 p-2 text-xs text-white" placeholder="Hourly rate"/>
           <input type="number" value={convert.travelRate} onChange={(event) => setConvert((current) => ({ ...current, travelRate: event.target.value }))} className="rounded bg-slate-900 p-2 text-xs text-white" placeholder="Travel rate"/>
-          <button onClick={() => post('convert', { ...convert, assignedTechIds: convert.technicianLeadId ? [convert.technicianLeadId] : ['ALL'] })} className="rounded bg-green-500 p-2 text-xs font-bold text-slate-950">Create work order</button>
+          <button type="button" disabled={converting} onClick={() => void createWorkOrder()} className="rounded bg-green-500 p-2 text-xs font-bold text-slate-950 disabled:opacity-50">{converting ? 'Creating work order…' : 'Create work order'}</button>
           <details className="md:col-span-4 rounded border border-slate-800 bg-slate-950 text-xs text-white" open><summary className="cursor-pointer px-3 py-2 font-semibold">Job email recipients ({convert.recipientEmails.length} selected)</summary><div className="grid gap-2 border-t border-slate-800 p-3 md:grid-cols-2">{recipients.map((person) => { const email = person.email.toLowerCase(); return <label key={email} className="flex items-start gap-2 rounded bg-slate-900 p-2"><input type="checkbox" checked={convert.recipientEmails.includes(email)} onChange={() => toggleRecipient(email)} className="mt-0.5 accent-green-500"/><span><strong className="block text-slate-200">{person.name}</strong><span className="text-[10px] capitalize text-slate-500">{person.role.replace(/_/g, ' ')} · {email}</span></span></label>; })}</div></details>
           <p className="md:col-span-4 text-[10px] text-slate-500">The requester and company billing recipients are selected by default. Adjust this list for the salesperson or payroll contacts who belong on this job.</p>
           <label className="md:col-span-4 flex gap-2 text-xs text-slate-300"><input type="checkbox" checked={convert.directContactApproved} onChange={(event) => setConvert((current) => ({ ...current, directContactApproved: event.target.checked }))}/>Approve direct technician contact for this job</label>
+          {conversionFeedback?.requestId === request.id && <div role="status" className={`md:col-span-4 rounded border p-3 text-xs ${conversionFeedback.ok ? 'border-green-500/30 bg-green-500/10 text-green-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}>{conversionFeedback.message}</div>}
         </div>}
       </article>;
     })}</div></section>
