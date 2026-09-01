@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from '../../../_lib/firebase-admin.js';
+import { adminAuth, adminDb } from '../../_lib/firebase-admin.js';
 
 const portalToken = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -25,7 +25,12 @@ export default async function handler(req, res) {
     if (user.admin !== true) {
       const contractorSnapshot = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
       if (contractorSnapshot.empty) return res.status(403).json({ error: 'Your contractor profile is not linked to this account.' });
-      const contractorId = contractorSnapshot.docs[0].id;
+      const contractorRecord = contractorSnapshot.docs[0];
+      const contractorData = contractorRecord.data();
+      const accessStatus = contractorData.accessStatus || (contractorData.active === false ? 'Suspended' : 'Active');
+      if (accessStatus === 'Suspended') return res.status(403).json({ error: 'Your contractor portal access is suspended.' });
+      if (accessStatus === 'Offboarded') return res.status(403).json({ error: 'Your contractor portal access has been offboarded.' });
+      const contractorId = contractorRecord.id;
       const assigned = Array.isArray(job.data().assignedTechIds)
         ? job.data().assignedTechIds
         : [job.data().assignedTechId || 'ALL'];
@@ -36,7 +41,7 @@ export default async function handler(req, res) {
 
     const completed = Array.isArray(job.data().signedWorkOrders) ? job.data().signedWorkOrders : [];
     const workOrder = { id: `signed-${Date.now()}`, fileName, url, completedAt, technicianName, customerName };
-    await jobRef.set({ signedWorkOrders: [...completed, workOrder], updatedAt: new Date().toISOString() }, { merge: true });
+    await jobRef.set({ signedWorkOrders: [...completed, workOrder], signatureStatus: 'signed', signatureReceivedAt: completedAt, updatedAt: new Date().toISOString() }, { merge: true });
     return res.status(200).json({ success: true, workOrder });
   } catch (error) {
     if (error.message === 'Authentication required.') return res.status(403).json({ error: error.message });

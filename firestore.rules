@@ -57,6 +57,34 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // CRM quotes and estimates. Accepted quotes are converted into jobs by an
+    // authenticated administrator in the CRM workspace.
+    match /quotes/{quoteId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Customer invoices and payment records are restricted to CRM admins.
+    match /invoices/{invoiceId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Installed customer equipment and its recurring maintenance schedule.
+    match /customer_assets/{assetId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Immutable administrator and system activity history.
+    match /audit_logs/{auditId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Delivery history is written server-side and visible to administrators.
+    match /reminder_deliveries/{deliveryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
       allow read, write: if isAdmin();

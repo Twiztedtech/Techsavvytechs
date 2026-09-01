@@ -39,6 +39,17 @@ export interface JobSite {
   equipment?: Array<{ description: string; quantity?: string; notes?: string }>;
   scopeTasks?: string[];
   qaChecklist?: string[];
+  signatureRequired?: boolean;
+  signatureStatus?: 'pending' | 'signed' | 'technician_exception' | 'admin_exception';
+  completionStatus?: 'open' | 'completed';
+  completedAt?: string;
+  completedByUid?: string;
+  signatureException?: {
+    reason: string;
+    notes?: string;
+    technicianUid: string;
+    createdAt: string;
+  };
   signedWorkOrders?: Array<{
     id: string;
     fileName: string;

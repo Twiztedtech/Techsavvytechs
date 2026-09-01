@@ -41,6 +41,9 @@ export default function ContractorDashboard() {
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
   const [contractorJobTab, setContractorJobTab] = useState<'form' | 'instructions'>('form');
+  const [completionIntent, setCompletionIntent] = useState<'progress' | 'final'>('progress');
+  const [signatureExceptionReason, setSignatureExceptionReason] = useState('');
+  const [signatureExceptionNotes, setSignatureExceptionNotes] = useState('');
 
   // Add Contractor Modal State
   const [isAddContractorOpen, setIsAddContractorOpen] = useState(false);
@@ -50,6 +53,11 @@ export default function ContractorDashboard() {
   const [newContractorSpecialty, setNewContractorSpecialty] = useState('');
   const [isSavingContractor, setIsSavingContractor] = useState(false);
   const [viewingContractorTimecards, setViewingContractorTimecards] = useState<any | null>(null);
+  const [lifecycleTarget, setLifecycleTarget] = useState<any | null>(null);
+  const [lifecycleStatus, setLifecycleStatus] = useState<'Active' | 'Suspended' | 'Offboarded'>('Active');
+  const [lifecycleReason, setLifecycleReason] = useState('');
+  const [lifecycleReassignToId, setLifecycleReassignToId] = useState('');
+  const [isSavingLifecycle, setIsSavingLifecycle] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -187,6 +195,7 @@ export default function ContractorDashboard() {
   const [adminJobEquipment, setAdminJobEquipment] = useState([{ description: '', quantity: '', notes: '' }]);
   const [adminJobScopeTasks, setAdminJobScopeTasks] = useState(['']);
   const [adminJobQaChecklist, setAdminJobQaChecklist] = useState(['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
+  const [adminJobSignatureRequired, setAdminJobSignatureRequired] = useState(false);
   const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
   const [editingJobId, setEditingJobId] = useState(null);
   const [adminJobFiles, setAdminJobFiles] = useState<File[]>([]);
@@ -255,6 +264,49 @@ export default function ContractorDashboard() {
     }
   };
 
+  const contractorAccessStatus = (contractor) => contractor.accessStatus || (contractor.active === false ? 'Suspended' : 'Active');
+  const assignableContractors = contractorsList.filter((contractor) => contractorAccessStatus(contractor) === 'Active');
+  const openJobsForContractor = lifecycleTarget
+    ? jobSitesList.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        const terminal = ['complete', 'completed', 'closed', 'cancelled', 'canceled', 'voided'].includes(status);
+        return !terminal && getAssignedTechIds(job).includes(lifecycleTarget.id);
+      })
+    : [];
+
+  const openLifecycleDialog = (contractor, status: 'Active' | 'Suspended' | 'Offboarded') => {
+    setLifecycleTarget(contractor);
+    setLifecycleStatus(status);
+    setLifecycleReason('');
+    setLifecycleReassignToId('');
+  };
+
+  const saveLifecycleStatus = async () => {
+    if (!lifecycleTarget) return;
+    setIsSavingLifecycle(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/contractors/invite?adminOperation=lifecycle', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractorId: lifecycleTarget.id,
+          status: lifecycleStatus,
+          reason: lifecycleReason,
+          reassignToId: lifecycleStatus === 'Active' ? '' : lifecycleReassignToId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not update technician access.');
+      alert(`${lifecycleTarget.name || 'Technician'} is now ${lifecycleStatus.toLowerCase()}.${data.affectedJobCount ? ` ${data.affectedJobCount} open work order(s) were updated.` : ''}`);
+      setLifecycleTarget(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not update technician access.');
+    } finally {
+      setIsSavingLifecycle(false);
+    }
+  };
+
   const resetWorkOrderForm = () => {
     setEditingJobId(null);
     setAdminJobName('');
@@ -272,6 +324,7 @@ export default function ContractorDashboard() {
     setAdminJobEquipment([{ description: '', quantity: '', notes: '' }]);
     setAdminJobScopeTasks(['']);
     setAdminJobQaChecklist(['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
+    setAdminJobSignatureRequired(false);
     setAdminJobAssignedTechIds(['ALL']);
     setAdminJobFiles([]);
   };
@@ -341,7 +394,9 @@ export default function ContractorDashboard() {
         email: newContractorEmail.trim().toLowerCase(),
         rate: Number(newContractorRate) || 75,
         specialty: newContractorSpecialty.trim(),
-        status: 'active',
+        status: 'pending',
+        accessStatus: 'Pending',
+        active: false,
         createdAt: serverTimestamp(),
         onboarding: {
           status: 'not_started'
@@ -363,13 +418,19 @@ export default function ContractorDashboard() {
   };
 
   useEffect(() => {
-    const availableJobs = jobSitesList.filter((job) => job.status !== 'voided');
+    const availableJobs = jobSitesList.filter((job) => !['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase()));
     if (availableJobs.length > 0 && !availableJobs.some((job) => job.id === selectedJobId)) {
       setSelectedJobId(availableJobs[0].id);
     } else if (availableJobs.length === 0 && selectedJobId) {
       setSelectedJobId('');
     }
   }, [jobSitesList, selectedJobId]);
+
+  useEffect(() => {
+    setCompletionIntent('progress');
+    setSignatureExceptionReason('');
+    setSignatureExceptionNotes('');
+  }, [selectedJobId]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -533,7 +594,7 @@ export default function ContractorDashboard() {
     .reduce((acc, curr) => acc + getEntryTotals(curr).totalGross, 0);
 
   // Active Job Details
-  const activeJobSites = jobSitesList.filter((job) => job.status !== 'voided');
+  const activeJobSites = jobSitesList.filter((job) => !['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase()));
   const selectedJobObj = activeJobSites.find(j => j.id === selectedJobId) || activeJobSites[0];
 
   // Filtered History Entries
@@ -908,6 +969,24 @@ export default function ContractorDashboard() {
     const finalJobName = isCustomJob ? customJobSite : selectedJobObj?.name;
     const finalAddress = isCustomJob ? customJobAddress : selectedJobObj?.address;
     if (!finalJobName) return;
+    const hasSignedWorkOrder = Boolean(selectedJobObj?.signedWorkOrders?.length);
+    if (completionIntent === 'final' && isCustomJob) {
+      alert('Choose an administrator-issued work order before marking a job complete. Custom sites can receive progress entries only.');
+      return;
+    }
+    if (completionIntent === 'final' && selectedJobObj?.signatureRequired && !hasSignedWorkOrder) {
+      alert('This work order requires a customer signature before final completion. Open Work Order & SOW and complete the signing step.');
+      setContractorJobTab('instructions');
+      return;
+    }
+    if (completionIntent === 'final' && !hasSignedWorkOrder && !signatureExceptionReason) {
+      alert('Obtain the customer signature or select a reason for completing without one.');
+      return;
+    }
+    if (completionIntent === 'final' && !hasSignedWorkOrder && signatureExceptionReason === 'other' && !signatureExceptionNotes.trim()) {
+      alert('Explain why the customer signature was not needed or available.');
+      return;
+    }
 
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -932,7 +1011,10 @@ export default function ContractorDashboard() {
           suppliesItems: suppliesItems.filter(item => item.description.trim() !== '' || item.cost.trim() !== ''),
           travelCost: Number(travelCost || 0),
           notes,
-          photos: [...uploadedPhotos]
+          photos: [...uploadedPhotos],
+          completionIntent,
+          signatureExceptionReason: completionIntent === 'final' && !hasSignedWorkOrder ? signatureExceptionReason : '',
+          signatureExceptionNotes: completionIntent === 'final' && !hasSignedWorkOrder ? signatureExceptionNotes.trim() : '',
         })
       });
 
@@ -941,6 +1023,7 @@ export default function ContractorDashboard() {
 
       const newEntry = data.entry;
       setTimeEntries([newEntry, ...timeEntries]);
+      if (data.job) setJobSitesList((current) => current.map((job) => job.id === data.job.id ? data.job : job));
 
       if (isCustomJob && customJobSite) {
         const newJobObj = {
@@ -963,8 +1046,11 @@ export default function ContractorDashboard() {
       setSuppliesItems([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
       setTravelCost('0.00');
       setUploadedPhotos([]);
+      setCompletionIntent('progress');
+      setSignatureExceptionReason('');
+      setSignatureExceptionNotes('');
       setActiveInvoice(newEntry);
-      alert('Timesheet entry submitted successfully!');
+      alert(completionIntent === 'final' ? 'Final time entry submitted and the work order was marked complete.' : 'Progress time entry submitted successfully!');
     } catch (error) {
       console.error('Error submitting timesheet:', error);
       alert(error instanceof Error ? error.message : 'Could not submit timesheet.');
@@ -1240,7 +1326,7 @@ export default function ContractorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="contractor-dashboard min-h-screen bg-slate-950 text-slate-100 font-sans">
       <DashboardHeader
         role={userRole}
         canAccessAdmin={canAccessAdmin}
@@ -1438,7 +1524,7 @@ export default function ContractorDashboard() {
                           className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer"
                         >
                           {jobSitesList.filter((job) => {
-                            if (job.status === 'voided') return false;
+                            if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase())) return false;
                             const assignedIds = getAssignedTechIds(job);
                             return userRole === 'admin' || assignedIds.includes('ALL') || assignedJobIds.includes(job.id);
                           }).map((site) => (
@@ -1520,6 +1606,18 @@ export default function ContractorDashboard() {
                           >
                             📋 Work Order & SOW
                           </button>
+                        </div>
+                      )}
+
+                      {!isCustomJob && selectedJobObj && (
+                        <div className={`rounded-lg border p-3 text-xs ${selectedJobObj.signedWorkOrders?.length ? 'border-green-500/30 bg-green-500/5 text-green-200' : selectedJobObj.signatureRequired ? 'border-red-500/40 bg-red-500/10 text-red-200' : 'border-amber-500/40 bg-amber-500/10 text-amber-200'}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="font-bold">{selectedJobObj.signedWorkOrders?.length ? '✓ Customer sign-off received' : selectedJobObj.signatureRequired ? 'Customer signature required' : 'Customer signature recommended'}</p>
+                              {!selectedJobObj.signedWorkOrders?.length && <p className="mt-1 text-[10px] opacity-80">Obtain a signed work order before final completion. If the administrator did not require it, a documented technician exception is available.</p>}
+                            </div>
+                            {!selectedJobObj.signedWorkOrders?.length && <button type="button" onClick={() => { setContractorJobTab('instructions'); setIsSigningWorkOrder(true); }} className="rounded bg-green-500 px-3 py-2 text-[10px] font-bold text-slate-950 hover:bg-green-400">Get signature</button>}
+                          </div>
                         </div>
                       )}
 
@@ -1871,11 +1969,35 @@ export default function ContractorDashboard() {
                       )}
                     </div>
 
+                    {!isCustomJob && selectedJobObj && (
+                      <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-950 p-4">
+                        <div>
+                          <p className="text-xs font-bold text-slate-200">Submission type</p>
+                          <p className="mt-1 text-[10px] text-slate-500">Use progress for ordinary daily time. Select final only when the work order is complete.</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className={`cursor-pointer rounded border p-3 text-xs ${completionIntent === 'progress' ? 'border-amber-500 bg-amber-500/10 text-amber-200' : 'border-slate-800 text-slate-400'}`}><input type="radio" name="completion-intent" value="progress" checked={completionIntent === 'progress'} onChange={() => setCompletionIntent('progress')} className="mr-2 accent-amber-500"/><strong>Progress entry</strong><span className="mt-1 block text-[10px] opacity-75">Work continues; no signature enforcement.</span></label>
+                          <label className={`cursor-pointer rounded border p-3 text-xs ${completionIntent === 'final' ? 'border-green-500 bg-green-500/10 text-green-200' : 'border-slate-800 text-slate-400'}`}><input type="radio" name="completion-intent" value="final" checked={completionIntent === 'final'} onChange={() => setCompletionIntent('final')} className="mr-2 accent-green-500"/><strong>Final entry</strong><span className="mt-1 block text-[10px] opacity-75">Mark this work order complete.</span></label>
+                        </div>
+                        {completionIntent === 'final' && !selectedJobObj.signedWorkOrders?.length && selectedJobObj.signatureRequired && (
+                          <div className="rounded border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200"><strong>Signature required by administrator.</strong><p className="mt-1 text-[10px]">Final submission is blocked until the signed work order is saved.</p><button type="button" onClick={() => setIsSigningWorkOrder(true)} className="mt-2 rounded bg-red-500 px-3 py-2 text-[10px] font-bold text-white">Complete signing</button></div>
+                        )}
+                        {completionIntent === 'final' && !selectedJobObj.signedWorkOrders?.length && !selectedJobObj.signatureRequired && (
+                          <div className="space-y-2 rounded border border-amber-500/40 bg-amber-500/10 p-3">
+                            <p className="text-xs font-bold text-amber-200">Customer signature reminder</p>
+                            <p className="text-[10px] text-amber-100/80">Please obtain a signature when practical. To complete without one, document the exception below.</p>
+                            <select value={signatureExceptionReason} onChange={(event) => setSignatureExceptionReason(event.target.value)} className="w-full rounded border border-amber-500/30 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="">Select exception reason</option><option value="customer_unavailable">Customer unavailable</option><option value="customer_declined">Customer declined to sign</option><option value="remote_unattended">Remote or unattended work</option><option value="not_required_for_visit">Signature not required for this visit</option><option value="other">Other</option></select>
+                            <textarea value={signatureExceptionNotes} onChange={(event) => setSignatureExceptionNotes(event.target.value)} rows={2} placeholder={signatureExceptionReason === 'other' ? 'Explanation required' : 'Optional supporting notes'} className="w-full rounded border border-amber-500/30 bg-slate-950 px-3 py-2 text-xs text-slate-100"/>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <button
                       type="submit"
                       className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
                     >
-                      <span>Submit Time Entry for Review</span>
+                      <span>{completionIntent === 'final' && !isCustomJob ? 'Submit Final Entry & Complete Job' : 'Submit Progress Time for Review'}</span>
                       <span>→</span>
                     </button>
                       </>
@@ -2214,7 +2336,11 @@ export default function ContractorDashboard() {
                           {entry.correctionStatus === 'disputed' && <div className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 p-2 text-[10px] text-rose-200"><strong>Technician disputed correction:</strong> {entry.correctionResponseNote}</div>}
                           <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-500">QBO status:</span>
-                            {entry.qbStatus === 'synced' ? (
+                            {entry.status === 'voided' ? (
+                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-semibold rounded">
+                                Not eligible — voided
+                              </span>
+                            ) : entry.qbStatus === 'synced' ? (
                               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-semibold rounded">
                                 QBO Synced #{entry.qboBillId || entry.qboTimeActivityId}
                               </span>
@@ -2231,18 +2357,22 @@ export default function ContractorDashboard() {
                                   🔄 Retry Sync
                                 </button>
                               </span>
-                            ) : (
+                            ) : entry.status === 'approved' ? (
                               <span className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
-                                  Pending QBO Sync
+                                <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[9px] font-semibold rounded">
+                                  Ready for QBO Sync
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleRetrySync(entry.id)}
                                   className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow"
                                 >
-                                  🔄 Retry Sync
+                                  Sync to QuickBooks
                                 </button>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">
+                                Awaiting full approval
                               </span>
                             )}
                           </div>
@@ -2259,7 +2389,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">{entry.totalHours} hrs @ ${entry.rate || 75}/hr</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.laborStatus !== 'approved' && entry.laborStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.laborStatus !== 'approved' && entry.laborStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'labor', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2286,7 +2418,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.suppliesCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.suppliesStatus !== 'approved' && entry.suppliesStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.suppliesStatus !== 'approved' && entry.suppliesStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'supplies', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2313,7 +2447,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.travelCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.travelStatus !== 'approved' && entry.travelStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.travelStatus !== 'approved' && entry.travelStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'travel', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2340,7 +2476,9 @@ export default function ContractorDashboard() {
                                   <span className="text-slate-400 ml-1 font-mono">${Number(entry.bonusCost).toFixed(2)}</span>
                                 </div>
                                 <div className="flex gap-1.5 ml-4">
-                                  {entry.bonusStatus !== 'approved' && entry.bonusStatus !== 'rejected' ? (
+                                  {entry.status === 'voided' ? (
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                                  ) : entry.bonusStatus !== 'approved' && entry.bonusStatus !== 'rejected' ? (
                                     <>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'approved')} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
                                       <button onClick={() => handleLineItemStatusChange(entry.id, 'bonus', 'rejected')} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
@@ -2359,7 +2497,9 @@ export default function ContractorDashboard() {
                           ) : (
                             <div className="bg-slate-950/20 p-2.5 rounded-xl border border-slate-900 border-dashed flex items-center justify-between gap-3">
                               <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Bonus / Misc</span>
-                              <div className="flex gap-1.5 items-center">
+                              {entry.status === 'voided' ? (
+                                <span className="text-[9px] font-bold uppercase text-slate-600">Read only</span>
+                              ) : <div className="flex gap-1.5 items-center">
                                 <input
                                   type="number"
                                   placeholder="$0.00"
@@ -2399,7 +2539,7 @@ export default function ContractorDashboard() {
                                 >
                                   ➕ Add
                                 </button>
-                              </div>
+                              </div>}
                             </div>
                           )}
                         </div>
@@ -2467,6 +2607,13 @@ export default function ContractorDashboard() {
                             })),
                             scopeTasks: adminJobScopeTasks.map((task) => task.trim()).filter(Boolean),
                             qaChecklist: adminJobQaChecklist.map((item) => item.trim()).filter(Boolean),
+                            signatureRequired: adminJobSignatureRequired,
+                            signatureStatus: existingJob?.signatureStatus || (existingJob?.signedWorkOrders?.length ? 'signed' : 'pending'),
+                            signaturePolicyUpdatedAt: existingJob?.signatureRequired === adminJobSignatureRequired ? existingJob?.signaturePolicyUpdatedAt || nowStr : nowStr,
+                            signaturePolicyUpdatedByUid: existingJob?.signatureRequired === adminJobSignatureRequired ? existingJob?.signaturePolicyUpdatedByUid || auth.currentUser?.uid || '' : auth.currentUser?.uid || '',
+                            signaturePolicyHistory: existingJob?.signatureRequired === adminJobSignatureRequired
+                              ? existingJob?.signaturePolicyHistory || []
+                              : [...(existingJob?.signaturePolicyHistory || []), { required: adminJobSignatureRequired, changedAt: nowStr, changedByUid: auth.currentUser?.uid || '' }],
                             // Keep the original single-value field for backward
                             // compatibility while the array drives multi-tech access.
                             assignedTechId: adminJobAssignedTechIds.includes('ALL')
@@ -2565,7 +2712,7 @@ export default function ContractorDashboard() {
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">Technician Lead</label>
                           <select value={adminJobTechnicianLeadId} onChange={(e) => setAdminJobTechnicianLeadId(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-green-500">
                             <option value="">Choose a technician lead</option>
-                            {contractorsList
+                            {assignableContractors
                               .filter((contractor) => adminJobAssignedTechIds.includes('ALL') || adminJobAssignedTechIds.includes(contractor.id))
                               .map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.name}</option>)}
                           </select>
@@ -2583,7 +2730,7 @@ export default function ContractorDashboard() {
                             />
                             Anyone (all technicians)
                           </label>
-                          {contractorsList.map((contractor) => (
+                          {assignableContractors.map((contractor) => (
                             <label key={contractor.id} className="flex items-center gap-2 px-3 py-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/70">
                               <input
                                 type="checkbox"
@@ -2678,6 +2825,10 @@ export default function ContractorDashboard() {
                         <div className="flex items-center justify-between gap-3"><label className="text-[11px] font-bold uppercase tracking-wider text-green-400">Customer sign-off checklist</label><button type="button" onClick={() => setAdminJobQaChecklist((items) => [...items, ''])} className="text-[10px] font-bold text-green-300 hover:text-green-200">+ Add check</button></div>
                         {adminJobQaChecklist.map((item, index) => <div key={`qa-${index}`} className="flex gap-1.5"><input value={item} onChange={(event) => setAdminJobQaChecklist((items) => items.map((current, itemIndex) => itemIndex === index ? event.target.value : current))} placeholder="Customer confirmation item" className="min-w-0 flex-1 rounded bg-slate-900 border border-slate-800 px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-green-500" />{adminJobQaChecklist.length > 1 && <button type="button" onClick={() => setAdminJobQaChecklist((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="px-1 text-red-400 hover:text-red-300">×</button>}</div>)}
                       </div>
+                      <label className={`flex cursor-pointer items-start gap-3 rounded border p-3 ${adminJobSignatureRequired ? 'border-red-500/40 bg-red-500/10' : 'border-slate-800 bg-slate-900/60'}`}>
+                        <input type="checkbox" checked={adminJobSignatureRequired} onChange={(event) => setAdminJobSignatureRequired(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-500"/>
+                        <span><strong className="block text-xs text-slate-200">Require customer signature before final completion</strong><span className="mt-1 block text-[10px] text-slate-400">When enabled, technicians may submit progress time but cannot mark this work order complete without a signed PDF.</span></span>
+                      </label>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Work Order Documents</label>
                         <input
@@ -2734,7 +2885,7 @@ export default function ContractorDashboard() {
                         <tbody className="divide-y divide-slate-800/60">
                           {jobSitesList.filter((job) => jobRecordFilter === 'voided' ? job.status === 'voided' : job.status !== 'voided').map((job) => (
                             <tr key={job.id} className={`hover:bg-slate-950/40 ${job.status === 'voided' ? 'opacity-70' : ''} ${editingJobId === job.id ? 'bg-amber-500/5' : ''}`}>
-                              <td className="p-3 font-semibold text-slate-100">{job.name}{job.status === 'voided' && <span className="mt-1 block text-[9px] uppercase text-slate-500">Voided · {job.voidedAt ? new Date(job.voidedAt).toLocaleDateString() : ''}</span>}</td>
+                              <td className="p-3 font-semibold text-slate-100">{job.name}{job.status === 'voided' && <span className="mt-1 block text-[9px] uppercase text-slate-500">Voided · {job.voidedAt ? new Date(job.voidedAt).toLocaleDateString() : ''}</span>}{job.status === 'completed' && <span className="mt-1 block text-[9px] uppercase text-green-400">Completed · {job.signatureStatus === 'signed' ? 'Signed' : job.signatureStatus === 'technician_exception' ? 'Technician exception' : 'No signature'}</span>} {job.status !== 'completed' && job.status !== 'voided' && <span className={`mt-1 block text-[9px] uppercase ${job.signedWorkOrders?.length ? 'text-green-400' : job.signatureRequired ? 'text-red-400' : 'text-amber-400'}`}>{job.signedWorkOrders?.length ? 'Customer sign-off received' : job.signatureRequired ? 'Signature required' : 'Signature recommended'}</span>}</td>
                               <td className="p-3 font-semibold text-slate-300 text-[11px]">
                                 {getAssignmentLabel(job)}
                               </td>
@@ -2746,6 +2897,7 @@ export default function ContractorDashboard() {
                               <td className="p-3 text-slate-400">
                                 <div>{job.notes}</div>
                                 {job.status === 'voided' && <div className="mt-1 text-[10px] text-rose-300">Reason: {job.voidReason}</div>}
+                                {job.signatureStatus === 'technician_exception' && <div className="mt-1 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] text-amber-300"><strong>Signature exception:</strong> {String(job.signatureException?.reason || '').replaceAll('_', ' ')}{job.signatureException?.notes ? ` — ${job.signatureException.notes}` : ''}</div>}
                                 {job.attachments?.length > 0 && <div className="mt-1 text-[10px] text-amber-400">📎 {job.attachments.length} document{job.attachments.length === 1 ? '' : 's'}</div>}
                               </td>
                               <td className="p-3 text-right space-x-2">
@@ -2769,6 +2921,7 @@ export default function ContractorDashboard() {
                                     setAdminJobEquipment(job.equipment?.length ? job.equipment : [{ description: '', quantity: '', notes: '' }]);
                                     setAdminJobScopeTasks(job.scopeTasks?.length ? job.scopeTasks : [job.notes || '']);
                                     setAdminJobQaChecklist(job.qaChecklist?.length ? job.qaChecklist : ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
+                                    setAdminJobSignatureRequired(job.signatureRequired === true);
                                     setAdminJobAssignedTechIds(getAssignedTechIds(job));
                                     setAdminJobFiles([]);
                                   }}
@@ -2829,8 +2982,8 @@ export default function ContractorDashboard() {
                           if (confirm('Are you sure you want to disconnect QuickBooks? This will remove the authentication tokens.')) {
                             try {
                               const idToken = await auth.currentUser?.getIdToken();
-                              const response = await fetch('/api/admin/quickbooks/disconnect', {
-                                method: 'DELETE',
+                              const response = await fetch('/api/admin/quickbooks/status?operation=disconnect', {
+                                method: 'POST',
                                 headers: { Authorization: `Bearer ${idToken}` },
                               });
                               const data = await response.json();
@@ -2923,8 +3076,16 @@ export default function ContractorDashboard() {
                             {cont.qboVendorId ? `#${cont.qboVendorId}` : 'Not Linked'}
                           </td>
                           <td className="p-3 text-right">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
-                              {cont.status}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                              contractorAccessStatus(cont) === 'Active'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : contractorAccessStatus(cont) === 'Suspended'
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                  : contractorAccessStatus(cont) === 'Pending'
+                                    ? 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+                                    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                            }`}>
+                              {contractorAccessStatus(cont)}
                             </span>
                           </td>
                           <td className="p-3 text-right">
@@ -2960,7 +3121,7 @@ export default function ContractorDashboard() {
                             </button>
                             <button
                               type="button"
-                              disabled={!cont.email || invitingContractorId === cont.id}
+                              disabled={!cont.email || invitingContractorId === cont.id || ['Suspended', 'Offboarded'].includes(contractorAccessStatus(cont))}
                               onClick={async () => {
                                 if (!confirm(`Send a branded TechSavvy portal invitation to ${cont.email}?`)) return;
                                 setInvitingContractorId(cont.id);
@@ -2985,12 +3146,19 @@ export default function ContractorDashboard() {
                               }}
                               className="px-2.5 py-1 rounded border border-amber-500/30 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {invitingContractorId === cont.id
+                              {['Suspended', 'Offboarded'].includes(contractorAccessStatus(cont))
+                                ? 'Activate Before Inviting'
+                                : invitingContractorId === cont.id
                                 ? 'Sending…'
                                 : cont.invitationStatus === 'sent'
                                   ? 'Resend Branded Invite'
                                   : 'Send Branded Invite'}
                             </button>
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {contractorAccessStatus(cont) !== 'Active' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Active')} className="rounded border border-green-500/40 px-2 py-1 text-[10px] font-bold text-green-300 hover:bg-green-500 hover:text-slate-950">Activate</button> : null}
+                              {contractorAccessStatus(cont) === 'Active' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Suspended')} className="rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950">Suspend</button> : null}
+                              {contractorAccessStatus(cont) !== 'Offboarded' ? <button type="button" onClick={() => openLifecycleDialog(cont, 'Offboarded')} className="rounded border border-rose-500/40 px-2 py-1 text-[10px] font-bold text-rose-300 hover:bg-rose-500 hover:text-white">Offboard</button> : null}
+                            </div>
                             {cont.invitationDelivery?.emailId ? <button
                               type="button"
                               disabled={checkingInvitationId === cont.id}
@@ -3250,7 +3418,7 @@ export default function ContractorDashboard() {
 
       {isSigningWorkOrder && selectedJobObj && (
         <Suspense fallback={null}>
-          <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={() => setIsSigningWorkOrder(false)} />
+          <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={(workOrder) => { setJobSitesList((current) => current.map((job) => job.id === selectedJobObj.id ? { ...job, signedWorkOrders: [...(job.signedWorkOrders || []), workOrder], signatureStatus: 'signed' } : job)); setIsSigningWorkOrder(false); }} />
         </Suspense>
       )}
       {previewJob && (
@@ -3451,6 +3619,44 @@ export default function ContractorDashboard() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lifecycleTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400">Technician access</p>
+              <h3 className="mt-1 text-lg font-bold text-slate-100">{lifecycleStatus} {lifecycleTarget.name}</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                {lifecycleStatus === 'Active'
+                  ? 'This re-enables sign-in and makes the technician available for new assignments.'
+                  : 'Sign-in will be disabled, current sessions revoked, and this technician will be removed from new assignment lists.'}
+              </p>
+            </div>
+            {lifecycleStatus !== 'Active' ? <>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-300">Reason</label>
+                <textarea value={lifecycleReason} onChange={(event) => setLifecycleReason(event.target.value)} maxLength={500} rows={3} placeholder="Required for the audit record and technician notice" className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 placeholder-slate-600 focus:border-amber-500 focus:outline-none" />
+              </div>
+              {openJobsForContractor.length ? <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <p className="text-xs font-bold text-amber-300">{openJobsForContractor.length} open work order(s) need an assignment decision</p>
+                <ul className="max-h-24 list-inside list-disc overflow-y-auto text-xs text-slate-400">
+                  {openJobsForContractor.map((job) => <li key={job.id}>{job.name || job.jobName || job.workOrderNumber || job.id}</li>)}
+                </ul>
+                <select value={lifecycleReassignToId} onChange={(event) => setLifecycleReassignToId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 focus:border-amber-500 focus:outline-none">
+                  <option value="">Choose what happens to open work</option>
+                  {assignableContractors.filter((contractor) => contractor.id !== lifecycleTarget.id).map((contractor) => <option key={contractor.id} value={contractor.id}>Reassign to {contractor.name}</option>)}
+                  <option value="UNASSIGNED">Leave unassigned for dispatch</option>
+                </select>
+              </div> : <p className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 text-xs text-green-300">No open work orders are assigned to this technician.</p>}
+            </> : null}
+            <p className="text-xs text-slate-500">Completed jobs, timecards, invoices, payment history, and the QuickBooks vendor link will be preserved.</p>
+            <div className="flex justify-end gap-3">
+              <button type="button" disabled={isSavingLifecycle} onClick={() => setLifecycleTarget(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">Cancel</button>
+              <button type="button" disabled={isSavingLifecycle || (lifecycleStatus !== 'Active' && (!lifecycleReason.trim() || (openJobsForContractor.length > 0 && !lifecycleReassignToId)))} onClick={() => void saveLifecycleStatus()} className={`rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${lifecycleStatus === 'Active' ? 'bg-green-600 hover:bg-green-500' : lifecycleStatus === 'Suspended' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-rose-600 hover:bg-rose-500'}`}>{isSavingLifecycle ? 'Saving…' : `Confirm ${lifecycleStatus.toLowerCase()}`}</button>
             </div>
           </div>
         </div>

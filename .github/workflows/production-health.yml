@@ -1,0 +1,24 @@
+name: Production health monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health-monitor
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: Check TechSavvy production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public site
+        run: curl --fail --silent --show-error --retry 2 --max-time 20 https://techsavvytechs.com/ > /dev/null
+      - name: Check operational dependencies
+        run: curl --fail --silent --show-error --retry 2 --max-time 30 https://techsavvytechs.com/api/contact?operation=health

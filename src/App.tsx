@@ -1,10 +1,14 @@
 /**
-/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router";
 import { useEffect, lazy, Suspense } from "react";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
@@ -26,6 +30,9 @@ import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
+const CRM = lazy(() => import('./pages/CRM'));
+const CustomerDocument = lazy(() => import('./pages/CustomerDocument'));
+const CustomerPortal = lazy(() => import('./pages/CustomerPortal'));
 const BookJob = lazy(() => import('./pages/BookJob'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
 const RequestStatus = lazy(() => import('./pages/RequestStatus'));
@@ -50,6 +57,7 @@ export default function App() {
 function AppShell() {
   const { pathname } = useLocation();
   const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client');
+  const isSecureCustomerDocument = pathname.startsWith('/customer/');
 
   return (
     <>
@@ -59,13 +67,16 @@ function AppShell() {
         {/* Blueprint Grid Overlay */}
         <div className="fixed inset-0 blueprint-grid pointer-events-none z-0 opacity-40" />
 
-        {!isContractorPortal && <Navbar />}
+        {!isContractorPortal && !isSecureCustomerDocument && <Navbar />}
 
         <main className="flex-grow relative z-10">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/services/low-voltage" element={<LowVoltage />} />
-            <Route path="/services/infrastructure" element={<Infrastructure />} />
+            <Route
+              path="/services/infrastructure"
+              element={<Infrastructure />}
+            />
             <Route path="/services/msp" element={<MSP />} />
             <Route path="/services/cell-boosting" element={<CellBoosting />} />
             <Route path="/about/mission" element={<About />} />
@@ -73,21 +84,42 @@ function AppShell() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/crm" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading CRM command center…</div>}><CRM /></Suspense>} />
+            <Route path="/customer/document" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading secure document…</div>}><CustomerDocument /></Suspense>} />
+            <Route path="/customer/portal" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading customer portal…</div>}><CustomerPortal /></Suspense>} />
             <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
             <Route path="/client" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading client portal…</div>}><ClientPortal /></Suspense>} />
             <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
-            <Route path="/contractor/dashboard" element={
-              <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
-                <ContractorDashboard />
-              </Suspense>
-            } />
-            <Route path="/contractor/onboarding" element={
-              <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading secure portal…</div>}>
-                <ContractorOnboarding />
-              </Suspense>
-            } />
+            <Route
+              path="/contractor/dashboard"
+              element={
+                <Suspense
+                  fallback={
+                    <div className="min-h-screen grid place-items-center text-sm text-slate-400">
+                      Loading secure portal…
+                    </div>
+                  }
+                >
+                  <ContractorDashboard />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/contractor/onboarding"
+              element={
+                <Suspense
+                  fallback={
+                    <div className="min-h-screen grid place-items-center text-sm text-slate-400">
+                      Loading secure portal…
+                    </div>
+                  }
+                >
+                  <ContractorOnboarding />
+                </Suspense>
+              }
+            />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             {/* Fallback to Home */}
@@ -95,7 +127,7 @@ function AppShell() {
           </Routes>
         </main>
 
-        {!isContractorPortal && <Footer />}
+        {!isContractorPortal && !isSecureCustomerDocument && <Footer />}
       </div>
     </>
   );

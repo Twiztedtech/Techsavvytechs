@@ -92,7 +92,7 @@ type Props = {
   savedTechnicianSignature?: string;
   onSaveTechnicianSignature?: (signatureDataUrl: string) => Promise<void>;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (workOrder: NonNullable<JobSite['signedWorkOrders']>[number]) => void;
 };
 
 const templates: Record<NonNullable<JobSite['workOrderTemplate']>, string> = {
@@ -287,9 +287,19 @@ export function WorkOrderSigningModal({ job, technicianName, savedTechnicianSign
           customerName: customerName.trim(),
         }),
       });
-      if (!response.ok) throw new Error((await response.json()).error || 'Could not save the signed work order.');
+      const responseText = await response.text();
+      if (!response.ok) {
+        let responseMessage = '';
+        try {
+          responseMessage = JSON.parse(responseText).error || '';
+        } catch {
+          responseMessage = responseText;
+        }
+        throw new Error(responseMessage || 'Could not save the signed work order.');
+      }
+      const result = JSON.parse(responseText);
       alert('Signed work order saved. You can open the PDF from this job at any time.');
-      onComplete();
+      onComplete(result.workOrder);
     } catch (error) {
       console.error('Could not complete work order:', error);
       alert(error instanceof Error ? error.message : 'The signed work order could not be saved.');
