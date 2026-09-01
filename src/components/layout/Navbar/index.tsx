@@ -60,11 +60,6 @@ export const Navbar = () => {
               href="/about/service-areas" 
               description="Serving the Sacramento Region"
             />
-            <NavDropdownItem
-              label="CRM Command Center"
-              href="/crm"
-              description="Customers, Pipeline & Field Operations"
-            />
           </NavItem>
 
           <NavItem label="Contractor Portal">
@@ -85,6 +80,9 @@ export const Navbar = () => {
 
           <Link to="/client" className="rounded-sm border border-tech-green/50 px-3 py-2 font-bold text-tech-green transition-colors hover:bg-tech-green hover:text-brand-black">
             Client Login
+          </Link>
+          <Link to="/crm" className="rounded-sm border border-safety-orange/60 px-3 py-2 font-bold text-safety-orange transition-colors hover:bg-safety-orange hover:text-brand-black">
+            CRM Login
           </Link>
           <Link to="/book-a-job">
             <Button variant="orange" size="sm">
@@ -122,7 +120,7 @@ export const Navbar = () => {
             <Link to="/about/service-areas" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Service Areas</Link>
             <Link to="/client" onClick={closeMobileMenu} className="rounded-sm border border-tech-green/40 px-4 py-3 text-tech-green hover:bg-tech-green hover:text-brand-black">Client Login</Link>
             <Link to="/contractor/dashboard" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contractor Portal</Link>
-            <Link to="/crm" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">CRM Command Center</Link>
+            <Link to="/crm" onClick={closeMobileMenu} className="rounded-sm border border-safety-orange/50 px-4 py-3 text-safety-orange hover:bg-safety-orange hover:text-brand-black">CRM Login</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contact</Link>
             <Link to="/blog" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Blog</Link>
             <Link to="/book-a-job" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Book a Job</Link>
