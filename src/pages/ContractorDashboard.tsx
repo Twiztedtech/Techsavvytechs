@@ -24,7 +24,7 @@ export default function ContractorDashboard() {
   const [activeAdminTab, setActiveAdminTab] = useState(() => new URLSearchParams(window.location.search).get('adminTab') === 'requests' ? 'requests' : 'timecards');
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; type: string } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void'; label: string } | null>(null);
+  const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void' | 'reverse'; label: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [isVoiding, setIsVoiding] = useState(false);
   const [contractorsList, setContractorsList] = useState([]);
@@ -635,7 +635,7 @@ export default function ContractorDashboard() {
       const token = await auth.currentUser?.getIdToken();
       const action = voidTarget.kind === 'job'
         ? 'void_job'
-        : voidTarget.mode === 'request' ? 'request_void_timecard' : 'void_timecard';
+        : voidTarget.mode === 'request' ? 'request_void_timecard' : voidTarget.mode === 'reverse' ? 'reverse_synced_timecard' : 'void_timecard';
       const response = await fetch('/api/portal/time-clock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -645,13 +645,28 @@ export default function ContractorDashboard() {
       if (!response.ok) throw new Error(data.error || 'Could not complete the void request.');
       if (data.entry) setTimeEntries((current) => current.map((entry) => entry.id === data.entry.id ? data.entry : entry));
       if (data.job) setJobSitesList((current) => current.map((job) => job.id === data.job.id ? data.job : job));
-      alert(voidTarget.mode === 'request' ? 'Your void request was sent to the administrator.' : 'The record was voided and retained in history.');
+      alert(voidTarget.mode === 'request' ? 'Your void request was sent to the administrator.' : voidTarget.mode === 'reverse' ? 'The incorrect QuickBooks transaction was reversed. The technician has been asked to acknowledge the correction.' : 'The record was voided and retained in history.');
       setVoidTarget(null);
       setVoidReason('');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not complete the void request.');
     } finally {
       setIsVoiding(false);
+    }
+  };
+
+  const respondToCorrection = async (entry, agreed: boolean) => {
+    const responseNote = agreed ? '' : window.prompt('Explain why you dispute this correction:');
+    if (!agreed && !responseNote?.trim()) return;
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'respond_timecard_correction', timecardId: entry.id, agreed, responseNote: responseNote?.trim() || '' }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save your response.');
+      setTimeEntries((current) => current.map((item) => item.id === data.entry.id ? data.entry : item));
+      alert(agreed ? 'Correction accepted. The original submission remains in voided history.' : 'Your dispute was sent to TechSavvy for review.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not save your response.');
     }
   };
 
@@ -2013,7 +2028,9 @@ export default function ContractorDashboard() {
                                 }`}>
                                   {entry.status === 'rejected' ? 'Not Approved' : entry.status}
                                 </span>
-                                {entry.status === 'voided' && <span className="mt-1 block max-w-xs text-[10px] text-slate-500">Reason: {entry.voidReason}</span>}
+                          {entry.status === 'voided' && <span className="mt-1 block max-w-xs text-[10px] text-slate-500">Reason: {entry.voidReason}</span>}
+                          {entry.correctionStatus === 'awaiting_technician' && <div className="mt-2 max-w-xl rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200"><strong>Correction awaiting your response</strong><p className="mt-1">{entry.correctionReason}</p><div className="mt-3 flex gap-2"><button type="button" onClick={() => void respondToCorrection(entry, true)} className="rounded bg-green-500 px-3 py-1.5 text-[10px] font-bold text-slate-950">I agree</button><button type="button" onClick={() => void respondToCorrection(entry, false)} className="rounded border border-rose-500/40 px-3 py-1.5 text-[10px] font-bold text-rose-300">Dispute</button></div></div>}
+                          {entry.correctionStatus === 'disputed' && <span className="mt-1 block max-w-xs text-[10px] text-rose-300">Correction disputed · TechSavvy is reviewing your response.</span>}
                               </td>
                               <td className="p-3">
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 w-max">⏳ Accounting review</span>
@@ -2191,13 +2208,15 @@ export default function ContractorDashboard() {
                           </div>
                           <div className="text-sm font-semibold text-slate-200">{entry.jobSite}</div>
                           <div className="text-[10px] text-slate-500 font-mono">{techEmail}</div>
-                          {entry.status === 'voided' && <div className="mt-2 rounded border border-slate-700 bg-slate-900/70 p-2 text-[10px] text-slate-400"><strong className="text-slate-300">Voided:</strong> {entry.voidReason}<br />{entry.voidAgreedByTechnician ? 'Technician requested and administrator approved.' : 'Voided by administrator.'}</div>}
+                          {entry.status === 'voided' && <div className="mt-2 rounded border border-slate-700 bg-slate-900/70 p-2 text-[10px] text-slate-400"><strong className="text-slate-300">Voided:</strong> {entry.voidReason}<br />{entry.voidAgreedByTechnician ? 'Technician acknowledged the correction.' : 'Voided by administrator.'}</div>}
                           {entry.voidStatus === 'requested' && entry.status !== 'voided' && <div className="mt-2 rounded border border-violet-500/30 bg-violet-500/10 p-2 text-[10px] text-violet-300"><strong>Technician requests void:</strong> {entry.voidRequestReason}</div>}
+                          {entry.correctionStatus === 'awaiting_technician' && <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] text-amber-200"><strong>QuickBooks reversed · awaiting technician acknowledgment:</strong> {entry.correctionReason}</div>}
+                          {entry.correctionStatus === 'disputed' && <div className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 p-2 text-[10px] text-rose-200"><strong>Technician disputed correction:</strong> {entry.correctionResponseNote}</div>}
                           <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-500">QBO status:</span>
                             {entry.qbStatus === 'synced' ? (
                               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-semibold rounded">
-                                QBO Synced #{entry.qboBillId}
+                                QBO Synced #{entry.qboBillId || entry.qboTimeActivityId}
                               </span>
                             ) : entry.qbStatus === 'failed' ? (
                               <span className="flex items-center gap-2">
@@ -2388,7 +2407,10 @@ export default function ContractorDashboard() {
                         <div className="text-right min-w-[120px]">
                           <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Total Payable</span>
                           <span className="text-xl font-bold text-slate-100 font-mono">${totals.totalGross.toFixed(2)}</span>
-                          {entry.status !== 'voided' && entry.qbStatus !== 'synced' && !entry.active && (
+                          {entry.status !== 'voided' && entry.qbStatus === 'synced' && !entry.active && (
+                            <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'reverse', label: `${entry.jobSite} · ${entry.date} · ${entry.totalHours} hours` })} className="mt-3 block w-full rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20">Reverse approval &amp; QuickBooks sync</button>
+                          )}
+                          {entry.status !== 'voided' && entry.qbStatus !== 'synced' && entry.qbStatus !== 'reversed' && !entry.active && (
                             <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'void', label: `${entry.jobSite} · ${entry.date}` })} className="mt-3 block w-full rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/20">{entry.voidStatus === 'requested' ? 'Approve void request' : 'Void submission'}</button>
                           )}
                         </div>
@@ -3472,14 +3494,14 @@ export default function ContractorDashboard() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-rose-500/30 bg-slate-900 p-6 shadow-2xl">
             <div>
-              <h3 className="text-lg font-bold text-rose-400">{voidTarget.mode === 'request' ? 'Request a void' : voidTarget.kind === 'job' ? 'Void work order' : 'Void submission'}</h3>
+              <h3 className={`text-lg font-bold ${voidTarget.mode === 'reverse' ? 'text-amber-300' : 'text-rose-400'}`}>{voidTarget.mode === 'request' ? 'Request a void' : voidTarget.mode === 'reverse' ? 'Reverse approved submission' : voidTarget.kind === 'job' ? 'Void work order' : 'Void submission'}</h3>
               <p className="mt-1 text-xs text-slate-400">{voidTarget.label}</p>
             </div>
-            <p className="text-sm text-slate-300">{voidTarget.mode === 'request' ? 'Explain why this rejected submission should be voided. The administrator must approve your request.' : 'This removes the record from active work but keeps the original information and reason in history. Assigned technicians will be notified.'}</p>
+            <p className="text-sm text-slate-300">{voidTarget.mode === 'request' ? 'Explain why this rejected submission should be voided. The administrator must approve your request.' : voidTarget.mode === 'reverse' ? 'This removes only the QuickBooks transactions linked to this submission, excludes it from payable totals, preserves the audit trail, and asks the technician to agree or dispute.' : 'This removes the record from active work but keeps the original information and reason in history. Assigned technicians will be notified.'}</p>
             <textarea value={voidReason} onChange={(event) => setVoidReason(event.target.value)} rows={4} maxLength={500} placeholder="Required reason" className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 placeholder-slate-600 focus:border-rose-500 focus:outline-none" />
             <div className="flex justify-end gap-3">
               <button type="button" disabled={isVoiding} onClick={() => { setVoidTarget(null); setVoidReason(''); }} className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">Cancel</button>
-              <button type="button" disabled={isVoiding || !voidReason.trim()} onClick={submitVoidAction} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50">{isVoiding ? 'Saving…' : voidTarget.mode === 'request' ? 'Send request' : 'Confirm void'}</button>
+              <button type="button" disabled={isVoiding || !voidReason.trim()} onClick={submitVoidAction} className={`rounded-xl px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${voidTarget.mode === 'reverse' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-rose-600 text-white hover:bg-rose-500'}`}>{isVoiding ? 'Saving…' : voidTarget.mode === 'request' ? 'Send request' : voidTarget.mode === 'reverse' ? 'Reverse and notify technician' : 'Confirm void'}</button>
             </div>
           </div>
         </div>

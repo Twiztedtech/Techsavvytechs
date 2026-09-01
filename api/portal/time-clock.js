@@ -1,5 +1,5 @@
 import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
-import { createQBOBillForTimecard } from '../_lib/qbo-helper.js';
+import { createQBOBillForTimecard, reverseQBOTimecard } from '../_lib/qbo-helper.js';
 import clientPortalHandler from '../_lib/client-api-handler.js';
 import adminClientPortalHandler from '../_lib/admin-client-portal-handler.js';
 import jobEventsHandler from '../_lib/job-events-handler.js';
@@ -245,6 +245,73 @@ export default async function handler(req, res) {
         heading: 'Time submission voided',
         message: `Hello ${techName || 'there'}, this submission has been removed from active review. It was not permanently deleted.`,
         details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Reason', reason], ['Agreement', agreed ? 'Technician requested the void' : 'Administrative void']],
+      });
+      return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
+    }
+    if (action === 'reverse_synced_timecard') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const reason = cleanReason(req.body?.reason);
+      if (!reason) return res.status(422).json({ error: 'Explain why this approved submission is being reversed.' });
+      const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.active) return res.status(409).json({ error: 'An active shift cannot be reversed.' });
+      if (entry.qbStatus !== 'synced') return res.status(409).json({ error: 'Only a QuickBooks-synced submission can use this reversal.' });
+      const now = new Date().toISOString();
+      await docRef.set({ correctionStatus: 'reversing', correctionReason: reason, correctionRequestedAt: now, correctionRequestedByUid: user.uid, updatedAt: now }, { merge: true });
+      try {
+        const qboReversal = await reverseQBOTimecard({ id: snapshot.id, ...entry });
+        const update = {
+          status: 'correction_pending', laborStatus: entry.laborStatus === 'approved' ? 'reversed' : entry.laborStatus,
+          suppliesStatus: entry.suppliesStatus === 'approved' ? 'reversed' : entry.suppliesStatus,
+          travelStatus: entry.travelStatus === 'approved' ? 'reversed' : entry.travelStatus,
+          bonusStatus: entry.bonusStatus === 'approved' ? 'reversed' : entry.bonusStatus,
+          qbStatus: 'reversed', qboReversedAt: now, qboReversedByUid: user.uid, qboReversal,
+          correctionStatus: 'awaiting_technician', correctionReason: reason, updatedAt: now,
+        };
+        await docRef.set(update, { merge: true });
+        let techEmail = entry.technicianEmail;
+        let techName = entry.technicianName;
+        if (!techEmail && entry.technicianUid) {
+          const contractor = await adminDb.collection('contractors').where('authUid', '==', entry.technicianUid).limit(1).get();
+          if (!contractor.empty) ({ email: techEmail, name: techName } = contractor.docs[0].data());
+        }
+        await sendPortalNotice({
+          to: techEmail,
+          subject: `Correction requires acknowledgment: ${entry.jobSite || 'time entry'}`,
+          heading: 'Approved time entry corrected',
+          message: `Hello ${techName || 'there'}, TechSavvy found an error in an approved submission. The incorrect QuickBooks transaction has been reversed. Please sign in to agree or dispute the correction.`,
+          details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Submitted hours', `${entry.totalHours || 0}`], ['Reason', reason]],
+        });
+        return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
+      } catch (error) {
+        await docRef.set({ correctionStatus: 'reversal_failed', correctionError: error.message, updatedAt: new Date().toISOString() }, { merge: true });
+        return res.status(502).json({ error: `QuickBooks reversal failed. Nothing was voided in the portal. ${error.message}` });
+      }
+    }
+    if (action === 'respond_timecard_correction') {
+      if (user.contractor !== true || user.admin === true) return res.status(403).json({ error: 'Technician access required.' });
+      const agreed = req.body?.agreed === true;
+      const responseNote = cleanReason(req.body?.responseNote);
+      if (!agreed && !responseNote) return res.status(422).json({ error: 'Explain why you dispute this correction.' });
+      const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.technicianUid !== user.uid) return res.status(403).json({ error: 'You can only respond to your own correction.' });
+      if (entry.correctionStatus !== 'awaiting_technician') return res.status(409).json({ error: 'This correction is not awaiting your response.' });
+      const now = new Date().toISOString();
+      const update = agreed
+        ? { status: 'voided', voidStatus: 'voided', voidedAt: now, voidReason: entry.correctionReason, voidAgreedByTechnician: true, correctionStatus: 'agreed', correctionRespondedAt: now, correctionResponseNote: responseNote, updatedAt: now }
+        : { status: 'correction_disputed', correctionStatus: 'disputed', correctionRespondedAt: now, correctionResponseNote: responseNote, updatedAt: now };
+      await docRef.set(update, { merge: true });
+      await sendPortalNotice({
+        to: process.env.SUPPORT_EMAIL,
+        subject: `Time correction ${agreed ? 'accepted' : 'disputed'}: ${entry.jobSite || 'time entry'}`,
+        heading: `Technician ${agreed ? 'accepted' : 'disputed'} a correction`,
+        message: agreed ? 'The corrected entry is now closed and retained in voided history.' : 'The QuickBooks reversal remains in place, but this correction needs administrator review.',
+        details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Reason', entry.correctionReason || 'Not provided'], ['Technician response', responseNote || 'Accepted']],
       });
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
     }

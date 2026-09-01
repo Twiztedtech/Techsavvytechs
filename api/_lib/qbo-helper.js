@@ -276,3 +276,33 @@ export async function createQBOBillForTimecard(timecard, payoutDueDate) {
 
   return responseObj;
 }
+
+async function deleteQboEntity(entityName, id) {
+  if (!id) return { skipped: true };
+  const { accessToken, realmId } = await getValidQboToken();
+  const baseUrl = qboCompanyBaseUrl(realmId);
+  const entityPath = entityName.toLowerCase();
+  const readResponse = await fetch(`${baseUrl}/${entityPath}/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  if (readResponse.status === 404) return { id, alreadyDeleted: true };
+  if (!readResponse.ok) throw new Error(`QuickBooks could not load ${entityName} ${id}: ${await readResponse.text()}`);
+  const current = (await readResponse.json())[entityName];
+  if (!current?.Id || current.SyncToken === undefined) throw new Error(`QuickBooks returned an incomplete ${entityName} record.`);
+  const deleteResponse = await fetch(`${baseUrl}/${entityPath}?operation=delete`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ Id: current.Id, SyncToken: current.SyncToken }),
+  });
+  if (!deleteResponse.ok) throw new Error(`QuickBooks could not delete ${entityName} ${id}: ${await deleteResponse.text()}`);
+  return { id: current.Id, deleted: true };
+}
+
+/** Removes only the QuickBooks records created for one portal timecard. */
+export async function reverseQBOTimecard(timecard) {
+  const results = {};
+  if (timecard.qboTimeActivityId) results.timeActivity = await deleteQboEntity('TimeActivity', timecard.qboTimeActivityId);
+  if (timecard.qboBillId) results.bill = await deleteQboEntity('Bill', timecard.qboBillId);
+  if (!timecard.qboTimeActivityId && !timecard.qboBillId) throw new Error('This synced entry has no stored QuickBooks transaction ID. Correct it in QuickBooks before closing the portal record.');
+  return results;
+}
