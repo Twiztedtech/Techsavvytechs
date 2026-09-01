@@ -261,6 +261,8 @@ type LiveJob = {
   status?: string;
   assignedTechName?: string;
   assignedTechId?: string;
+  assignedTechIds?: string[];
+  assignedTechNames?: string[];
   targetCompletion?: string;
   quotedValue?: number;
   margin?: number;
@@ -1327,7 +1329,7 @@ function ReportsView({
   const maxStage = Math.max(1, ...stages.map((stage) => stage.value));
   const workloads = technicians.map((technician) => {
     const name = technician.name || technician.companyName || "Technician";
-    const assigned = activeJobs.filter((job) => job.assignedTechId === technician.id || job.assignedTechName === name);
+    const assigned = activeJobs.filter((job) => job.assignedTechIds?.includes(technician.id) || job.assignedTechId === technician.id || job.assignedTechName === name);
     const scheduledHours = assigned.reduce((sum, job) => sum + Number(job.estimatedHours || 0), 0);
     return { id: technician.id, name, jobs: assigned.length, hours: scheduledHours };
   }).sort((a, b) => b.jobs - a.jobs);
@@ -1811,7 +1813,7 @@ function LiveScheduleBoard({
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const hours = Array.from({ length: 10 }, (_, i) => `${i + 7}:00`);
   const scheduled = jobs.filter(
-    (job) => job.schedule?.date === date && job.assignedTechId,
+    (job) => job.schedule?.date === date && (job.assignedTechIds?.length || job.assignedTechId),
   );
   const position = (time = "08:00") =>
     Math.max(
@@ -1853,7 +1855,7 @@ function LiveScheduleBoard({
           </div>
           {technicians.map((tech) => {
             const techJobs = scheduled.filter(
-              (job) => job.assignedTechId === tech.id,
+              (job) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
             );
             return (
               <div
@@ -3277,28 +3279,31 @@ function ScheduleModal({
   technicians: Technician[];
   onClose: () => void;
 }) {
-  const [techId, setTechId] = useState("");
+  const [techIds, setTechIds] = useState<string[]>(job.assignedTechIds?.length ? job.assignedTechIds : job.assignedTechId ? [job.assignedTechId] : []);
   const [date, setDate] = useState(job.targetCompletion || "");
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("12:00");
   const [saving, setSaving] = useState(false);
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const tech = technicians.find((t) => t.id === techId);
-    if (!tech) return;
+    const selectedTechs = technicians.filter((technician) => techIds.includes(technician.id));
+    if (!selectedTechs.length) return;
+    const leadTech = selectedTechs[0];
+    const techNames = selectedTechs.map((tech) => tech.name || tech.companyName || "Technician");
     setSaving(true);
     try {
       await updateDoc(doc(db, "jobs", job.id), {
-        assignedTechId: tech.id,
-        assignedTechIds: [tech.id],
-        assignedTechName: tech.name || tech.companyName || "Technician",
-        technicianLeadId: tech.id,
+        assignedTechId: leadTech.id,
+        assignedTechIds: selectedTechs.map((tech) => tech.id),
+        assignedTechName: techNames.join(", "),
+        assignedTechNames: techNames,
+        technicianLeadId: leadTech.id,
         targetCompletion: date,
         schedule: { date, start, end },
         status: "Scheduled",
         updatedAt: serverTimestamp(),
       });
-      await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${tech.name || tech.companyName || "technician"}`, { technicianId: tech.id, date, start, end });
+      await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${techNames.join(", ")}`, { technicianIds: selectedTechs.map((tech) => tech.id), leadTechnicianId: leadTech.id, date, start, end });
       onClose();
     } finally {
       setSaving(false);
@@ -3326,21 +3331,9 @@ function ScheduleModal({
         </div>
         <div className="mt-5 space-y-3">
           <label className="block text-[9px] font-bold uppercase text-slate-500">
-            Technician
-            <select
-              required
-              value={techId}
-              onChange={(e) => setTechId(e.target.value)}
-              className="mt-1 w-full rounded border border-slate-200 p-2.5 text-xs"
-            >
-              <option value="">Select technician</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name || t.companyName || t.id}
-                  {t.specialty ? ` · ${t.specialty}` : ""}
-                </option>
-              ))}
-            </select>
+            Technicians ({techIds.length} selected)
+            <span className="mt-1 block text-[9px] font-normal normal-case text-slate-400">The first selected technician is the lead. Select everyone assigned to this job.</span>
+            <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded border border-slate-200 p-2">{technicians.map((technician)=><label key={technician.id} className="flex items-start gap-2 rounded p-2 text-xs font-normal normal-case hover:bg-slate-50"><input type="checkbox" checked={techIds.includes(technician.id)} onChange={()=>setTechIds((current)=>current.includes(technician.id)?current.filter((id)=>id!==technician.id):[...current,technician.id])} className="mt-0.5 accent-green-500"/><span><strong className="block">{technician.name || technician.companyName || technician.id}</strong>{technician.specialty&&<span className="text-[9px] text-slate-400">{technician.specialty}</span>}</span></label>)}</div>
           </label>
           <Field
             label="Schedule date"
@@ -3367,7 +3360,7 @@ function ScheduleModal({
           </div>
         </div>
         <button
-          disabled={saving}
+          disabled={saving || techIds.length === 0}
           className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
         >
           {saving ? "Scheduling…" : "Confirm assignment"}
