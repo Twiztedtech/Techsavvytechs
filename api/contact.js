@@ -316,7 +316,7 @@ async function loadCustomerPortal(req, res) {
   });
   const assets = assetsSnapshot.docs.map((doc) => {
     const value = doc.data();
-    return { id: doc.id, name: value.name || "Customer asset", site: value.site || "", category: value.category || "Equipment", manufacturer: value.manufacturer || "", model: value.model || "", serialNumber: value.serialNumber || "", status: value.status || "Active", nextServiceDate: value.maintenance?.enabled ? value.maintenance?.nextServiceDate || "" : "" };
+    return { id: doc.id, name: value.name || "Customer asset", site: value.site || "", category: value.category || "Equipment", manufacturer: value.manufacturer || "", model: value.model || "", serialNumber: value.serialNumber || "", status: value.status || "Active", nextServiceDate: value.maintenance?.enabled ? value.maintenance?.nextServiceDate || "" : "", fulfillmentSource: value.fulfillmentSource || "", workOrderNumber: value.workOrderNumber || "", quantity: value.quantity || "" };
   });
   return res.status(200).json({
     preview: Boolean(access.preview),
@@ -345,7 +345,7 @@ async function createPortalServiceRequest(req, res) {
   const safetyRequirements = String(req.body?.safetyRequirements || "").trim().slice(0, 3000);
   const preferredDate = String(req.body?.preferredDate || "").trim().slice(0, 20);
   const scopeTasks = Array.isArray(req.body?.scopeTasks) ? req.body.scopeTasks.map((value) => String(value || "").trim().slice(0, 500)).filter(Boolean).slice(0, 30) : [];
-  const equipment = Array.isArray(req.body?.equipment) ? req.body.equipment.map((item) => ({ description: String(item?.description || "").trim().slice(0, 300), quantity: String(item?.quantity || "").trim().slice(0, 40), notes: String(item?.notes || "").trim().slice(0, 500) })).filter((item) => item.description).slice(0, 30) : [];
+  const equipment = Array.isArray(req.body?.equipment) ? req.body.equipment.map((item) => ({ description: String(item?.description || "").trim().slice(0, 300), quantity: String(item?.quantity || "").trim().slice(0, 40), notes: String(item?.notes || "").trim().slice(0, 500), fulfillmentSource: item?.fulfillmentSource === "techsavvy_supplied" ? "techsavvy_supplied" : "customer_shipped" })).filter((item) => item.description).slice(0, 30) : [];
   if (!subject || !message || !address || !preferredDate)
     return res.status(400).json({ error: "Please add a subject, site address, preferred date, and scope summary." });
   const createdAt = new Date().toISOString();

@@ -156,7 +156,7 @@ async function convertRequest(req, res, admin) {
     vendorName: request.companyName, siteContact: request.siteContact || [request.requesterName, request.requesterPhone].filter(Boolean).join(' · '),
     dateIssued: nowIso().slice(0, 10), targetCompletion: request.requestedWindows?.[0]?.date || '',
     workOrderTemplate: request.serviceType || 'general', hourlyRate: Number(req.body?.hourlyRate || 55), travelRate: Number(req.body?.travelRate || 35),
-    equipment: request.equipment || [], scopeTasks: request.scopeTasks?.length ? request.scopeTasks : [request.scopeSummary],
+    equipment: request.equipment || [], jobInventory: (request.equipment || []).map((item) => ({ ...item, status: item.fulfillmentSource === 'techsavvy_supplied' ? 'to_be_supplied' : 'awaiting_customer_shipment' })), scopeTasks: request.scopeTasks?.length ? request.scopeTasks : [request.scopeSummary],
     qaChecklist: ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'],
     attachments: request.attachments || [], assignedTechIds, assignedTechId: assignedTechIds[0], technicianLeadId: clean(req.body?.technicianLeadId, 120),
     clientOrganizationId: organizationId, sourceRequestId: requestId, createdByClientUid: request.createdByClientUid || '', clientNotificationEmails: recipientEmails, billingRecipientEmails,
@@ -166,6 +166,10 @@ async function convertRequest(req, res, admin) {
   const batch = adminDb.batch();
   batch.set(jobRef, job);
   batch.set(adminDb.collection('scope_versions').doc(`${jobRef.id}_1`), { jobId: jobRef.id, version: 1, status: 'approved', scopeTasks: job.scopeTasks, equipment: job.equipment, approvedByUid: admin.uid, approvedAt: nowIso(), createdAt: nowIso() });
+  if (request.customerId) (request.equipment || []).forEach((item) => {
+    const assetRef = adminDb.collection('customer_assets').doc();
+    batch.set(assetRef, { customerId: request.customerId, customerName: request.companyName, jobId: jobRef.id, workOrderNumber, sourceRequestId: requestId, site: request.address || request.siteName, name: item.description, category: 'Job equipment', quantity: item.quantity || '', notes: item.notes || '', fulfillmentSource: item.fulfillmentSource === 'techsavvy_supplied' ? 'techsavvy_supplied' : 'customer_shipped', inventoryStatus: item.fulfillmentSource === 'techsavvy_supplied' ? 'to_be_supplied' : 'awaiting_customer_shipment', status: 'Pending installation', maintenance: { enabled: false }, serviceHistory: [], createdAt: nowIso(), updatedAt: nowIso() });
+  });
   batch.set(requestRef, { status: 'converted', convertedJobId: jobRef.id, organizationId, updatedAt: nowIso() }, { merge: true });
   if (request.createdByClientUid) batch.set(adminDb.collection('job_participants').doc(`${jobRef.id}_${request.createdByClientUid}`), { jobId: jobRef.id, clientUid: request.createdByClientUid, organizationId, roles: ['requester'], notifications: { email: true, sms: request.smsConsent?.optedIn === true }, createdAt: nowIso() });
   await batch.commit();
