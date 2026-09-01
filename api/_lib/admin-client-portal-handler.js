@@ -15,6 +15,7 @@ function normalizePortalRequest(doc) {
     requesterEmail: value.requesterEmail || value.email || '',
     requesterPhone: value.requesterPhone || value.phone || '',
     scopeSummary: value.scopeSummary || [value.subject, value.message].filter(Boolean).join(' — '),
+    requiredDeliverables: value.requiredDeliverables || String(value.deliverables || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
     address: value.address || value.site || '',
     requestedWindows: value.requestedWindows || (preferredDate ? [{ date: preferredDate, start: '', end: '' }] : []),
     status: status === 'new' ? 'requested' : status,
@@ -155,6 +156,7 @@ async function convertRequest(req, res, admin) {
   const workOrderNumber = clean(req.body?.workOrderNumber, 80) || `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
   const assignedTechIds = Array.isArray(req.body?.assignedTechIds) && req.body.assignedTechIds.length ? req.body.assignedTechIds.map((v) => clean(v, 120)) : ['ALL'];
   const conversationToken = opaqueToken();
+  const requiredDeliverables = Array.isArray(request.requiredDeliverables) ? request.requiredDeliverables.filter(Boolean).slice(0, 30) : String(request.deliverables || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 30);
   const job = {
     id: jobRef.id, name: request.siteName, address: request.address, notes: request.accessInstructions || request.scopeSummary,
     clientVisibleNotes: request.scopeSummary || '', workOrderNumber, clientReference: request.clientReference || '',
@@ -162,7 +164,8 @@ async function convertRequest(req, res, admin) {
     dateIssued: nowIso().slice(0, 10), targetCompletion: request.requestedWindows?.[0]?.date || '',
     workOrderTemplate: request.serviceType || 'general', hourlyRate: Number(req.body?.hourlyRate || 55), travelRate: Number(req.body?.travelRate || 35),
     equipment: request.equipment || [], jobInventory: (request.equipment || []).map((item) => ({ ...item, status: item.fulfillmentSource === 'techsavvy_supplied' ? 'to_be_supplied' : 'awaiting_customer_shipment' })), scopeTasks: request.scopeTasks?.length ? request.scopeTasks : [request.scopeSummary],
-    qaChecklist: ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.'],
+    requiredDeliverables,
+    qaChecklist: ['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.', ...requiredDeliverables.map((item) => `Capture required deliverable: ${item}`)],
     attachments: request.attachments || [], assignedTechIds, assignedTechId: assignedTechIds[0], technicianLeadId: clean(req.body?.technicianLeadId, 120),
     clientOrganizationId: organizationId, sourceRequestId: requestId, createdByClientUid: request.createdByClientUid || '', clientNotificationEmails: recipientEmails, billingRecipientEmails,
     clientStatus: 'scheduling', clientContactPolicy: req.body?.directContactApproved === true ? 'direct_approved' : 'techsavvy_only',

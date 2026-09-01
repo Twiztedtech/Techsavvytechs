@@ -340,7 +340,8 @@ async function createPortalServiceRequest(req, res) {
   const siteContact = String(req.body?.siteContact || "").trim().slice(0, 300);
   const clientReference = String(req.body?.clientReference || "").trim().slice(0, 100);
   const serviceType = String(req.body?.serviceType || "general").trim().slice(0, 80);
-  const deliverables = String(req.body?.deliverables || "").trim().slice(0, 3000);
+  const requiredDeliverables = Array.isArray(req.body?.requiredDeliverables) ? req.body.requiredDeliverables.map((value) => String(value || "").trim().slice(0, 500)).filter(Boolean).slice(0, 30) : String(req.body?.deliverables || "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0, 30);
+  const deliverables = requiredDeliverables.join("\n");
   const accessInstructions = String(req.body?.accessInstructions || "").trim().slice(0, 3000);
   const safetyRequirements = String(req.body?.safetyRequirements || "").trim().slice(0, 3000);
   const preferredDate = String(req.body?.preferredDate || "").trim().slice(0, 20);
@@ -357,7 +358,7 @@ async function createPortalServiceRequest(req, res) {
     customerId: customerSnapshot.id,
     email: access.email,
     subject, message, site: site || address, siteName: site || subject, address, siteContact, clientReference, serviceType,
-    scopeSummary: message, scopeTasks: scopeTasks.length ? scopeTasks : [message], equipment, deliverables, accessInstructions, safetyRequirements, attachments,
+    scopeSummary: message, scopeTasks: scopeTasks.length ? scopeTasks : [message], equipment, deliverables, requiredDeliverables, accessInstructions, safetyRequirements, attachments,
     preferredDate,
     status: "New",
     createdAt,
