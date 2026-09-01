@@ -338,6 +338,11 @@ type LiveInvoice = {
   };
   customerDelivery?: { status: string; email: string; sentAt: string };
 };
+type BillingTimeEntry = {
+  id: string; jobId?: string; technicianUid?: string; technicianName?: string; totalHours?: string | number; rate?: number;
+  suppliesCost?: string | number; suppliesItems?: Array<{ description?: string; amount?: number; cost?: number }>;
+  travelCost?: string | number; laborStatus?: string; suppliesStatus?: string; travelStatus?: string; status?: string; qboReadyAt?: string;
+};
 type CustomerAsset = {
   id: string;
   customerId: string;
@@ -416,6 +421,7 @@ export default function CRM() {
   const [liveQuotes, setLiveQuotes] = useState<LiveQuote[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
+  const [billingTimeEntries, setBillingTimeEntries] = useState<BillingTimeEntry[]>([]);
   const [assets, setAssets] = useState<CustomerAsset[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [reminderDeliveries, setReminderDeliveries] = useState<ReminderDelivery[]>([]);
@@ -492,6 +498,7 @@ export default function CRM() {
         ),
       ),
     );
+    const stopBillingTimeEntries = onSnapshot(collection(db, "time_entries"), (snapshot) => setBillingTimeEntries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as BillingTimeEntry)));
     const stopAssets = onSnapshot(
       collection(db, "customer_assets"),
       (snapshot) =>
@@ -513,6 +520,7 @@ export default function CRM() {
       stopQuotes();
       stopTechnicians();
       stopInvoices();
+      stopBillingTimeEntries();
       stopAssets();
       stopAuditLogs();
       stopReminderDeliveries();
@@ -549,7 +557,7 @@ export default function CRM() {
     const newJobs = liveJobs.filter((job) => (job.status || "New") === "New");
     const pendingQuotes = liveQuotes.filter((quote) => !["Accepted", "Rejected"].includes(quote.status));
     const activeJobs = liveJobs.filter((job) => !["Complete", "Completed", "Closed", "Cancelled"].includes(job.status || ""));
-    const readyToInvoice = liveJobs.filter((job) => ["Complete", "Completed", "Closed"].includes(job.status || "") && !invoicedJobs.has(job.id));
+    const readyToInvoice = liveJobs.filter((job) => job.status === "Ready to Invoice" && !invoicedJobs.has(job.id));
     const overdue = liveInvoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today);
     const currency = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
     return [
@@ -772,6 +780,7 @@ export default function CRM() {
               <InvoicesView
                 invoices={liveInvoices}
                 jobs={liveJobs}
+                timeEntries={billingTimeEntries}
                 onCreate={setInvoiceJob}
                 onPayment={setPaymentInvoice}
               />
@@ -824,7 +833,7 @@ export default function CRM() {
         />
       )}
       {invoiceJob && (
-        <InvoiceModal job={invoiceJob} onClose={() => setInvoiceJob(null)} />
+        <InvoiceModal job={invoiceJob} timeEntries={billingTimeEntries.filter((entry)=>entry.jobId===invoiceJob.id)} onClose={() => setInvoiceJob(null)} />
       )}
       {paymentInvoice && (
         <PaymentModal
@@ -2358,21 +2367,27 @@ function JobDetailModal({
 function InvoicesView({
   invoices,
   jobs,
+  timeEntries,
   onCreate,
   onPayment,
 }: {
   invoices: LiveInvoice[];
   jobs: LiveJob[];
+  timeEntries: BillingTimeEntry[];
   onCreate: (job: LiveJob) => void;
   onPayment: (invoice: LiveInvoice) => void;
 }) {
   const invoicedJobs = new Set(
     invoices.map((invoice) => invoice.jobId).filter(Boolean),
   );
-  const candidates = jobs.filter((job) => !invoicedJobs.has(job.id));
+  const [earlyBilling, setEarlyBilling] = useState(false);
+  const billingReadyJobs = jobs.filter((job) => job.status === "Ready to Invoice" && !invoicedJobs.has(job.id));
+  const overrideJobs = jobs.filter((job) => job.status !== "Ready to Invoice" && !invoicedJobs.has(job.id));
+  const candidates = earlyBilling ? [...billingReadyJobs, ...overrideJobs] : billingReadyJobs;
   const [syncing, setSyncing] = useState("");
   const [delivering, setDelivering] = useState("");
   const [reconciling, setReconciling] = useState(false);
+  const [refreshingReadiness, setRefreshingReadiness] = useState(false);
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
   const syncToQuickBooks = async (invoice: LiveInvoice) => {
@@ -2442,6 +2457,17 @@ function InvoicesView({
       alert(`QuickBooks reconciliation complete: ${result.checked} checked, ${result.updated} balance${result.updated === 1 ? "" : "s"} changed.`);
     } catch (error) { alert(error instanceof Error ? error.message : "QuickBooks reconciliation failed."); }
     finally { setReconciling(false); }
+  };
+  const refreshBillingReadiness = async () => {
+    setRefreshingReadiness(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'refresh_billing_readiness' }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Billing readiness could not be refreshed.');
+      alert(`Billing review complete: ${result.checked} jobs checked, ${result.ready} ready to invoice.`);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Billing readiness could not be refreshed.'); }
+    finally { setRefreshingReadiness(false); }
   };
   const download = async (invoice: LiveInvoice) => {
     const { jsPDF } = await import("jspdf");
@@ -2523,6 +2549,8 @@ function InvoicesView({
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+        <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness} className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-[9px] font-bold text-violet-700 disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
+        <label className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] font-bold text-amber-800"><input type="checkbox" checked={earlyBilling} onChange={(event)=>setEarlyBilling(event.target.checked)} className="accent-amber-500"/>Early billing override</label>
         <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[10px] font-bold text-tech-green-deep disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
         <select
           defaultValue=""
@@ -2534,11 +2562,11 @@ function InvoicesView({
           className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white"
         >
           <option value="" disabled>
-            Create invoice from job
+            {candidates.length ? "Create invoice from billing-ready job" : earlyBilling ? "No uninvoiced jobs available" : "No billing-ready jobs"}
           </option>
           {candidates.map((job) => (
             <option key={job.id} value={job.id}>
-              {job.workOrderNumber || job.id} · {job.vendorName || job.name}
+              {job.workOrderNumber || job.id} · {job.vendorName || job.name}{job.status !== "Ready to Invoice" ? ` · OVERRIDE (${job.status || "New"})` : ""}
             </option>
           ))}
         </select>
@@ -2669,8 +2697,9 @@ function InvoicesView({
   );
 }
 
-function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
-  const laborHours = job.actualHours || job.estimatedHours || 0;
+function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries: BillingTimeEntry[]; onClose: () => void }) {
+  const approvedEntries = timeEntries.filter((entry)=>entry.status==='approved' && entry.qboReadyAt);
+  const laborHours = approvedEntries.reduce((sum, entry)=>sum+(entry.laborStatus==='approved'?Number(entry.totalHours||0):0),0) || job.actualHours || job.estimatedHours || 0;
   const defaultItems: InvoiceLine[] = [];
   if (laborHours)
     defaultItems.push({
@@ -2679,6 +2708,10 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
       unitPrice: job.hourlyRate || 0,
       kind: "labor",
     });
+  approvedEntries.forEach((entry, index) => {
+    if (entry.travelStatus === 'approved' && Number(entry.travelCost || 0) > 0) defaultItems.push({ description: `Approved travel${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.travelCost), kind: 'service' });
+    if (entry.suppliesStatus === 'approved' && Number(entry.suppliesCost || 0) > 0) defaultItems.push({ description: `Approved field supplies${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.suppliesCost), kind: 'material' });
+  });
   (job.equipment || []).forEach((item) =>
     defaultItems.push({
       description: item.description,
@@ -2752,6 +2785,8 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
         amountPaid: 0,
         balance: total,
         payments: [],
+        earlyBillingOverride: job.status !== 'Ready to Invoice',
+        sourceTimeEntryIds: approvedEntries.map((entry)=>entry.id),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -2783,6 +2818,7 @@ function InvoiceModal({ job, onClose }: { job: LiveJob; onClose: () => void }) {
             <p className="text-xs text-slate-500">
               {job.vendorName} · {job.name}
             </p>
+            {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">Early billing override · current job status: {job.status || 'New'}</p>}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />

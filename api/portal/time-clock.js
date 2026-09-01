@@ -89,6 +89,35 @@ const signatureFor = (contractor) => {
 
 const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
 
+const timeEntryFullyApproved = (entry) => {
+  const checks = [
+    [Number(entry.totalHours || 0) > 0, entry.laborStatus],
+    [Number(entry.suppliesCost || 0) > 0, entry.suppliesStatus],
+    [Number(entry.travelCost || 0) > 0, entry.travelStatus],
+    [Number(entry.bonusCost || 0) > 0, entry.bonusStatus],
+  ];
+  return checks.every(([active, status]) => !active || status === 'approved');
+};
+
+const refreshJobBillingReadiness = async (jobId) => {
+  if (!jobId) return false;
+  const jobRef = adminDb.collection('jobs').doc(jobId);
+  const [jobSnapshot, entriesSnapshot] = await Promise.all([jobRef.get(), adminDb.collection('time_entries').where('jobId', '==', jobId).get()]);
+  if (!jobSnapshot.exists) return false;
+  const entries = entriesSnapshot.docs.map((entry) => entry.data()).filter((entry) => entry.status !== 'voided');
+  const currentStatus = String(jobSnapshot.data().status || '').toLowerCase();
+  const completed = ['complete', 'completed', 'field complete', 'ready to invoice'].includes(currentStatus);
+  const approved = entries.length > 0 && entries.every(timeEntryFullyApproved);
+  const now = new Date().toISOString();
+  if (completed && approved) {
+    await jobRef.set({ status: 'Ready to Invoice', billingStatus: 'ready', billingReadyAt: jobSnapshot.data().billingReadyAt || now, billingEntryIds: entriesSnapshot.docs.filter((entry) => entry.data().status !== 'voided').map((entry) => entry.id), updatedAt: now }, { merge: true });
+    return true;
+  } else if (currentStatus === 'ready to invoice' && !approved) {
+    await jobRef.set({ status: 'completed', billingStatus: 'review_required', billingReadyAt: '', updatedAt: now }, { merge: true });
+  }
+  return false;
+};
+
 const getApprovedTotal = (entry) => (
   (Number(entry.totalHours || 0) * Number(entry.rate || 75))
   + Number(entry.suppliesCost || 0)
@@ -194,6 +223,13 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
     const action = req.body?.action;
+    if (action === 'refresh_billing_readiness') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const jobs = await adminDb.collection('jobs').get();
+      let ready = 0;
+      for (const job of jobs.docs) if (await refreshJobBillingReadiness(job.id)) ready += 1;
+      return res.status(200).json({ success: true, checked: jobs.size, ready });
+    }
     if (action === 'save_signature') {
       const contractor = await contractorProfileFor(user);
       const signatureDataUrl = req.body?.signatureDataUrl;
@@ -597,6 +633,7 @@ export default async function handler(req, res) {
         }
       }
 
+      await refreshJobBillingReadiness(updatedTimecard.jobId);
       return res.status(200).json({ success: true, status: newOverallStatus });
     }
 
