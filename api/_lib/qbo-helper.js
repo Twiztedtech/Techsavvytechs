@@ -285,8 +285,16 @@ async function deleteQboEntity(entityName, id) {
   const readResponse = await fetch(`${baseUrl}/${entityPath}/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
-  if (readResponse.status === 404) return { id, alreadyDeleted: true };
-  if (!readResponse.ok) throw new Error(`QuickBooks could not load ${entityName} ${id}: ${await readResponse.text()}`);
+  if (!readResponse.ok) {
+    const errorText = await readResponse.text();
+    let errorCode = '';
+    try {
+      const parsed = JSON.parse(errorText);
+      errorCode = String(parsed?.Fault?.Error?.[0]?.code || parsed?.fault?.error?.[0]?.code || '');
+    } catch (_) {}
+    if (readResponse.status === 404 || (readResponse.status === 400 && errorCode === '610')) return { id, alreadyDeleted: true };
+    throw new Error(`QuickBooks could not load ${entityName} ${id}: ${errorText}`);
+  }
   const current = (await readResponse.json())[entityName];
   if (!current?.Id || current.SyncToken === undefined) throw new Error(`QuickBooks returned an incomplete ${entityName} record.`);
   const deleteResponse = await fetch(`${baseUrl}/${entityPath}?operation=delete`, {

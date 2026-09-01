@@ -263,10 +263,11 @@ export default async function handler(req, res) {
       try {
         const qboReversal = await reverseQBOTimecard({ id: snapshot.id, ...entry });
         const update = {
-          status: 'correction_pending', laborStatus: entry.laborStatus === 'approved' ? 'reversed' : entry.laborStatus,
-          suppliesStatus: entry.suppliesStatus === 'approved' ? 'reversed' : entry.suppliesStatus,
-          travelStatus: entry.travelStatus === 'approved' ? 'reversed' : entry.travelStatus,
-          bonusStatus: entry.bonusStatus === 'approved' ? 'reversed' : entry.bonusStatus,
+          status: 'correction_pending',
+          ...(entry.laborStatus ? { laborStatus: entry.laborStatus === 'approved' ? 'reversed' : entry.laborStatus } : {}),
+          ...(entry.suppliesStatus ? { suppliesStatus: entry.suppliesStatus === 'approved' ? 'reversed' : entry.suppliesStatus } : {}),
+          ...(entry.travelStatus ? { travelStatus: entry.travelStatus === 'approved' ? 'reversed' : entry.travelStatus } : {}),
+          ...(entry.bonusStatus ? { bonusStatus: entry.bonusStatus === 'approved' ? 'reversed' : entry.bonusStatus } : {}),
           qbStatus: 'reversed', qboReversedAt: now, qboReversedByUid: user.uid, qboReversal,
           correctionStatus: 'awaiting_technician', correctionReason: reason, updatedAt: now,
         };
