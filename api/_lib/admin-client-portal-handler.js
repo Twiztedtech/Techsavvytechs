@@ -53,13 +53,14 @@ async function findRequest(requestId) {
 }
 
 async function listDashboard(res) {
-  const [requests, portalRequests, organizations, users, settings, appointments, failedNotifications, scopeChanges] = await Promise.all([
+  const [requests, portalRequests, organizations, users, settings, appointments, jobs, failedNotifications, scopeChanges] = await Promise.all([
     adminDb.collection('vendor_requests').limit(100).get(),
     adminDb.collection('contacts').where('type', '==', 'customer-portal-service-request').limit(100).get(),
     adminDb.collection('client_organizations').limit(100).get(),
     adminDb.collection('client_users').limit(200).get(),
     adminDb.collection('settings').doc('client_portal').get(),
     adminDb.collection('appointments').limit(200).get(),
+    adminDb.collection('jobs').limit(300).get(),
     adminDb.collection('notification_deliveries').where('status', '==', 'failed').limit(50).get(),
     adminDb.collection('scope_versions').where('status', '==', 'client_requested').limit(50).get(),
   ]);
@@ -71,7 +72,11 @@ async function listDashboard(res) {
     requests: combinedRequests,
     organizations: organizations.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     users: users.docs.map((doc) => { const data = doc.data(); return { id: doc.id, ...data, verificationCodeHash: undefined }; }),
-    appointments: appointments.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    appointments: appointments.docs.map((doc) => {
+      const appointment = doc.data();
+      const job = jobs.docs.find((jobDoc) => jobDoc.id === appointment.jobId)?.data() || {};
+      return { id: doc.id, ...appointment, workOrderNumber: job.workOrderNumber || '', jobName: job.name || '', jobAddress: job.address || '', clientReference: job.clientReference || '' };
+    }),
     failedNotifications: failedNotifications.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     scopeChanges: scopeChanges.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     settings: settings.exists ? settings.data() : { enabled: true, pilotOnly: false },
