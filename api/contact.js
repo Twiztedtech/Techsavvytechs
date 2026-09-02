@@ -1,4 +1,9 @@
-import { adminDb } from './_lib/firebase-admin.js';
+import { adminDb, requireAdmin } from './_lib/firebase-admin.js';
+import { createHash, randomBytes } from 'node:crypto';
+import { writeAudit } from './_lib/audit.js';
+import { reconcileQboInvoices } from './_lib/qbo-helper.js';
+import { reportOperationalError, runOperationalHealthCheck } from './_lib/monitoring.js';
+import { uploadInlineFiles } from './_lib/client-portal.js';
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
 import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
@@ -592,6 +597,58 @@ export default async function handler(req, res) {
   }
   if (integration === 'resend') return resendWebhookHandler(req, res);
   if (integration === 'googleCalendar') return googleCalendarWebhookHandler(req, res);
+  const requestId = req.headers['x-vercel-id'] || null;
+  if (req.query?.operation === 'health' && req.method === 'GET') {
+    try {
+      const health = await runOperationalHealthCheck();
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      return res.status(health.status === 'critical' ? 503 : 200).json(health);
+    } catch (error) {
+      await reportOperationalError({ route: '/api/contact?operation=health', error, requestId });
+      return res.status(503).json({ status: 'critical', checkedAt: new Date().toISOString() });
+    }
+  }
+  if (req.query?.operation === 'run-reminders' && req.method === 'GET') {
+    try {
+      await runOperationalHealthCheck({ notify: true, persist: true });
+      return await runReminderCycle(req, res);
+    } catch (error) {
+      await reportOperationalError({ route: '/api/contact?operation=run-reminders', error, requestId });
+      return res.status(500).json({ error: error.message || 'Reminder cycle failed.' });
+    }
+  }
+  if (req.query?.operation === 'send-reminder' && req.method === 'POST') {
+    try { return await sendManualReminder(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Reminder could not be sent.' }); }
+  }
+  if (req.query?.operation === 'manage-customer-portal' && req.method === 'POST') {
+    try { return await manageCustomerPortal(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Customer portal management failed.' }); }
+  }
+  if (req.query?.operation === 'send-customer-portal' && req.method === 'POST') {
+    try { return await sendCustomerPortal(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Customer portal delivery failed.' }); }
+  }
+  if (req.query?.operation === 'customer-portal' && req.method === 'GET') {
+    try { return await loadCustomerPortal(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The customer portal could not be loaded.' }); }
+  }
+  if (req.query?.operation === 'portal-service-request' && req.method === 'POST') {
+    try { return await createPortalServiceRequest(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The service request could not be sent.' }); }
+  }
+  if (req.query?.operation === 'send-customer-document') {
+    try { return await sendCustomerDocument(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Customer document delivery failed.' }); }
+  }
+  if (req.query?.operation === 'customer-document' && req.method === 'GET') {
+    try { return await loadCustomerDocument(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The document could not be loaded.' }); }
+  }
+  if (req.query?.operation === 'quote-decision' && req.method === 'POST') {
+    try { return await respondToQuote(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The quote decision could not be saved.' }); }
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
