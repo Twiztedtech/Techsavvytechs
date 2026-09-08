@@ -18,6 +18,7 @@ type CustomerDocumentData = {
   issueDate: string;
   dueDate: string;
   customerMessage: string;
+  stipulations?: string[];
   paymentLink?: string;
 };
 
@@ -210,6 +211,21 @@ export default function CustomerDocument() {
               {document.customerMessage}
             </p>
           )}
+          {type === "quote" && document.stipulations && document.stipulations.length > 0 && (
+            <div className="mt-6 rounded border border-slate-200 p-4">
+              <p className="mb-3 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Stipulations &amp; terms
+              </p>
+              <ol className="space-y-2 text-xs text-slate-600">
+                {document.stipulations.map((line, index) => (
+                  <li key={index} className="flex gap-2">
+                    <span className="text-slate-400">{index + 1}.</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
           {type === "quote" && (
             <div className="mt-7 border-t border-slate-200 pt-6">
               {["Accepted", "Rejected"].includes(finalStatus) ? (
@@ -222,6 +238,9 @@ export default function CustomerDocument() {
                   <p className="mb-3 text-xs text-slate-500">
                     Please approve the proposed work or let us know it should
                     not proceed.
+                    {document.stipulations && document.stipulations.length > 0
+                      ? " Approving confirms you accept the stipulations above."
+                      : ""}
                   </p>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button

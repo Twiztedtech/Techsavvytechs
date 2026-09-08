@@ -286,6 +286,7 @@ type LiveQuote = {
   status: string;
   lineItems: { description: string; quantity: number; unitPrice: number }[];
   total: number;
+  stipulations?: string[];
   createdAt?: unknown;
   customerDelivery?: { status: string; email: string; sentAt: string };
 };
@@ -1623,6 +1624,9 @@ function QuotesView({
   onCreate: () => void;
 }) {
   const [working, setWorking] = useState("");
+  const [editingQuote, setEditingQuote] = useState<LiveQuote | null>(null);
+  const [viewingQuote, setViewingQuote] = useState<LiveQuote | null>(null);
+  const [editingItemsQuote, setEditingItemsQuote] = useState<LiveQuote | null>(null);
   const emailQuote = async (quote: LiveQuote) => {
     setWorking(`email-${quote.id}`);
     try {
@@ -1722,8 +1726,13 @@ function QuotesView({
             <tbody className="divide-y divide-slate-100">
               {quotes.map((q) => (
                 <tr key={q.id}>
-                  <td className="px-4 py-3 font-mono text-[10px] text-tech-green-deep">
-                    {q.quoteNumber || q.id}
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setViewingQuote(q)}
+                      className="font-mono text-[10px] font-bold text-tech-green-deep underline decoration-dotted underline-offset-2"
+                    >
+                      {q.quoteNumber || q.id}
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[11px] font-semibold">{q.customer}</p>
@@ -1746,6 +1755,12 @@ function QuotesView({
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button
+                        onClick={() => setViewingQuote(q)}
+                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                      >
+                        View
+                      </button>
+                      <button
                         disabled={
                           working === `email-${q.id}` ||
                           q.status === "Converted"
@@ -1758,6 +1773,12 @@ function QuotesView({
                           : q.customerDelivery?.status === "sent"
                             ? "Resend"
                             : "Email"}
+                      </button>
+                      <button
+                        onClick={() => setEditingQuote(q)}
+                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
+                      >
+                        Terms{q.stipulations?.length ? ` (${q.stipulations.length})` : ""}
                       </button>
                       <button
                         disabled={q.status !== "Accepted" || working === q.id}
@@ -1789,7 +1810,433 @@ function QuotesView({
           onCreate={onCreate}
         />
       )}
+      {editingQuote && (
+        <StipulationsModal
+          quote={editingQuote}
+          onClose={() => setEditingQuote(null)}
+        />
+      )}
+      {viewingQuote && (
+        <QuoteDetailModal
+          quote={viewingQuote}
+          onClose={() => setViewingQuote(null)}
+          onEditTerms={() => {
+            setEditingQuote(viewingQuote);
+            setViewingQuote(null);
+          }}
+          onEditItems={() => {
+            setEditingItemsQuote(viewingQuote);
+            setViewingQuote(null);
+          }}
+        />
+      )}
+      {editingItemsQuote && (
+        <LineItemsModal
+          quote={editingItemsQuote}
+          onClose={() => setEditingItemsQuote(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function QuoteDetailModal({
+  quote,
+  onClose,
+  onEditTerms,
+  onEditItems,
+}: {
+  quote: LiveQuote;
+  onClose: () => void;
+  onEditTerms: () => void;
+  onEditItems: () => void;
+}) {
+  const money = (value = 0) =>
+    value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 p-6">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+              {quote.quoteNumber || quote.id}
+            </p>
+            <h2 className="font-display text-lg uppercase">{quote.title}</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {quote.customer} · {quote.site}
+            </p>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${
+                quote.status === "Accepted" || quote.status === "Converted"
+                  ? "bg-green-100 text-green-800"
+                  : quote.status === "Rejected"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-orange-100 text-orange-700"
+              }`}
+            >
+              {quote.status}
+            </span>
+            {quote.customerDelivery?.status && (
+              <span className="text-[10px] text-slate-400">
+                {quote.customerDelivery.status === "sent" ? "Sent" : "Delivered"} to{" "}
+                {quote.customerDelivery.email}
+                {quote.customerDelivery.sentAt
+                  ? ` · ${new Date(quote.customerDelivery.sentAt).toLocaleDateString()}`
+                  : ""}
+              </span>
+            )}
+          </div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[9px] font-bold uppercase text-slate-500">
+              Line items
+            </p>
+            <button
+              type="button"
+              onClick={onEditItems}
+              className="text-[9px] font-bold text-tech-green-deep"
+            >
+              Edit
+            </button>
+          </div>
+          <table className="w-full text-left text-xs">
+            <thead className="text-[9px] uppercase text-slate-400">
+              <tr>
+                <th className="pb-2">Description</th>
+                <th className="pb-2 text-right">Qty</th>
+                <th className="pb-2 text-right">Rate</th>
+                <th className="pb-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {quote.lineItems.map((item, index) => (
+                <tr key={index}>
+                  <td className="py-2.5">{item.description}</td>
+                  <td className="py-2.5 text-right">{item.quantity}</td>
+                  <td className="py-2.5 text-right">{money(item.unitPrice)}</td>
+                  <td className="py-2.5 text-right font-semibold">
+                    {money(item.quantity * item.unitPrice)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-4 flex justify-between border-t border-slate-200 pt-3 text-sm">
+            <span className="text-slate-500">Total</span>
+            <b className="font-display text-lg">{money(quote.total)}</b>
+          </div>
+          <div className="mt-6 border-t border-slate-100 pt-5">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase text-slate-500">
+                Stipulations &amp; terms
+              </p>
+              <button
+                type="button"
+                onClick={onEditTerms}
+                className="text-[9px] font-bold text-tech-green-deep"
+              >
+                Edit
+              </button>
+            </div>
+            {quote.stipulations?.length ? (
+              <ol className="space-y-1.5 text-xs text-slate-600">
+                {quote.stipulations.map((line, index) => (
+                  <li key={index} className="flex gap-2">
+                    <span className="text-slate-400">{index + 1}.</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                No stipulations set — the customer sees scope and price only.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border px-4 py-2 text-xs"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LineItemsModal({
+  quote,
+  onClose,
+}: {
+  quote: LiveQuote;
+  onClose: () => void;
+}) {
+  const [items, setItems] = useState(
+    quote.lineItems.length
+      ? quote.lineItems.map((i) => ({
+          description: i.description,
+          quantity: String(i.quantity),
+          unitPrice: String(i.unitPrice),
+        }))
+      : [{ description: "", quantity: "1", unitPrice: "" }],
+  );
+  const [saving, setSaving] = useState(false);
+  const total = items.reduce(
+    (sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0),
+    0,
+  );
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const lineItems = items
+        .filter((i) => i.description.trim())
+        .map((i) => ({
+          description: i.description.trim(),
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+        }));
+      await updateDoc(doc(db, "quotes", quote.id), {
+        lineItems,
+        total,
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit(
+        "updated",
+        "quote",
+        quote.id,
+        `Updated line items for ${quote.quoteNumber || quote.id}`,
+        { total },
+      );
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={submit}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+              {quote.quoteNumber || quote.id}
+            </p>
+            <h2 className="font-display text-lg uppercase">Edit line items</h2>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5">
+          <div className="mb-2 flex justify-between">
+            <p className="text-[9px] font-bold uppercase text-slate-500">
+              Line items
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                setItems([...items, { description: "", quantity: "1", unitPrice: "" }])
+              }
+              className="text-[9px] font-bold text-tech-green-deep"
+            >
+              + Add item
+            </button>
+          </div>
+          {items.map((item, index) => (
+            <div key={index} className="mb-2 grid grid-cols-[1fr_70px_100px_24px] gap-2">
+              <input
+                required
+                value={item.description}
+                onChange={(e) =>
+                  setItems(
+                    items.map((x, i) =>
+                      i === index ? { ...x, description: e.target.value } : x,
+                    ),
+                  )
+                }
+                placeholder="Labor or material"
+                className="rounded border border-slate-200 px-3 py-2 text-xs"
+              />
+              <input
+                type="number"
+                min="0"
+                step=".01"
+                value={item.quantity}
+                onChange={(e) =>
+                  setItems(
+                    items.map((x, i) =>
+                      i === index ? { ...x, quantity: e.target.value } : x,
+                    ),
+                  )
+                }
+                className="rounded border border-slate-200 px-2 text-xs"
+              />
+              <input
+                type="number"
+                min="0"
+                step=".01"
+                value={item.unitPrice}
+                onChange={(e) =>
+                  setItems(
+                    items.map((x, i) =>
+                      i === index ? { ...x, unitPrice: e.target.value } : x,
+                    ),
+                  )
+                }
+                placeholder="$ each"
+                className="rounded border border-slate-200 px-2 text-xs"
+              />
+              <button
+                type="button"
+                disabled={items.length === 1}
+                onClick={() => setItems(items.filter((_, i) => i !== index))}
+                className="text-red-500 disabled:opacity-20"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+          <span className="text-xs text-slate-500">Quote total</span>
+          <b className="font-display text-xl">${total.toLocaleString()}</b>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border px-4 py-2 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={saving || !items.some((i) => i.description.trim())}
+            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save items"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function StipulationsModal({
+  quote,
+  onClose,
+}: {
+  quote: LiveQuote;
+  onClose: () => void;
+}) {
+  const [lines, setLines] = useState<string[]>(
+    quote.stipulations?.length ? quote.stipulations : [""],
+  );
+  const [saving, setSaving] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const cleaned = lines.map((s) => s.trim()).filter(Boolean);
+      await updateDoc(doc(db, "quotes", quote.id), {
+        stipulations: cleaned,
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit(
+        "updated",
+        "quote",
+        quote.id,
+        `Updated stipulations for ${quote.quoteNumber || quote.id}`,
+        { stipulationCount: cleaned.length },
+      );
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={submit}
+        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+              {quote.quoteNumber || quote.id}
+            </p>
+            <h2 className="font-display text-lg uppercase">
+              Stipulations &amp; terms
+            </h2>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5">
+          <div className="mb-2 flex justify-between">
+            <p className="text-[9px] font-bold uppercase text-slate-500">
+              Shown to {quote.customer} before they approve
+            </p>
+            <button
+              type="button"
+              onClick={() => setLines([...lines, ""])}
+              className="text-[9px] font-bold text-tech-green-deep"
+            >
+              + Add stipulation
+            </button>
+          </div>
+          {lines.map((line, index) => (
+            <div key={index} className="mb-2 flex gap-2">
+              <span className="mt-2.5 text-[10px] text-slate-400">{index + 1}.</span>
+              <input
+                value={line}
+                onChange={(e) =>
+                  setLines(lines.map((x, i) => (i === index ? e.target.value : x)))
+                }
+                placeholder="e.g. Quote valid for 30 days"
+                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+              />
+              <button
+                type="button"
+                disabled={lines.length === 1}
+                onClick={() => setLines(lines.filter((_, i) => i !== index))}
+                className="text-red-500 disabled:opacity-20"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border px-4 py-2 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={saving}
+            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save terms"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -3161,6 +3608,14 @@ function QuoteModal({
   const [items, setItems] = useState([
     { description: "", quantity: "1", unitPrice: "" },
   ]);
+  const [stipulations, setStipulations] = useState<string[]>([
+    "This quote is valid for 30 days from the issue date above.",
+    "Assumes all cabling, conduit, and power are existing, tested, and in working order at each device location.",
+    "Work beyond the scope listed above will be quoted separately as a change order before proceeding.",
+    "Customer to provide clear, safe access to all installation locations during scheduled work hours.",
+    "Equipment or materials not listed above are provided by others unless noted.",
+    "Payment due upon completion unless other terms are agreed to in writing.",
+  ]);
   const [saving, setSaving] = useState(false);
   const total = items.reduce(
     (sum, item) =>
@@ -3184,6 +3639,7 @@ function QuoteModal({
             unitPrice: Number(i.unitPrice),
           })),
         total,
+        stipulations: stipulations.map((s) => s.trim()).filter(Boolean),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -3315,6 +3771,47 @@ function QuoteModal({
               </button>
             </div>
           ))}
+        </div>
+        <div className="mt-5 border-t border-slate-100 pt-5">
+          <div className="mb-2 flex justify-between">
+            <p className="text-[9px] font-bold uppercase text-slate-500">
+              Stipulations &amp; terms
+            </p>
+            <button
+              type="button"
+              onClick={() => setStipulations([...stipulations, ""])}
+              className="text-[9px] font-bold text-tech-green-deep"
+            >
+              + Add stipulation
+            </button>
+          </div>
+          {stipulations.map((line, index) => (
+            <div key={index} className="mb-2 flex gap-2">
+              <span className="mt-2.5 text-[10px] text-slate-400">{index + 1}.</span>
+              <input
+                value={line}
+                onChange={(e) =>
+                  setStipulations(
+                    stipulations.map((x, i) => (i === index ? e.target.value : x)),
+                  )
+                }
+                placeholder="e.g. Quote valid for 30 days"
+                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setStipulations(stipulations.filter((_, i) => i !== index))}
+                className="text-red-500"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {!stipulations.length && (
+            <p className="text-[11px] text-slate-400">
+              No stipulations added — the customer will see the scope and price only.
+            </p>
+          )}
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
           <span className="text-xs text-slate-500">Quote total</span>

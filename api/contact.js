@@ -526,6 +526,7 @@ async function loadCustomerDocument(req, res) {
         issueDate: value.issueDate || "",
         dueDate: value.dueDate || "",
         customerMessage: value.customerMessage || "",
+        stipulations: Array.isArray(value.stipulations) ? value.stipulations : [],
         paymentLink: value.qboSync?.invoiceLink || null,
       },
     });
