@@ -44,9 +44,9 @@ const Portal = () => {
             <p className="text-slate-400 leading-relaxed mb-8">
               Client access is provided for active service engagements. Request access and we will confirm the right workspace for your project.
             </p>
-            <Link to="/contact?service=Client portal access">
+            <Link to="/client">
               <Button variant="glass" className="group">
-                Request client access <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                Client login <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </section>

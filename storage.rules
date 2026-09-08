@@ -34,5 +34,11 @@ service firebase.storage {
         && request.resource.contentType == 'application/pdf';
       allow update, delete: if isAdmin();
     }
+
+    // Intake attachments are uploaded, scanned/validated, and served only by
+    // server endpoints. Public and direct browser access remains disabled.
+    match /client-request-documents/{requestId}/{fileName} {
+      allow read, write: if false;
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { adminDb } from '../../_lib/firebase-admin.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
+import { encryptedQboTokenFields } from '../../_lib/qbo-helper.js';
 
 export default async function handler(req, res) {
   const { code, realmId, error, state } = req.query;
@@ -54,8 +55,10 @@ export default async function handler(req, res) {
     const tokenData = await tokenResponse.json();
 
     await adminDb.collection('settings').doc('quickbooks').set({
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
+      ...encryptedQboTokenFields({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+      }),
       realmId,
       accessTokenExpiresAt: Date.now() + (tokenData.expires_in * 1000),
       refreshTokenExpiresAt: Date.now() + (tokenData.x_refresh_token_expires_in * 1000),

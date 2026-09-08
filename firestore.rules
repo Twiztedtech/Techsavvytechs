@@ -16,6 +16,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Client portal records are projected through authenticated server APIs.
+    // Keeping these collections server-only prevents cross-company access and
+    // ensures contractor private fields never reach client browsers.
+    match /client_organizations/{document=**} { allow read, write: if false; }
+    match /client_users/{document=**} { allow read, write: if false; }
+    match /vendor_requests/{document=**} { allow read, write: if false; }
+    match /appointments/{document=**} { allow read, write: if false; }
+    match /job_participants/{document=**} { allow read, write: if false; }
+    match /job_events/{document=**} { allow read, write: if false; }
+    match /job_messages/{document=**} { allow read, write: if false; }
+    match /scope_versions/{document=**} { allow read, write: if false; }
+    match /notification_deliveries/{document=**} { allow read, write: if false; }
+    match /calendar_connections/{document=**} { allow read, write: if false; }
+    match /conversation_tokens/{document=**} { allow read, write: if false; }
+    match /webhook_events/{document=**} { allow read, write: if false; }
+    match /sms_preferences/{document=**} { allow read, write: if false; }
+
     // Email Triggers for Extension
     match /mail/{mailId} {
       allow read, write: if false;
@@ -38,6 +55,34 @@ service cloud.firestore {
     // Reusable customer directory for administrator work-order creation.
     match /customers/{customerId} {
       allow read, write: if isAdmin();
+    }
+
+    // CRM quotes and estimates. Accepted quotes are converted into jobs by an
+    // authenticated administrator in the CRM workspace.
+    match /quotes/{quoteId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Customer invoices and payment records are restricted to CRM admins.
+    match /invoices/{invoiceId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Installed customer equipment and its recurring maintenance schedule.
+    match /customer_assets/{assetId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Immutable administrator and system activity history.
+    match /audit_logs/{auditId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Delivery history is written server-side and visible to administrators.
+    match /reminder_deliveries/{deliveryId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // Contractor Onboarding & Profiles
