@@ -8,6 +8,10 @@
     "dev": "vite --port=3001 --host=127.0.0.1",
     "build": "vite build",
     "preview": "vite preview",
+    "cf:dev": "wrangler dev",
+    "cf:check": "wrangler deploy --dry-run",
+    "cf:deploy": "wrangler deploy",
+    "cf:whoami": "wrangler whoami",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "studio:dev": "npm --prefix studio run dev",
@@ -16,10 +20,10 @@
     "studio:schema": "npm --prefix studio run schema:deploy"
   },
   "dependencies": {
+    "@google/genai": "^1.29.0",
     "@portabletext/react": "^5.0.0",
     "@sanity/client": "^7.0.0",
     "@sanity/image-url": "^2.0.0",
-    "@google/genai": "^1.29.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.5",
@@ -28,12 +32,12 @@
     "express": "^4.21.2",
     "firebase": "^12.12.1",
     "firebase-admin": "^12.7.0",
+    "groq": "^4.0.0",
     "html2canvas": "^1.4.1",
     "html2canvas-pro": "^2.3.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "groq": "^4.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^8.3.0",
@@ -46,6 +50,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "wrangler": "^4.125.0"
   }
 }

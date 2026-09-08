@@ -52,7 +52,8 @@ export default function PrivacyPolicy() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-white flex items-center gap-2"><span className="text-safety-orange">05.</span> Transactional Messages</h2>
-          <p>When you opt in, we use your mobile number to send account verification and operational messages about requested or active work. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance. Opting out of SMS does not prevent essential notices from being sent by email.</p>
+          <p>When you opt in, TechSavvy LLC uses your mobile number to send account verification and recurring transactional messages about requested or active work, including scheduling, technician arrival, progress, and completion updates. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance. Consent is not a condition of purchase. Opting out of SMS does not prevent essential notices from being sent by email.</p>
+          <p>We do not sell, rent, or share mobile numbers, SMS opt-in data, or messaging consent with third parties or affiliates for marketing or promotional purposes. We share information with service providers only as necessary to deliver the requested operational messages and administer the service.</p>
         </section>
 
         <section className="space-y-3">
@@ -72,7 +73,7 @@ export default function PrivacyPolicy() {
             If you have questions or concerns regarding this policy, please reach out to our privacy compliance officer at:
           </p>
           <p className="font-mono text-xs text-safety-orange bg-slate-950 p-3 rounded border border-slate-800 w-max">
-            Email: privacy@tech5avvy.com<br />
+            Email: privacy@techsavvytechs.com<br />
             Address: Sacramento Regional Cluster, CA
           </p>
         </section>

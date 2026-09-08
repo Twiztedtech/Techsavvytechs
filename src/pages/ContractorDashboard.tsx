@@ -21,7 +21,10 @@ export default function ContractorDashboard() {
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState(() => new URLSearchParams(window.location.search).get('adminTab') === 'requests' ? 'requests' : 'timecards');
+  const [activeAdminTab, setActiveAdminTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get('adminTab') || 'timecards';
+    return ['requests', 'timecards', 'jobs', 'contractors', 'tickets'].includes(tab) ? tab : 'timecards';
+  });
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; type: string } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void' | 'reverse'; label: string } | null>(null);
@@ -184,7 +187,7 @@ export default function ContractorDashboard() {
   const [adminJobWorkOrderTemplate, setAdminJobWorkOrderTemplate] = useState<'general' | 'nextivity' | 'security' | 'low-voltage' | 'network'>('general');
   const [adminJobHourlyRate, setAdminJobHourlyRate] = useState('55.00');
   const [adminJobTravelRate, setAdminJobTravelRate] = useState('35.00');
-  const [adminJobEquipment, setAdminJobEquipment] = useState([{ description: '', quantity: '', notes: '' }]);
+  const [adminJobEquipment, setAdminJobEquipment] = useState<Array<{ description: string; quantity: string; notes: string; providedBy?: 'client' | 'techsavvy' }>>([{ description: '', quantity: '', notes: '', providedBy: 'techsavvy' }]);
   const [adminJobScopeTasks, setAdminJobScopeTasks] = useState(['']);
   const [adminJobQaChecklist, setAdminJobQaChecklist] = useState(['Scope completed or exceptions noted.', 'Work area cleared and equipment secured.', 'Customer walkthrough completed.']);
   const [adminJobAssignedTechIds, setAdminJobAssignedTechIds] = useState<string[]>(['ALL']);
@@ -2071,11 +2074,7 @@ export default function ContractorDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveAdminTab('requests')}
-                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
-                  activeAdminTab === 'requests'
-                    ? 'border-amber-500 text-amber-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${activeAdminTab === 'requests' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
               >
                 <span>📥</span>
                 <span>Client Requests</span>
@@ -2107,6 +2106,10 @@ export default function ContractorDashboard() {
                   {jobSitesList.length}
                 </span>
               </button>
+              <a href="/crm" className="pb-3 text-xs font-bold transition border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <span>🏢</span>
+                <span>CRM</span>
+              </a>
               <button
                 type="button"
                 onClick={() => setActiveAdminTab('contractors')}
@@ -2464,6 +2467,7 @@ export default function ContractorDashboard() {
                               description: item.description.trim(),
                               quantity: item.quantity.trim(),
                               notes: item.notes.trim(),
+                              providedBy: item.providedBy || 'techsavvy',
                             })),
                             scopeTasks: adminJobScopeTasks.map((task) => task.trim()).filter(Boolean),
                             qaChecklist: adminJobQaChecklist.map((item) => item.trim()).filter(Boolean),

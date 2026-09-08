@@ -1,88 +1,1246 @@
-import React, { useEffect, useState } from 'react';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import type { MultiFactorResolver } from 'firebase/auth';
-import { auth } from '../lib/firebase';
-import { Building2, CalendarClock, CheckCircle2, LogOut, MessageSquare, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
-import { Link } from 'react-router';
-import type { ClientJobDetail, ClientJobSummary, ClientOrganization, ClientProfile, ClientRole } from '../features/client/types';
-import { MfaEnrollment, MfaSignIn, resolverFromMfaError, userHasMfa } from '../features/client/ClientMfa';
+import React, { useEffect, useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type User,
+} from "firebase/auth";
+import type { MultiFactorResolver } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import {
+  Building2,
+  CalendarClock,
+  CheckCircle2,
+  FileText,
+  History,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  PlusCircle,
+  RefreshCw,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import { Link } from "react-router";
+import type {
+  ClientJobDetail,
+  ClientJobSummary,
+  ClientOrganization,
+  ClientProfile,
+  ClientRole,
+} from "../features/client/types";
+import {
+  MfaEnrollment,
+  MfaSignIn,
+  resolverFromMfaError,
+  userHasMfa,
+} from "../features/client/ClientMfa";
+import BookJob from "./BookJob";
 
 const roleOptions: Array<{ value: ClientRole; label: string }> = [
-  { value: 'dispatcher', label: 'Dispatcher / Requester' }, { value: 'sales', label: 'Sales' },
-  { value: 'project_viewer', label: 'Project Viewer' }, { value: 'billing', label: 'Billing' }, { value: 'site_contact', label: 'Site Contact' },
+  { value: "dispatcher", label: "Dispatcher / Requester" },
+  { value: "sales", label: "Sales" },
+  { value: "project_viewer", label: "Project Viewer" },
+  { value: "billing", label: "Billing" },
+  { value: "site_contact", label: "Site Contact" },
 ];
 
 async function api(path: string, options: RequestInit = {}) {
   const token = await auth.currentUser?.getIdToken();
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } });
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'The client portal request failed.');
+  if (!response.ok)
+    throw new Error(data.error || "The client portal request failed.");
   return data;
 }
 
 export default function ClientPortal() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [profile, setProfile] = useState<ClientProfile | null>(null);
-  const [organization, setOrganization] = useState<ClientOrganization | null>(null);
+  const [organization, setOrganization] = useState<ClientOrganization | null>(
+    null,
+  );
   const [members, setMembers] = useState<any[]>([]);
   const [jobs, setJobs] = useState<ClientJobSummary[]>([]);
+  const [portalView, setPortalView] = useState<
+    "upcoming" | "book" | "history" | "reports"
+  >("upcoming");
   const [selected, setSelected] = useState<ClientJobDetail | null>(null);
-  const [registration, setRegistration] = useState({ displayName: '', phone: '', role: 'project_viewer' as ClientRole, code: '', smsConsent: false });
-  const [message, setMessage] = useState('');
-  const [reschedule, setReschedule] = useState({ appointmentId: '', start: '', end: '' });
-  const [notice, setNotice] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
-  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null);
+  const [registration, setRegistration] = useState({
+    displayName: "",
+    phone: "",
+    role: "project_viewer" as ClientRole,
+    code: "",
+    smsConsent: false,
+  });
+  const [message, setMessage] = useState("");
+  const [reschedule, setReschedule] = useState({
+    appointmentId: "",
+    start: "",
+    end: "",
+  });
+  const [notice, setNotice] = useState<{
+    tone: "error" | "success";
+    text: string;
+  } | null>(null);
+  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(
+    null,
+  );
   const [, setMfaRefresh] = useState(0);
   const [showMfaEnrollment, setShowMfaEnrollment] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const me = await api('/api/client?action=me');
-      setProfile(me.profile); setOrganization(me.organization); setMembers(me.members || []);
-      if (me.profile?.status === 'active') setJobs((await api('/api/client?action=jobs')).jobs || []);
-    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not load client access.' }); }
-    finally { setLoading(false); }
+      const me = await api("/api/client?action=me");
+      setProfile(me.profile);
+      setOrganization(me.organization);
+      setMembers(me.members || []);
+      if (me.profile?.status === "active")
+        setJobs((await api("/api/client?action=jobs")).jobs || []);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not load client access.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => onAuthStateChanged(auth, (current) => { setUser(current); if (current) void load(); else { setLoading(false); setProfile(null); setOrganization(null); setJobs([]); } }), []);
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (current) => {
+        setUser(current);
+        if (current) void load();
+        else {
+          setLoading(false);
+          setProfile(null);
+          setOrganization(null);
+          setJobs([]);
+        }
+      }),
+    [],
+  );
   useEffect(() => {
     if (!user || user.emailVerified) return;
     const deliveryKey = `techsavvy-verification-sent:${user.uid}`;
     if (window.sessionStorage.getItem(deliveryKey)) return;
-    window.sessionStorage.setItem(deliveryKey, 'pending');
-    void api('/api/client?action=send-verification-email', { method: 'POST', body: '{}' })
+    window.sessionStorage.setItem(deliveryKey, "pending");
+    void api("/api/client?action=send-verification-email", {
+      method: "POST",
+      body: "{}",
+    })
       .then(() => {
-        window.sessionStorage.setItem(deliveryKey, 'sent');
-        setNotice({ tone: 'success', text: 'Verification email accepted for delivery. Check your inbox and spam folder.' });
+        window.sessionStorage.setItem(deliveryKey, "sent");
+        setNotice({
+          tone: "success",
+          text: "Verification email accepted for delivery. Check your inbox and spam folder.",
+        });
       })
       .catch((error) => {
         window.sessionStorage.removeItem(deliveryKey);
-        setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not send the verification email.' });
+        setNotice({
+          tone: "error",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Could not send the verification email.",
+        });
       });
   }, [user]);
-  const openJob = async (jobId: string) => { try { setSelected(await api(`/api/client?action=job&jobId=${encodeURIComponent(jobId)}`)); } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not open job.' }); } };
+  const openJob = async (jobId: string) => {
+    try {
+      setSelected(
+        await api(`/api/client?action=job&jobId=${encodeURIComponent(jobId)}`),
+      );
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Could not open job.",
+      });
+    }
+  };
 
-  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-400"><RefreshCw className="mr-2 inline h-4 w-4 animate-spin" /> Loading client portal…</div>;
-  if (mfaResolver) return <MfaSignIn resolver={mfaResolver} onComplete={()=>setMfaResolver(null)} onCancel={()=>setMfaResolver(null)} />;
-  if (!user) return <div className="min-h-screen px-6 py-20"><div className="mx-auto grid min-h-[70vh] max-w-5xl items-center gap-12 lg:grid-cols-2"><div><p className="mb-4 font-mono text-[10px] uppercase tracking-[0.4em] text-tech-green">Secure company access</p><h1 className="font-display text-5xl font-extrabold uppercase text-white md:text-7xl">Client <span className="text-slate-500">portal.</span></h1><p className="mt-6 max-w-lg text-slate-400">Track requests, confirmed visits, assigned technicians, progress, conversations, rescheduling, and closeout documents.</p><Link to="/book-a-job" className="mt-8 inline-block text-sm font-bold text-tech-green hover:underline">Submitting your first request? Start here →</Link></div><form onSubmit={async (event) => { event.preventDefault(); setNotice(null); try { if (mode === 'signup') { await createUserWithEmailAndPassword(auth, credentials.email.trim(), credentials.password); setNotice({ tone: 'success', text: 'Account created. Preparing your TechSavvy verification email…' }); } else await signInWithEmailAndPassword(auth, credentials.email.trim(), credentials.password); } catch (error) { const resolver = resolverFromMfaError(error); if (resolver) { setMfaResolver(resolver); return; } setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Authentication failed.' }); } }} className="glass-card border-t-4 border-tech-green p-8"><div className="mb-6 flex rounded bg-white/5 p-1"><button type="button" onClick={()=>setMode('signin')} className={`flex-1 px-3 py-2 text-xs font-bold ${mode==='signin'?'bg-tech-green text-brand-black':'text-slate-400'}`}>Sign in</button><button type="button" onClick={()=>setMode('signup')} className={`flex-1 px-3 py-2 text-xs font-bold ${mode==='signup'?'bg-tech-green text-brand-black':'text-slate-400'}`}>Create account</button></div><label className="block text-xs font-bold text-slate-300">Business email<input required type="email" value={credentials.email} onChange={(e)=>setCredentials((v)=>({...v,email:e.target.value}))} className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white" /></label><label className="block text-xs font-bold text-slate-300">Password<input required minLength={8} type="password" value={credentials.password} onChange={(e)=>setCredentials((v)=>({...v,password:e.target.value}))} className="mt-1 mb-5 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white" /></label>{notice && <p className={`mb-4 rounded p-3 text-xs ${notice.tone==='error'?'bg-red-500/10 text-red-200':'bg-green-500/10 text-green-200'}`}>{notice.text}</p>}<button className="w-full bg-safety-orange px-5 py-3 font-bold text-brand-black">{mode==='signin'?'Sign in':'Create account'}</button></form></div></div>;
+  if (loading)
+    return (
+      <div className="min-h-screen grid place-items-center text-sm text-slate-400">
+        <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" /> Loading
+        client portal…
+      </div>
+    );
+  if (mfaResolver)
+    return (
+      <MfaSignIn
+        resolver={mfaResolver}
+        onComplete={() => setMfaResolver(null)}
+        onCancel={() => setMfaResolver(null)}
+      />
+    );
+  if (!user)
+    return (
+      <div className="min-h-screen px-6 py-20">
+        <div className="mx-auto grid min-h-[70vh] max-w-5xl items-center gap-12 lg:grid-cols-2">
+          <div>
+            <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.4em] text-tech-green">
+              Secure company access
+            </p>
+            <h1 className="font-display text-5xl font-extrabold uppercase text-white md:text-7xl">
+              Client <span className="text-slate-500">portal.</span>
+            </h1>
+            <p className="mt-6 max-w-lg text-slate-400">
+              Track requests, confirmed visits, assigned technicians, progress,
+              conversations, rescheduling, and closeout documents.
+            </p>
+            <Link
+              to="/book-a-job"
+              className="mt-8 inline-block text-sm font-bold text-tech-green hover:underline"
+            >
+              Submitting your first request? Start here →
+            </Link>
+          </div>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setNotice(null);
+              try {
+                if (mode === "signup") {
+                  await createUserWithEmailAndPassword(
+                    auth,
+                    credentials.email.trim(),
+                    credentials.password,
+                  );
+                  setNotice({
+                    tone: "success",
+                    text: "Account created. Preparing your TechSavvy verification email…",
+                  });
+                } else
+                  await signInWithEmailAndPassword(
+                    auth,
+                    credentials.email.trim(),
+                    credentials.password,
+                  );
+              } catch (error) {
+                const resolver = resolverFromMfaError(error);
+                if (resolver) {
+                  setMfaResolver(resolver);
+                  return;
+                }
+                setNotice({
+                  tone: "error",
+                  text:
+                    error instanceof Error
+                      ? error.message
+                      : "Authentication failed.",
+                });
+              }
+            }}
+            className="glass-card border-t-4 border-tech-green p-8"
+          >
+            <div className="mb-6 flex rounded bg-white/5 p-1">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className={`flex-1 px-3 py-2 text-xs font-bold ${mode === "signin" ? "bg-tech-green text-brand-black" : "text-slate-400"}`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("signup")}
+                className={`flex-1 px-3 py-2 text-xs font-bold ${mode === "signup" ? "bg-tech-green text-brand-black" : "text-slate-400"}`}
+              >
+                Create account
+              </button>
+            </div>
+            <label className="block text-xs font-bold text-slate-300">
+              Business email
+              <input
+                required
+                type="email"
+                value={credentials.email}
+                onChange={(e) =>
+                  setCredentials((v) => ({ ...v, email: e.target.value }))
+                }
+                className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white"
+              />
+            </label>
+            <label className="block text-xs font-bold text-slate-300">
+              Password
+              <input
+                required
+                minLength={8}
+                type="password"
+                value={credentials.password}
+                onChange={(e) =>
+                  setCredentials((v) => ({ ...v, password: e.target.value }))
+                }
+                className="mt-1 mb-5 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white"
+              />
+            </label>
+            {notice && (
+              <p
+                className={`mb-4 rounded p-3 text-xs ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}
+              >
+                {notice.text}
+              </p>
+            )}
+            <button className="w-full bg-safety-orange px-5 py-3 font-bold text-brand-black">
+              {mode === "signin" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
 
-  if (!user.emailVerified) return <PortalFrame onSignOut={()=>signOut(auth)}><div className="mx-auto max-w-xl glass-card p-8 text-center"><ShieldCheck className="mx-auto mb-4 h-12 w-12 text-tech-green" /><h2 className="text-2xl font-bold text-white">Verify your email</h2><p className="mt-3 text-sm text-slate-400">Open the TechSavvy verification email sent to {user.email}, then return here.</p>{notice&&<p className={`mt-4 rounded p-3 text-xs ${notice.tone==='error'?'bg-red-500/10 text-red-200':'bg-green-500/10 text-green-200'}`}>{notice.text}</p>}<div className="mt-6 flex justify-center gap-3"><button onClick={async()=>{try{await user.reload();if(!user.emailVerified){setNotice({tone:'error',text:'The email is not verified yet. Open the verification link first.'});return;}await user.getIdToken(true);await load();}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Could not refresh verification status.'})}}} className="bg-tech-green px-4 py-2 text-sm font-bold text-brand-black">I verified it</button><button onClick={async()=>{setNotice(null);try{await api('/api/client?action=send-verification-email',{method:'POST',body:'{}'});setNotice({tone:'success',text:'Verification email accepted for delivery. Check your inbox and spam folder.'})}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Could not send the verification email.'})}}} className="glass-button px-4 py-2 text-sm font-bold">Resend</button></div></div></PortalFrame>;
+  if (!user.emailVerified)
+    return (
+      <PortalFrame onSignOut={() => signOut(auth)}>
+        <div className="mx-auto max-w-xl glass-card p-8 text-center">
+          <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-tech-green" />
+          <h2 className="text-2xl font-bold text-white">Verify your email</h2>
+          <p className="mt-3 text-sm text-slate-400">
+            Open the TechSavvy verification email sent to {user.email}, then
+            return here.
+          </p>
+          {notice && (
+            <p
+              className={`mt-4 rounded p-3 text-xs ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}
+            >
+              {notice.text}
+            </p>
+          )}
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={async () => {
+                try {
+                  await user.reload();
+                  if (!user.emailVerified) {
+                    setNotice({
+                      tone: "error",
+                      text: "The email is not verified yet. Open the verification link first.",
+                    });
+                    return;
+                  }
+                  await user.getIdToken(true);
+                  await load();
+                } catch (error) {
+                  setNotice({
+                    tone: "error",
+                    text:
+                      error instanceof Error
+                        ? error.message
+                        : "Could not refresh verification status.",
+                  });
+                }
+              }}
+              className="bg-tech-green px-4 py-2 text-sm font-bold text-brand-black"
+            >
+              I verified it
+            </button>
+            <button
+              onClick={async () => {
+                setNotice(null);
+                try {
+                  await api("/api/client?action=send-verification-email", {
+                    method: "POST",
+                    body: "{}",
+                  });
+                  setNotice({
+                    tone: "success",
+                    text: "Verification email accepted for delivery. Check your inbox and spam folder.",
+                  });
+                } catch (error) {
+                  setNotice({
+                    tone: "error",
+                    text:
+                      error instanceof Error
+                        ? error.message
+                        : "Could not send the verification email.",
+                  });
+                }
+              }}
+              className="glass-button px-4 py-2 text-sm font-bold"
+            >
+              Resend
+            </button>
+          </div>
+        </div>
+      </PortalFrame>
+    );
 
-  if (showMfaEnrollment && user.emailVerified && !userHasMfa(user)) return <MfaEnrollment user={user} onComplete={()=>{setMfaRefresh((value)=>value+1);setShowMfaEnrollment(false)}} onCancel={()=>setShowMfaEnrollment(false)} onSignOut={()=>signOut(auth)} />;
+  if (showMfaEnrollment && user.emailVerified && !userHasMfa(user))
+    return (
+      <MfaEnrollment
+        user={user}
+        onComplete={() => {
+          setMfaRefresh((value) => value + 1);
+          setShowMfaEnrollment(false);
+        }}
+        onCancel={() => setShowMfaEnrollment(false)}
+        onSignOut={() => signOut(auth)}
+      />
+    );
 
-  if (!profile) return <PortalFrame onSignOut={()=>signOut(auth)}><form onSubmit={async(e)=>{e.preventDefault();try{await api('/api/client?action=register',{method:'POST',body:JSON.stringify({displayName:registration.displayName,phone:registration.phone,roles:[registration.role],smsConsent:registration.smsConsent})});await api('/api/client?action=send-code',{method:'POST',body:'{}'});await load();setNotice({tone:'success',text:'A verification code was sent to your phone.'});}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Registration failed.'})}}} className="mx-auto max-w-xl glass-card border-t-4 border-tech-green p-8"><Building2 className="mb-4 h-10 w-10 text-tech-green" /><h2 className="text-2xl font-bold text-white">Request company access</h2><p className="mt-2 mb-6 text-sm text-slate-400">Your verified email domain will suggest the matching company. Membership still requires approval.</p><label className="block text-xs font-bold text-slate-300">Name<input required value={registration.displayName} onChange={(e)=>setRegistration((v)=>({...v,displayName:e.target.value}))} className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white" /></label><label className="block text-xs font-bold text-slate-300">Mobile phone<input required type="tel" value={registration.phone} onChange={(e)=>setRegistration((v)=>({...v,phone:e.target.value}))} className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white" /></label><label className="block text-xs font-bold text-slate-300">Primary role<select value={registration.role} onChange={(e)=>setRegistration((v)=>({...v,role:e.target.value as ClientRole}))} className="mt-1 mb-5 w-full rounded border border-white/10 bg-slate-950 px-4 py-3 text-white">{roleOptions.map((role)=><option key={role.value} value={role.value}>{role.label}</option>)}</select></label><label className="mb-5 flex gap-3 text-xs text-slate-300"><input type="checkbox" checked={registration.smsConsent} onChange={(e)=>setRegistration((v)=>({...v,smsConsent:e.target.checked}))} className="accent-green-500"/>Send transactional scheduling and progress texts after verification. Reply STOP to opt out.</label>{notice&&<p className={`mb-4 rounded p-3 text-xs ${notice.tone==='error'?'bg-red-500/10 text-red-200':'bg-green-500/10 text-green-200'}`}>{notice.text}</p>}<button className="w-full bg-safety-orange px-5 py-3 font-bold text-brand-black">Send verification code</button></form></PortalFrame>;
+  if (!profile)
+    return (
+      <PortalFrame onSignOut={() => signOut(auth)}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api("/api/client?action=register", {
+                method: "POST",
+                body: JSON.stringify({
+                  displayName: registration.displayName,
+                  phone: registration.phone,
+                  roles: [registration.role],
+                  smsConsent: registration.smsConsent,
+                }),
+              });
+              await load();
+              try {
+                await api("/api/client?action=send-code", {
+                  method: "POST",
+                  body: "{}",
+                });
+                setNotice({
+                  tone: "success",
+                  text: "A verification code was sent to your phone.",
+                });
+              } catch {
+                setNotice({
+                  tone: "success",
+                  text: "Company access was requested. SMS is temporarily unavailable, so continue with verified email for administrator approval.",
+                });
+              }
+            } catch (error) {
+              setNotice({
+                tone: "error",
+                text:
+                  error instanceof Error
+                    ? error.message
+                    : "Registration failed.",
+              });
+            }
+          }}
+          className="mx-auto max-w-xl glass-card border-t-4 border-tech-green p-8"
+        >
+          <Building2 className="mb-4 h-10 w-10 text-tech-green" />
+          <h2 className="text-2xl font-bold text-white">
+            Request company access
+          </h2>
+          <p className="mt-2 mb-6 text-sm text-slate-400">
+            Your verified email domain will suggest the matching company.
+            Membership still requires approval. You can verify your phone by
+            text when available or continue securely with verified email.
+          </p>
+          <label className="block text-xs font-bold text-slate-300">
+            Name
+            <input
+              required
+              value={registration.displayName}
+              onChange={(e) =>
+                setRegistration((v) => ({ ...v, displayName: e.target.value }))
+              }
+              className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white"
+            />
+          </label>
+          <label className="block text-xs font-bold text-slate-300">
+            Mobile phone
+            <input
+              required
+              type="tel"
+              value={registration.phone}
+              onChange={(e) =>
+                setRegistration((v) => ({ ...v, phone: e.target.value }))
+              }
+              className="mt-1 mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-white"
+            />
+          </label>
+          <label className="block text-xs font-bold text-slate-300">
+            Primary role
+            <select
+              value={registration.role}
+              onChange={(e) =>
+                setRegistration((v) => ({
+                  ...v,
+                  role: e.target.value as ClientRole,
+                }))
+              }
+              className="mt-1 mb-5 w-full rounded border border-white/10 bg-slate-950 px-4 py-3 text-white"
+            >
+              {roleOptions.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="mb-5 flex gap-3 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={registration.smsConsent}
+              onChange={(e) =>
+                setRegistration((v) => ({ ...v, smsConsent: e.target.checked }))
+              }
+              className="accent-green-500"
+            />
+            <span>
+              By checking this box, I agree to receive recurring transactional
+              SMS from TechSavvy LLC about service scheduling, technician
+              arrival, job progress, and completion. Message frequency varies.
+              Message and data rates may apply. Reply STOP to opt out or HELP
+              for help. Consent is not a condition of purchase. View our{" "}
+              <Link to="/terms" className="text-tech-green hover:underline">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-tech-green hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+          {notice && (
+            <p
+              className={`mb-4 rounded p-3 text-xs ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}
+            >
+              {notice.text}
+            </p>
+          )}
+          <button className="w-full bg-safety-orange px-5 py-3 font-bold text-brand-black">
+            Request company access
+          </button>
+        </form>
+      </PortalFrame>
+    );
 
-  if (!profile.phoneVerified) return <PortalFrame onSignOut={()=>signOut(auth)}><form onSubmit={async(e)=>{e.preventDefault();try{await api('/api/client?action=verify-code',{method:'POST',body:JSON.stringify({code:registration.code})});await load();setNotice({tone:'success',text:'Phone verified. Your membership is awaiting approval.'});}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Verification failed.'})}}} className="mx-auto max-w-md glass-card p-8"><h2 className="text-2xl font-bold text-white">Verify your phone</h2><p className="mt-2 mb-5 text-sm text-slate-400">Enter the six-digit code sent to {profile.phone}.</p><input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={registration.code} onChange={(e)=>setRegistration((v)=>({...v,code:e.target.value.replace(/\D/g,'')}))} className="mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-center font-mono text-2xl tracking-[0.4em] text-white" />{notice&&<p className={`mb-4 text-xs ${notice.tone==='error'?'text-red-300':'text-green-300'}`}>{notice.text}</p>}<button className="w-full bg-tech-green px-5 py-3 font-bold text-brand-black">Verify code</button></form></PortalFrame>;
+  if (!profile.phoneVerified && !profile.phoneVerificationDeferred)
+    return (
+      <PortalFrame onSignOut={() => signOut(auth)}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api("/api/client?action=verify-code", {
+                method: "POST",
+                body: JSON.stringify({ code: registration.code }),
+              });
+              await load();
+              setNotice({
+                tone: "success",
+                text: "Phone verified. Your membership is awaiting approval.",
+              });
+            } catch (error) {
+              setNotice({
+                tone: "error",
+                text:
+                  error instanceof Error
+                    ? error.message
+                    : "Verification failed.",
+              });
+            }
+          }}
+          className="mx-auto max-w-md glass-card p-8"
+        >
+          <h2 className="text-2xl font-bold text-white">Verify your phone</h2>
+          <p className="mt-2 mb-5 text-sm text-slate-400">
+            Enter the six-digit code sent to {profile.phone}.
+          </p>
+          <input
+            required
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            value={registration.code}
+            onChange={(e) =>
+              setRegistration((v) => ({
+                ...v,
+                code: e.target.value.replace(/\D/g, ""),
+              }))
+            }
+            className="mb-4 w-full rounded border border-white/10 bg-white/5 px-4 py-3 text-center font-mono text-2xl tracking-[0.4em] text-white"
+          />
+          {notice && (
+            <p
+              className={`mb-4 rounded p-3 text-xs ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}
+            >
+              {notice.text}
+            </p>
+          )}
+          <button className="w-full bg-tech-green px-5 py-3 font-bold text-brand-black">
+            Verify code
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              setNotice(null);
+              try {
+                await api("/api/client?action=send-code", {
+                  method: "POST",
+                  body: "{}",
+                });
+                setNotice({
+                  tone: "success",
+                  text: "A new verification code was sent to your phone.",
+                });
+              } catch (error) {
+                setNotice({
+                  tone: "error",
+                  text:
+                    error instanceof Error
+                      ? error.message
+                      : "Could not resend the verification code.",
+                });
+              }
+            }}
+            className="mt-3 w-full glass-button px-5 py-3 text-sm font-bold"
+          >
+            Resend code
+          </button>
+          <div className="my-5 border-t border-white/10" />
+          <p className="text-center text-xs text-slate-400">
+            SMS is unavailable? Continue with verified email and TechSavvy
+            administrator approval. Text notifications will remain disabled.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              setNotice(null);
+              try {
+                await api("/api/client?action=defer-phone-verification", {
+                  method: "POST",
+                  body: "{}",
+                });
+                await load();
+                setNotice({
+                  tone: "success",
+                  text: "Email-only access requested. Your membership is awaiting approval.",
+                });
+              } catch (error) {
+                setNotice({
+                  tone: "error",
+                  text:
+                    error instanceof Error
+                      ? error.message
+                      : "Could not request email-only access.",
+                });
+              }
+            }}
+            className="mt-3 w-full rounded border border-amber-500/40 px-5 py-3 text-sm font-bold text-amber-300"
+          >
+            Continue with email-only access
+          </button>
+        </form>
+      </PortalFrame>
+    );
 
-  if (profile.status !== 'active') return <PortalFrame onSignOut={()=>signOut(auth)}><div className="mx-auto max-w-xl glass-card p-8 text-center"><CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-amber-400" /><h2 className="text-2xl font-bold text-white">Approval pending</h2><p className="mt-3 text-sm text-slate-400">Your email and phone are verified. A {organization?.name || 'company'} administrator or TechSavvy must approve your membership.</p><button onClick={()=>load()} className="mt-6 glass-button px-4 py-2 text-sm font-bold">Check status</button></div></PortalFrame>;
+  if (profile.status !== "active")
+    return (
+      <PortalFrame onSignOut={() => signOut(auth)}>
+        <div className="mx-auto max-w-xl glass-card p-8 text-center">
+          <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-amber-400" />
+          <h2 className="text-2xl font-bold text-white">Approval pending</h2>
+          <p className="mt-3 text-sm text-slate-400">
+            Your email is verified. A{" "}
+            {organization?.name || "company"} administrator or TechSavvy must
+            approve your membership.
+          </p>
+          <button
+            onClick={() => load()}
+            className="mt-6 glass-button px-4 py-2 text-sm font-bold"
+          >
+            Check status
+          </button>
+        </div>
+      </PortalFrame>
+    );
 
-  return <PortalFrame onSignOut={()=>signOut(auth)}><div className="mx-auto max-w-7xl"><div className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.3em] text-tech-green">{organization?.name}</p><h1 className="mt-2 text-4xl font-display font-bold text-white">Client operations</h1><p className="mt-2 text-sm text-slate-400">Signed in as {profile.displayName} · {profile.roles.join(', ').replace(/_/g,' ')}</p></div><div className="flex flex-wrap gap-3">{!userHasMfa(user)&&<button onClick={()=>setShowMfaEnrollment(true)} className="glass-button px-5 py-3 text-sm font-bold">Enable MFA</button>}<Link to="/book-a-job" className="bg-safety-orange px-5 py-3 text-sm font-bold text-brand-black">Request another job</Link></div></div>{notice&&<p className={`mb-5 rounded p-3 text-sm ${notice.tone==='error'?'bg-red-500/10 text-red-200':'bg-green-500/10 text-green-200'}`}>{notice.text}</p>}<div className="grid gap-6 lg:grid-cols-[320px_1fr]"><aside className="space-y-3"><h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">Your jobs</h2>{jobs.length===0&&<div className="glass-card p-5 text-sm text-slate-500">No approved jobs are assigned to this account yet.</div>}{jobs.map((job)=><button key={job.id} onClick={()=>openJob(job.id)} className={`w-full rounded border p-4 text-left ${selected?.job.id===job.id?'border-tech-green bg-tech-green/5':'border-white/10 bg-white/5'}`}><span className="block text-[10px] font-mono text-tech-green">{job.workOrderNumber}</span><strong className="mt-1 block text-white">{job.name}</strong><span className="mt-2 block text-xs capitalize text-slate-400">{job.status?.replace(/_/g,' ')}</span></button>)}</aside><main>{!selected?<div className="glass-card grid min-h-80 place-items-center p-8 text-center text-slate-500">Select a job to view schedule, assignment, progress, and messages.</div>:<div className="space-y-5"><section className="glass-card border-t-4 border-tech-green p-6"><div className="flex flex-wrap justify-between gap-4"><div><p className="font-mono text-[10px] text-tech-green">{selected.job.workOrderNumber} · {selected.job.clientReference}</p><h2 className="mt-1 text-2xl font-bold text-white">{selected.job.name}</h2><p className="mt-1 text-sm text-slate-400">{selected.job.address}</p></div><span className="h-fit rounded bg-tech-green/10 px-3 py-1 text-xs font-bold capitalize text-tech-green">{selected.job.status?.replace(/_/g,' ')}</span></div><div className="mt-5 rounded border border-white/10 bg-black/20 p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Approved scope</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">{selected.job.scopeTasks.map((task)=><li key={task}>{task}</li>)}</ul><div className="mt-3 flex flex-wrap gap-3">{selected.job.documents?.map((file)=><a key={file.url} href={file.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-tech-green">📎 {file.name}</a>)}</div><button onClick={async()=>{const reason=window.prompt('Why is the approved scope changing?');if(!reason)return;const revisedScope=window.prompt('Enter the revised scope (one task per line):',selected.job.scopeTasks.join('\n'));if(!revisedScope)return;await api('/api/client?action=scope-change',{method:'POST',body:JSON.stringify({jobId:selected.job.id,reason,revisedScope})});setNotice({tone:'success',text:'Scope change sent for TechSavvy approval.'})}} className="mt-4 text-xs font-bold text-amber-300">Request scope change</button></div></section><section className="grid gap-4 md:grid-cols-2">{selected.appointments.map((appointment)=><div key={appointment.id} className="glass-card p-5"><div className="mb-3 flex items-center justify-between"><span className="flex items-center gap-2 text-sm font-bold text-white"><CalendarClock className="h-4 w-4 text-tech-green" /> Visit</span><span className="text-xs capitalize text-amber-300">{appointment.status}</span></div>{appointment.confirmedStart?<p className="text-sm text-slate-300">{new Date(appointment.confirmedStart).toLocaleString()} – {new Date(appointment.confirmedEnd||'').toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</p>:<p className="text-sm text-slate-500">Awaiting confirmation</p>}{appointment.technician&&<div className="mt-4 flex gap-3 rounded bg-white/5 p-3">{appointment.technician.profilePhotoUrl?<img src={appointment.technician.profilePhotoUrl} alt="" className="h-12 w-12 rounded-full object-cover"/>:<UserRound className="h-10 w-10 text-slate-500"/>}<div><p className="font-bold text-white">{appointment.technician.displayName}</p><p className="text-xs text-slate-400">{appointment.technician.specialty}</p>{appointment.technician.businessEmail&&<a href={`mailto:${appointment.technician.businessEmail}`} className="text-xs text-tech-green">{appointment.technician.businessEmail}</a>}</div></div>}<button onClick={()=>setReschedule((v)=>({...v,appointmentId:appointment.id}))} className="mt-4 text-xs font-bold text-tech-green">Propose new time</button>{reschedule.appointmentId===appointment.id&&<div className="mt-3 grid gap-2"><input type="datetime-local" value={reschedule.start} onChange={(e)=>setReschedule((v)=>({...v,start:e.target.value}))} className="rounded bg-slate-950 p-2 text-xs text-white"/><input type="datetime-local" value={reschedule.end} onChange={(e)=>setReschedule((v)=>({...v,end:e.target.value}))} className="rounded bg-slate-950 p-2 text-xs text-white"/><button onClick={async()=>{try{await api('/api/client?action=reschedule',{method:'POST',body:JSON.stringify({appointmentId:appointment.id,start:new Date(reschedule.start).toISOString(),end:new Date(reschedule.end).toISOString()})});await openJob(selected.job.id);setNotice({tone:'success',text:'Replacement window proposed.'})}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Could not reschedule.'})}}} className="rounded bg-tech-green p-2 text-xs font-bold text-brand-black">Send proposal</button></div>}</div>)}</section><section className="grid gap-5 md:grid-cols-2"><div className="glass-card p-5"><h3 className="mb-4 text-sm font-bold text-white">Progress timeline</h3><div className="space-y-4">{selected.events.map((event)=><div key={event.id} className="border-l border-tech-green/40 pl-4"><p className="text-sm text-slate-200">{event.message}</p><time className="text-[10px] text-slate-500">{new Date(event.createdAt).toLocaleString()}</time></div>)}</div></div><div className="glass-card p-5"><h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-white"><MessageSquare className="h-4 w-4 text-tech-green" /> Job conversation</h3><div className="mb-4 max-h-64 space-y-3 overflow-y-auto">{selected.messages.map((item)=><div key={item.id} className="rounded bg-white/5 p-3"><p className="text-[10px] font-bold text-tech-green">{item.authorName||'TechSavvy'}</p><p className="mt-1 text-sm text-slate-300">{item.message}</p></div>)}</div><textarea value={message} onChange={(e)=>setMessage(e.target.value)} rows={3} placeholder="Ask about this job…" className="w-full rounded border border-white/10 bg-black/20 p-3 text-sm text-white"/><button onClick={async()=>{if(!message.trim())return;try{await api('/api/client?action=message',{method:'POST',body:JSON.stringify({jobId:selected.job.id,message})});setMessage('');await openJob(selected.job.id)}catch(error){setNotice({tone:'error',text:error instanceof Error?error.message:'Could not send.'})}}} className="mt-2 w-full bg-tech-green p-2 text-xs font-bold text-brand-black">Send message</button></div></section>{selected.job.closeoutStatus==='awaiting_acceptance'&&<button onClick={async()=>{await api('/api/client?action=accept-closeout',{method:'POST',body:JSON.stringify({jobId:selected.job.id})});await openJob(selected.job.id)}} className="w-full bg-safety-orange px-5 py-4 font-bold text-brand-black">Accept closeout and close job</button>}</div>}</main></div>{profile.roles.includes('company_admin')&&<section className="mt-8 glass-card p-6"><h2 className="text-sm font-bold text-white">Company access requests</h2><div className="mt-4 grid gap-3 md:grid-cols-2">{members.filter((member)=>member.status!=='active').map((member)=><div key={member.id} className="rounded bg-white/5 p-3"><p className="text-sm font-bold text-white">{member.displayName}</p><p className="text-xs text-slate-500">{member.email} · {(member.requestedRoles||[]).join(', ').replace(/_/g,' ')}</p><button disabled={!member.emailVerified||!member.phoneVerified} onClick={async()=>{await api('/api/client?action=approve-member',{method:'POST',body:JSON.stringify({uid:member.id,roles:member.requestedRoles})});await load()}} className="mt-2 rounded bg-tech-green px-3 py-1.5 text-xs font-bold text-brand-black disabled:opacity-30">Approve member</button></div>)}</div></section>}</div></PortalFrame>;
+  const historicalStatuses = new Set(["completed", "closed", "cancelled"]);
+  const upcomingJobs = jobs
+    .filter((job) => !historicalStatuses.has(job.status?.toLowerCase()))
+    .sort((a, b) =>
+      String(a.targetCompletion || "9999").localeCompare(
+        String(b.targetCompletion || "9999"),
+      ),
+    );
+  const historicalJobs = jobs
+    .filter((job) => historicalStatuses.has(job.status?.toLowerCase()))
+    .sort((a, b) =>
+      String(b.targetCompletion || "").localeCompare(
+        String(a.targetCompletion || ""),
+      ),
+    );
+  const visibleJobs =
+    portalView === "history" || portalView === "reports"
+      ? historicalJobs
+      : upcomingJobs;
+  const navItems = [
+    { id: "upcoming" as const, label: "Upcoming jobs", icon: LayoutDashboard },
+    { id: "book" as const, label: "Book a job", icon: PlusCircle },
+    { id: "history" as const, label: "Job history", icon: History },
+    { id: "reports" as const, label: "Reports", icon: FileText },
+  ];
+
+  return (
+    <PortalFrame onSignOut={() => signOut(auth)}>
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-tech-green">
+              {organization?.name}
+            </p>
+            <h1 className="mt-2 text-4xl font-display font-bold text-white">
+              Client operations
+            </h1>
+            <p className="mt-2 text-sm text-slate-400">
+              Signed in as {profile.displayName} ·{" "}
+              {profile.roles.join(", ").replace(/_/g, " ")}
+            </p>
+          </div>
+          {!userHasMfa(user) && (
+            <button
+              onClick={() => setShowMfaEnrollment(true)}
+              className="glass-button px-5 py-3 text-sm font-bold"
+            >
+              Enable MFA
+            </button>
+          )}
+        </div>
+        <nav
+          aria-label="Client portal sections"
+          className="mb-6 grid gap-2 rounded border border-white/10 bg-white/5 p-2 sm:grid-cols-4"
+        >
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setPortalView(item.id);
+                  setSelected(null);
+                }}
+                aria-current={portalView === item.id ? "page" : undefined}
+                className={`flex items-center justify-center gap-2 rounded px-4 py-3 text-sm font-bold transition ${portalView === item.id ? "bg-tech-green text-brand-black" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+        {notice && (
+          <p
+            className={`mb-5 rounded p-3 text-sm ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}
+          >
+            {notice.text}
+          </p>
+        )}
+        {portalView === "book" ? (
+          <BookJob
+            embedded
+            defaults={{
+              companyName: organization?.name || "",
+              requesterName: profile.displayName,
+              requesterEmail: profile.email,
+              requesterPhone: profile.phone,
+              referencePrefix: organization?.referencePrefixes?.[0] || "",
+              smsConsent:
+                profile.phoneVerified && profile.smsConsent?.optedIn === true,
+            }}
+            onSubmitted={() => void load()}
+          />
+        ) : (
+          <>
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+              <div className="glass-card p-5">
+                <p className="text-3xl font-bold text-white">
+                  {upcomingJobs.length}
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
+                  Upcoming jobs
+                </p>
+              </div>
+              <div className="glass-card p-5">
+                <p className="text-3xl font-bold text-white">
+                  {historicalJobs.length}
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
+                  Past jobs
+                </p>
+              </div>
+              <div className="glass-card p-5">
+                <p className="text-3xl font-bold text-white">
+                  {jobs.reduce(
+                    (total, job) => total + (job.reportCount || 0),
+                    0,
+                  )}
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
+                  Available reports
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+              <aside className="space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  {portalView === "upcoming" ? "Upcoming jobs" : "Past jobs"}
+                </h2>
+                {visibleJobs.length === 0 && (
+                  <div className="glass-card p-5 text-sm text-slate-500">
+                    {portalView === "upcoming"
+                      ? "No upcoming jobs are assigned to this account."
+                      : "No completed jobs are available yet."}
+                  </div>
+                )}
+                {visibleJobs.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={() => openJob(job.id)}
+                    className={`w-full rounded border p-4 text-left ${selected?.job.id === job.id ? "border-tech-green bg-tech-green/5" : "border-white/10 bg-white/5"}`}
+                  >
+                    <span className="block text-[10px] font-mono text-tech-green">
+                      {job.workOrderNumber}
+                    </span>
+                    <strong className="mt-1 block text-white">
+                      {job.name}
+                    </strong>
+                    <span className="mt-2 block text-xs capitalize text-slate-400">
+                      {job.status?.replace(/_/g, " ")}
+                    </span>
+                  </button>
+                ))}
+              </aside>
+              <main>
+                {!selected ? (
+                  <div className="glass-card grid min-h-80 place-items-center p-8 text-center text-slate-500">
+                    {portalView === "reports"
+                      ? "Select a past job to view its reports and documents."
+                      : "Select a job to view schedule, assignment, progress, and messages."}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <section className="glass-card border-t-4 border-tech-green p-6">
+                      <div className="flex flex-wrap justify-between gap-4">
+                        <div>
+                          <p className="font-mono text-[10px] text-tech-green">
+                            {selected.job.workOrderNumber} ·{" "}
+                            {selected.job.clientReference}
+                          </p>
+                          <h2 className="mt-1 text-2xl font-bold text-white">
+                            {selected.job.name}
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {selected.job.address}
+                          </p>
+                        </div>
+                        <span className="h-fit rounded bg-tech-green/10 px-3 py-1 text-xs font-bold capitalize text-tech-green">
+                          {selected.job.status?.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      <div className="mt-5 rounded border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          Approved scope
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+                          {selected.job.scopeTasks.map((task) => (
+                            <li key={task}>{task}</li>
+                          ))}
+                        </ul>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          {selected.job.documents?.map((file) => (
+                            <a
+                              key={file.url}
+                              href={file.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-bold text-tech-green"
+                            >
+                              📎 {file.name}
+                            </a>
+                          ))}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const reason = window.prompt(
+                              "Why is the approved scope changing?",
+                            );
+                            if (!reason) return;
+                            const revisedScope = window.prompt(
+                              "Enter the revised scope (one task per line):",
+                              selected.job.scopeTasks.join("\n"),
+                            );
+                            if (!revisedScope) return;
+                            await api("/api/client?action=scope-change", {
+                              method: "POST",
+                              body: JSON.stringify({
+                                jobId: selected.job.id,
+                                reason,
+                                revisedScope,
+                              }),
+                            });
+                            setNotice({
+                              tone: "success",
+                              text: "Scope change sent for TechSavvy approval.",
+                            });
+                          }}
+                          className="mt-4 text-xs font-bold text-amber-300"
+                        >
+                          Request scope change
+                        </button>
+                      </div>
+                    </section>
+                    {portalView === "reports" && (
+                      <section className="glass-card p-6">
+                        <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+                          <FileText className="h-4 w-4 text-tech-green" /> Job
+                          reports and documents
+                        </h3>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {[
+                            ...(selected.job.documents || []),
+                            ...(selected.job.billingDocuments || []).map(
+                              (file) => ({ ...file, type: "billing" }),
+                            ),
+                          ].map((file) => (
+                            <a
+                              key={file.url}
+                              href={file.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded border border-white/10 bg-white/5 p-4 text-sm font-bold text-tech-green hover:border-tech-green/50"
+                            >
+                              <FileText className="mb-2 h-5 w-5" />
+                              {file.name}
+                            </a>
+                          ))}
+                        </div>
+                        {(selected.job.documents?.length || 0) +
+                          (selected.job.billingDocuments?.length || 0) ===
+                          0 && (
+                          <p className="mt-4 text-sm text-slate-500">
+                            No reports or documents have been uploaded for this
+                            job yet.
+                          </p>
+                        )}
+                      </section>
+                    )}
+                    <section className="grid gap-4 md:grid-cols-2">
+                      {selected.appointments.map((appointment) => (
+                        <div key={appointment.id} className="glass-card p-5">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="flex items-center gap-2 text-sm font-bold text-white">
+                              <CalendarClock className="h-4 w-4 text-tech-green" />{" "}
+                              Visit
+                            </span>
+                            <span className="text-xs capitalize text-amber-300">
+                              {appointment.status}
+                            </span>
+                          </div>
+                          {appointment.confirmedStart ? (
+                            <p className="text-sm text-slate-300">
+                              {new Date(
+                                appointment.confirmedStart,
+                              ).toLocaleString()}{" "}
+                              –{" "}
+                              {new Date(
+                                appointment.confirmedEnd || "",
+                              ).toLocaleTimeString([], {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-slate-500">
+                              Awaiting confirmation
+                            </p>
+                          )}
+                          {appointment.technician && (
+                            <div className="mt-4 flex gap-3 rounded bg-white/5 p-3">
+                              {appointment.technician.profilePhotoUrl ? (
+                                <img
+                                  src={appointment.technician.profilePhotoUrl}
+                                  alt=""
+                                  className="h-12 w-12 rounded-full object-cover"
+                                />
+                              ) : (
+                                <UserRound className="h-10 w-10 text-slate-500" />
+                              )}
+                              <div>
+                                <p className="font-bold text-white">
+                                  {appointment.technician.displayName}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {appointment.technician.specialty}
+                                </p>
+                                {appointment.technician.businessEmail && (
+                                  <a
+                                    href={`mailto:${appointment.technician.businessEmail}`}
+                                    className="text-xs text-tech-green"
+                                  >
+                                    {appointment.technician.businessEmail}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={() =>
+                              setReschedule((v) => ({
+                                ...v,
+                                appointmentId: appointment.id,
+                              }))
+                            }
+                            className="mt-4 text-xs font-bold text-tech-green"
+                          >
+                            Propose new time
+                          </button>
+                          {reschedule.appointmentId === appointment.id && (
+                            <div className="mt-3 grid gap-2">
+                              <input
+                                type="datetime-local"
+                                value={reschedule.start}
+                                onChange={(e) =>
+                                  setReschedule((v) => ({
+                                    ...v,
+                                    start: e.target.value,
+                                  }))
+                                }
+                                className="rounded bg-slate-950 p-2 text-xs text-white"
+                              />
+                              <input
+                                type="datetime-local"
+                                value={reschedule.end}
+                                onChange={(e) =>
+                                  setReschedule((v) => ({
+                                    ...v,
+                                    end: e.target.value,
+                                  }))
+                                }
+                                className="rounded bg-slate-950 p-2 text-xs text-white"
+                              />
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await api("/api/client?action=reschedule", {
+                                      method: "POST",
+                                      body: JSON.stringify({
+                                        appointmentId: appointment.id,
+                                        start: new Date(
+                                          reschedule.start,
+                                        ).toISOString(),
+                                        end: new Date(
+                                          reschedule.end,
+                                        ).toISOString(),
+                                      }),
+                                    });
+                                    await openJob(selected.job.id);
+                                    setNotice({
+                                      tone: "success",
+                                      text: "Replacement window proposed.",
+                                    });
+                                  } catch (error) {
+                                    setNotice({
+                                      tone: "error",
+                                      text:
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Could not reschedule.",
+                                    });
+                                  }
+                                }}
+                                className="rounded bg-tech-green p-2 text-xs font-bold text-brand-black"
+                              >
+                                Send proposal
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </section>
+                    <section className="grid gap-5 md:grid-cols-2">
+                      <div className="glass-card p-5">
+                        <h3 className="mb-4 text-sm font-bold text-white">
+                          Progress timeline
+                        </h3>
+                        <div className="space-y-4">
+                          {selected.events.map((event) => (
+                            <div
+                              key={event.id}
+                              className="border-l border-tech-green/40 pl-4"
+                            >
+                              <p className="text-sm text-slate-200">
+                                {event.message}
+                              </p>
+                              <time className="text-[10px] text-slate-500">
+                                {new Date(event.createdAt).toLocaleString()}
+                              </time>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="glass-card p-5">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-white">
+                          <MessageSquare className="h-4 w-4 text-tech-green" />{" "}
+                          Job conversation
+                        </h3>
+                        <div className="mb-4 max-h-64 space-y-3 overflow-y-auto">
+                          {selected.messages.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded bg-white/5 p-3"
+                            >
+                              <p className="text-[10px] font-bold text-tech-green">
+                                {item.authorName || "TechSavvy"}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-300">
+                                {item.message}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        <textarea
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          rows={3}
+                          placeholder="Ask about this job…"
+                          className="w-full rounded border border-white/10 bg-black/20 p-3 text-sm text-white"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!message.trim()) return;
+                            try {
+                              await api("/api/client?action=message", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  jobId: selected.job.id,
+                                  message,
+                                }),
+                              });
+                              setMessage("");
+                              await openJob(selected.job.id);
+                            } catch (error) {
+                              setNotice({
+                                tone: "error",
+                                text:
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Could not send.",
+                              });
+                            }
+                          }}
+                          className="mt-2 w-full bg-tech-green p-2 text-xs font-bold text-brand-black"
+                        >
+                          Send message
+                        </button>
+                      </div>
+                    </section>
+                    {selected.job.closeoutStatus === "awaiting_acceptance" && (
+                      <button
+                        onClick={async () => {
+                          await api("/api/client?action=accept-closeout", {
+                            method: "POST",
+                            body: JSON.stringify({ jobId: selected.job.id }),
+                          });
+                          await openJob(selected.job.id);
+                        }}
+                        className="w-full bg-safety-orange px-5 py-4 font-bold text-brand-black"
+                      >
+                        Accept closeout and close job
+                      </button>
+                    )}
+                  </div>
+                )}
+              </main>
+            </div>
+          </>
+        )}
+        {profile.roles.includes("company_admin") && (
+          <section className="mt-8 glass-card p-6">
+            <h2 className="text-sm font-bold text-white">
+              Company access requests
+            </h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {members
+                .filter((member) => member.status !== "active")
+                .map((member) => (
+                  <div key={member.id} className="rounded bg-white/5 p-3">
+                    <p className="text-sm font-bold text-white">
+                      {member.displayName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {member.email} ·{" "}
+                      {(member.requestedRoles || [])
+                        .join(", ")
+                        .replace(/_/g, " ")}
+                    </p>
+                    <button
+                      disabled={
+                        !member.emailVerified ||
+                        (!member.phoneVerified &&
+                          !member.phoneVerificationDeferred)
+                      }
+                      onClick={async () => {
+                        await api("/api/client?action=approve-member", {
+                          method: "POST",
+                          body: JSON.stringify({
+                            uid: member.id,
+                            roles: member.requestedRoles,
+                          }),
+                        });
+                        await load();
+                      }}
+                      className="mt-2 rounded bg-tech-green px-3 py-1.5 text-xs font-bold text-brand-black disabled:opacity-30"
+                    >
+                      Approve member
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </PortalFrame>
+  );
 }
 
-function PortalFrame({ children, onSignOut }: { children: React.ReactNode; onSignOut: () => void }) {
-  return <div className="min-h-screen bg-slate-950 px-5 py-8 text-white"><header className="mx-auto mb-10 flex max-w-7xl items-center justify-between border-b border-white/10 pb-5"><Link to="/" className="font-display text-lg font-bold tracking-wider">TECH<span className="text-tech-green">SAVVY</span></Link><button onClick={onSignOut} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"><LogOut className="h-4 w-4" /> Sign out</button></header>{children}</div>;
+function PortalFrame({
+  children,
+  onSignOut,
+}: {
+  children: React.ReactNode;
+  onSignOut: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-slate-950 px-5 py-8 text-white">
+      <header className="mx-auto mb-10 flex max-w-7xl items-center justify-between border-b border-white/10 pb-5">
+        <Link to="/" className="font-display text-lg font-bold tracking-wider">
+          TECH<span className="text-tech-green">SAVVY</span>
+        </Link>
+        <button
+          onClick={onSignOut}
+          className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"
+        >
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
+      </header>
+      {children}
+    </div>
+  );
 }

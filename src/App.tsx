@@ -25,6 +25,9 @@ import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
+const CRM = lazy(() => import('./pages/CRM'));
+const CustomerDocument = lazy(() => import('./pages/CustomerDocument'));
+const CustomerPortal = lazy(() => import('./pages/CustomerPortal'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
 const BookJob = lazy(() => import('./pages/BookJob'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
@@ -49,7 +52,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client');
+  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname.startsWith('/customer/');
 
   return (
     <>
@@ -73,6 +76,9 @@ function AppShell() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/crm" element={<Suspense fallback={<div className="min-h-screen grid place-items-center">Loading CRM…</div>}><CRM /></Suspense>} />
+            <Route path="/customer/document" element={<Suspense fallback={<div>Loading document…</div>}><CustomerDocument /></Suspense>} />
+            <Route path="/customer/portal" element={<Suspense fallback={<div>Loading customer portal…</div>}><CustomerPortal /></Suspense>} />
             <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
             <Route path="/client" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading client portal…</div>}><ClientPortal /></Suspense>} />
             <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />

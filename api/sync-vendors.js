@@ -1,5 +1,6 @@
 import { adminDb, requireAdmin } from './_lib/firebase-admin.js';
 import { qboCompanyBaseUrl, qboEnvironment } from './_lib/quickbooks-config.js';
+import { readQboTokens, encryptedQboTokenUpdateFields } from './_lib/qbo-helper.js';
 import clientCronHandler from './_lib/client-cron-handler.js';
 
 export default async function handler(req, res) {
@@ -20,7 +21,8 @@ export default async function handler(req, res) {
         error: `QuickBooks is connected to ${qboData.environment || 'an older, unknown'} environment. Disconnect it and reconnect to ${qboEnvironment}.`,
       });
     }
-    let accessToken = qboData?.accessToken || process.env.QBO_ACCESS_TOKEN;
+    let { accessToken, refreshToken } = readQboTokens(qboData);
+    accessToken = accessToken || process.env.QBO_ACCESS_TOKEN;
     const realmId = qboData?.realmId || process.env.QBO_REALM_ID;
 
     if (!accessToken || !realmId) {
@@ -31,7 +33,7 @@ export default async function handler(req, res) {
 
     if (qboData?.accessTokenExpiresAt && Date.now() >= qboData.accessTokenExpiresAt - 60_000) {
       const { QBO_CLIENT_ID: clientId, QBO_CLIENT_SECRET: clientSecret } = process.env;
-      if (!clientId || !clientSecret || !qboData.refreshToken) {
+      if (!clientId || !clientSecret || !refreshToken) {
         return res.status(401).json({ error: 'QuickBooks authorization needs to be renewed.' });
       }
 
@@ -43,7 +45,7 @@ export default async function handler(req, res) {
         },
         body: new URLSearchParams({
           grant_type: 'refresh_token',
-          refresh_token: qboData.refreshToken,
+          refresh_token: refreshToken,
         }).toString(),
       });
 
@@ -55,8 +57,10 @@ export default async function handler(req, res) {
       const refreshData = await refreshResponse.json();
       accessToken = refreshData.access_token;
       await qboSettingDoc.update({
-        accessToken: refreshData.access_token,
-        refreshToken: refreshData.refresh_token,
+        ...encryptedQboTokenUpdateFields({
+          accessToken: refreshData.access_token,
+          refreshToken: refreshData.refresh_token,
+        }),
         accessTokenExpiresAt: Date.now() + refreshData.expires_in * 1000,
         refreshTokenExpiresAt: Date.now() + refreshData.x_refresh_token_expires_in * 1000,
       });

@@ -3,12 +3,21 @@ import { createQBOBillForTimecard, reverseQBOTimecard } from '../_lib/qbo-helper
 import clientPortalHandler from '../_lib/client-api-handler.js';
 import adminClientPortalHandler from '../_lib/admin-client-portal-handler.js';
 import jobEventsHandler from '../_lib/job-events-handler.js';
+import { businessDate, businessClock } from '../_lib/business-time.js';
 
 const getUser = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) throw new Error('Authentication required.');
   const user = await adminAuth.verifyIdToken(token);
   if (user.admin !== true && user.contractor !== true) throw new Error('Contractor Portal access is required.');
+  if (user.admin !== true) {
+    const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
+    if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
+    const data = contractor.docs[0].data();
+    const accessStatus = data.accessStatus || (data.active === false ? 'Suspended' : 'Active');
+    if (accessStatus === 'Suspended') throw new Error('Your contractor portal access is suspended.');
+    if (accessStatus === 'Offboarded') throw new Error('Your contractor portal access has been offboarded.');
+  }
   return user;
 };
 
@@ -27,8 +36,8 @@ const workOrdersFor = async (user) => {
 
 const entriesFor = async (user) => {
   const snapshot = user.admin === true
-    ? await adminDb.collection('time_entries').limit(100).get()
-    : await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).limit(100).get();
+    ? await adminDb.collection('time_entries').get()
+    : await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).get();
   const contractorByUid = new Map();
   if (user.admin === true) {
     const contractors = await adminDb.collection('contractors').get();
@@ -46,6 +55,8 @@ const entriesFor = async (user) => {
       return {
         id: entry.id,
         ...data,
+        ...(data.clockInAt ? { date: businessDate(new Date(data.clockInAt)), clockIn: businessClock(new Date(data.clockInAt)) } : {}),
+        ...(data.clockOutAt ? { clockOut: businessClock(new Date(data.clockOutAt)) } : {}),
         contractorId: contractor?.id || data.contractorId || '',
         technicianName: contractor?.name || data.technicianName || '',
         technicianEmail: contractor?.email || data.technicianEmail || '',
@@ -80,6 +91,42 @@ const signatureFor = (contractor) => {
 };
 
 const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+
+const timeEntryFullyApproved = (entry) => {
+  const checks = [
+    [Number(entry.totalHours || 0) > 0, entry.laborStatus],
+    [Number(entry.suppliesCost || 0) > 0, entry.suppliesStatus],
+    [Number(entry.travelCost || 0) > 0, entry.travelStatus],
+    [Number(entry.bonusCost || 0) > 0, entry.bonusStatus],
+  ];
+  return checks.every(([active, status]) => !active || status === 'approved');
+};
+
+const refreshJobBillingReadiness = async (jobId) => {
+  if (!jobId) return false;
+  const jobRef = adminDb.collection('jobs').doc(jobId);
+  const [jobSnapshot, entriesSnapshot] = await Promise.all([jobRef.get(), adminDb.collection('time_entries').where('jobId', '==', jobId).get()]);
+  if (!jobSnapshot.exists) return false;
+  const entries = entriesSnapshot.docs.map((entry) => entry.data()).filter((entry) => entry.status !== 'voided');
+  const currentStatus = String(jobSnapshot.data().status || '').toLowerCase();
+  const completed = ['complete', 'completed', 'field complete', 'ready to invoice'].includes(currentStatus);
+  const approved = entries.length > 0 && entries.every(timeEntryFullyApproved);
+  const now = new Date().toISOString();
+  if (completed && approved) {
+    await jobRef.set({ status: 'Ready to Invoice', billingStatus: 'ready', billingReadyAt: jobSnapshot.data().billingReadyAt || now, billingEntryIds: entriesSnapshot.docs.filter((entry) => entry.data().status !== 'voided').map((entry) => entry.id), updatedAt: now }, { merge: true });
+    return true;
+  } else if (currentStatus === 'ready to invoice' && !approved) {
+    await jobRef.set({ status: 'completed', billingStatus: 'review_required', billingReadyAt: '', updatedAt: now }, { merge: true });
+  }
+  return false;
+};
+
+const getApprovedTotal = (entry) => (
+  (Number(entry.totalHours || 0) * Number(entry.rate || 75))
+  + Number(entry.suppliesCost || 0)
+  + Number(entry.travelCost || 0)
+  + Number(entry.bonusCost || 0)
+);
 
 const escapeHtml = (value) => String(value || '')
   .replaceAll('&', '&amp;')
@@ -179,6 +226,13 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
     const action = req.body?.action;
+    if (action === 'refresh_billing_readiness') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const jobs = await adminDb.collection('jobs').get();
+      let ready = 0;
+      for (const job of jobs.docs) if (await refreshJobBillingReadiness(job.id)) ready += 1;
+      return res.status(200).json({ success: true, checked: jobs.size, ready });
+    }
     if (action === 'save_signature') {
       const contractor = await contractorProfileFor(user);
       const signatureDataUrl = req.body?.signatureDataUrl;
@@ -342,10 +396,7 @@ export default async function handler(req, res) {
       })));
       return res.status(200).json({ success: true, job: { id: snapshot.id, ...job, ...update } });
     }
-    const existingEntries = await entriesFor(user);
-    const activeEntry = existingEntries.find((entry) => entry.active === true);
     if (action === 'start') {
-      if (activeEntry) return res.status(409).json({ error: `You are already clocked in at ${activeEntry.jobSite}.` });
       const jobId = req.body?.jobId;
       const job = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId);
       if (!job) return res.status(403).json({ error: 'You are not assigned to this work order.' });
@@ -355,8 +406,8 @@ export default async function handler(req, res) {
         jobId,
         jobSite: job.data().name,
         address: job.data().address || 'Address on file',
-        date: now.toISOString().slice(0, 10),
-        clockIn: now.toTimeString().slice(0, 5),
+        date: businessDate(now),
+        clockIn: businessClock(now),
         clockInAt: now.toISOString(),
         clockOut: '',
         breakMinutes: 0,
@@ -376,15 +427,33 @@ export default async function handler(req, res) {
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
-      const created = await adminDb.collection('time_entries').add(entry);
-      return res.status(201).json({ entry: { id: created.id, ...entry } });
+      // A transaction closes the window between checking for an active shift
+      // and creating the new one, so two concurrent clock-ins can't both land.
+      try {
+        const created = await adminDb.runTransaction(async (tx) => {
+          const activeSnap = await tx.get(
+            adminDb.collection('time_entries').where('technicianUid', '==', user.uid).where('active', '==', true).limit(1),
+          );
+          if (!activeSnap.empty) {
+            throw Object.assign(new Error(`You are already clocked in at ${activeSnap.docs[0].data().jobSite}.`), { status: 409 });
+          }
+          const ref = adminDb.collection('time_entries').doc();
+          tx.set(ref, entry);
+          return { id: ref.id, ...entry };
+        });
+        return res.status(201).json({ entry: created });
+      } catch (error) {
+        return res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not start the shift.' });
+      }
     }
+    const existingEntries = await entriesFor(user);
+    const activeEntry = existingEntries.find((entry) => entry.active === true);
     if (action === 'stop') {
       if (!activeEntry) return res.status(409).json({ error: 'There is no active shift to stop.' });
       const ended = new Date();
       const started = new Date(activeEntry.clockInAt || activeEntry.clockIn);
       const totalHours = Math.max(0, (ended.getTime() - started.getTime()) / 3600000).toFixed(2);
-      const update = { clockOut: ended.toTimeString().slice(0, 5), clockOutAt: ended.toISOString(), totalHours, active: false, updatedAt: ended.toISOString() };
+      const update = { clockOut: businessClock(ended), clockOutAt: ended.toISOString(), totalHours, active: false, updatedAt: ended.toISOString() };
       await adminDb.collection('time_entries').doc(activeEntry.id).set(update, { merge: true });
       return res.status(200).json({ entry: { ...activeEntry, ...update } });
     }
@@ -397,19 +466,62 @@ export default async function handler(req, res) {
       const clockOut = req.body?.clockOut;
       const breakMinutes = Number(req.body?.breakMinutes) || 0;
       const totalHours = req.body?.totalHours;
-      const rate = Number(req.body?.rate) || 55;
+      const requestedRate = Number(req.body?.rate) || 55;
       const suppliesCost = Number(req.body?.suppliesCost) || 0;
       const suppliesItems = Array.isArray(req.body?.suppliesItems) ? req.body.suppliesItems : [];
       const travelCost = Number(req.body?.travelCost) || 0;
       const notes = req.body?.notes || '';
       const photos = Array.isArray(req.body?.photos) ? req.body.photos : [];
+      const completionIntent = req.body?.completionIntent === 'final' ? 'final' : 'progress';
+      const allowedExceptionReasons = new Set(['customer_unavailable', 'customer_declined', 'remote_unattended', 'not_required_for_visit', 'other']);
+      const signatureExceptionReason = allowedExceptionReasons.has(req.body?.signatureExceptionReason) ? req.body.signatureExceptionReason : '';
+      const signatureExceptionNotes = cleanReason(req.body?.signatureExceptionNotes);
+
+      let assignedJob = null;
+      if (jobId) {
+        assignedJob = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId) || null;
+        if (!assignedJob) return res.status(403).json({ error: 'You are not assigned to this work order.' });
+        if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
+          return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
+        }
+      }
+      // A technician's self-reported rate is only used for ad-hoc entries with
+      // no assigned work order. Once a real job is matched, its administrator-set
+      // hourlyRate is authoritative so a contractor cannot inflate their own pay.
+      const rate = assignedJob ? Number(assignedJob.data().hourlyRate ?? 55) : requestedRate;
+
+      let completionUpdate = null;
+      if (completionIntent === 'final') {
+        if (!assignedJob) return res.status(422).json({ error: 'An administrator-issued work order is required for final completion.' });
+        const job = assignedJob.data();
+        const hasSignedWorkOrder = Array.isArray(job.signedWorkOrders) && job.signedWorkOrders.length > 0;
+        if (job.signatureRequired === true && !hasSignedWorkOrder) {
+          return res.status(409).json({ error: 'The administrator requires a signed work order before this job can be completed.' });
+        }
+        if (!hasSignedWorkOrder && !signatureExceptionReason) {
+          return res.status(422).json({ error: 'Obtain the customer signature or document why it was not needed or available.' });
+        }
+        if (!hasSignedWorkOrder && signatureExceptionReason === 'other' && !signatureExceptionNotes) {
+          return res.status(422).json({ error: 'Explain the customer-signature exception.' });
+        }
+        const completedAt = new Date().toISOString();
+        completionUpdate = {
+          status: 'completed',
+          completionStatus: 'completed',
+          completedAt,
+          completedByUid: user.uid,
+          signatureStatus: hasSignedWorkOrder ? 'signed' : 'technician_exception',
+          updatedAt: completedAt,
+          ...(!hasSignedWorkOrder ? { signatureException: { reason: signatureExceptionReason, notes: signatureExceptionNotes, technicianUid: user.uid, createdAt: completedAt } } : {}),
+        };
+      }
 
       const now = new Date();
       const entry = {
         jobId: jobId || '',
         jobSite: jobSite || 'Custom Job Site',
         address: address || 'Address on file',
-        date: date || now.toISOString().slice(0, 10),
+        date: date || businessDate(now),
         clockIn: clockIn || '07:00',
         clockOut: clockOut || '15:30',
         breakMinutes,
@@ -425,14 +537,31 @@ export default async function handler(req, res) {
         status: 'pending',
         qbStatus: 'pending',
         photos,
+        completionIntent,
+        signatureDisposition: completionIntent === 'final' ? (completionUpdate?.signatureStatus || 'signed') : 'not_applicable',
+        ...(completionIntent === 'final' && completionUpdate?.signatureStatus === 'technician_exception' ? { signatureExceptionReason, signatureExceptionNotes } : {}),
         technicianUid: user.uid,
         active: false,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
 
-      const created = await adminDb.collection('time_entries').add(entry);
-      return res.status(201).json({ entry: { id: created.id, ...entry } });
+      const entryRef = adminDb.collection('time_entries').doc();
+      const batch = adminDb.batch();
+      batch.set(entryRef, entry);
+      if (assignedJob && completionUpdate) batch.set(assignedJob.ref, completionUpdate, { merge: true });
+      await batch.commit();
+
+      if (assignedJob && completionUpdate?.signatureStatus === 'technician_exception') {
+        await sendPortalNotice({
+          to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
+          subject: `Customer signature exception: ${assignedJob.data().name || jobSite || 'completed work order'}`,
+          heading: 'Work order completed without customer signature',
+          message: 'A technician used the permitted exception workflow. Review the reason in the administrator work-order record.',
+          details: [['Work order', assignedJob.data().workOrderNumber || assignedJob.id], ['Job', assignedJob.data().name || jobSite || 'Unknown'], ['Reason', signatureExceptionReason], ['Notes', signatureExceptionNotes || 'None provided']],
+        });
+      }
+      return res.status(201).json({ entry: { id: entryRef.id, ...entry }, ...(assignedJob && completionUpdate ? { job: { id: assignedJob.id, ...assignedJob.data(), ...completionUpdate } } : {}) });
     }
 
     if (action === 'approve_item') {
@@ -498,6 +627,14 @@ export default async function handler(req, res) {
       const isFullyApproved = isLaborApproved && isSuppliesApproved && isTravelApproved && isBonusApproved;
 
       if (isFullyApproved) {
+        const approvedAt = new Date().toISOString();
+        await docRef.update({
+          qbStatus: 'pending',
+          qboReadyAt: updatedTimecard.qboReadyAt || approvedAt,
+          updatedAt: approvedAt,
+        });
+        updatedTimecard.qbStatus = 'pending';
+        updatedTimecard.qboReadyAt = updatedTimecard.qboReadyAt || approvedAt;
         const jobDate = new Date(updatedTimecard.date);
         const payoutDueDate = new Date(jobDate);
         payoutDueDate.setDate(payoutDueDate.getDate() + 15);
@@ -530,10 +667,7 @@ export default async function handler(req, res) {
           const supportEmail = process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com';
 
           if (apiKey) {
-            const laborAmt = Number(updatedTimecard.totalHours || 0) * (updatedTimecard.rate || 75);
-            const suppliesAmt = Number(updatedTimecard.suppliesCost || 0);
-            const travelAmt = Number(updatedTimecard.travelCost || 0);
-            const totalPayable = laborAmt + suppliesAmt + travelAmt;
+            const totalPayable = getApprovedTotal(updatedTimecard);
 
             try {
               await fetch('https://api.resend.com/emails', {
@@ -570,24 +704,26 @@ export default async function handler(req, res) {
           }
         }
 
-        console.log('[DEBUG approve_item] Calling QBO helper with updatedTimecard:', JSON.stringify(updatedTimecard, null, 2));
-        try {
-          const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
-          await docRef.update({
-            qbStatus: 'synced',
-            qboBillId: qboResult.Bill?.Id || '',
-            qboTimeActivityId: qboResult.TimeActivity?.Id || '',
-            qboSyncedAt: new Date().toISOString()
+        if (!updatedTimecard.qboReminderSentAt) {
+          const reminderSent = await sendPortalNotice({
+            to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
+            subject: `QuickBooks sync required: ${updatedTimecard.jobSite || 'approved timecard'}`,
+            heading: 'Approved timecard is ready for QuickBooks',
+            message: 'An approved contractor timecard is waiting in the portal. Sign in to review it and select Sync to QuickBooks.',
+            details: [
+              ['Technician', techName || techEmail || 'Unknown technician'],
+              ['Job', updatedTimecard.jobSite || 'Unknown'],
+              ['Service date', updatedTimecard.date || 'Unknown'],
+              ['Approved total', `$${getApprovedTotal(updatedTimecard).toFixed(2)}`],
+            ],
           });
-        } catch (qboError) {
-          console.error('QBO Sync Error:', qboError);
-          await docRef.update({
-            qbStatus: 'failed',
-            qboSyncError: qboError.message
-          });
+          if (reminderSent) {
+            await docRef.update({ qboReminderSentAt: new Date().toISOString() });
+          }
         }
       }
 
+      await refreshJobBillingReadiness(updatedTimecard.jobId);
       return res.status(200).json({ success: true, status: newOverallStatus });
     }
 
@@ -602,15 +738,25 @@ export default async function handler(req, res) {
       }
 
       const docRef = adminDb.collection('time_entries').doc(timecardId);
-      const snapshot = await docRef.get();
-      if (!snapshot.exists) {
-        return res.status(404).json({ error: 'Time entry not found.' });
+      // A transaction closes the check-then-act window: two concurrent retries
+      // (or a double-click) must not both pass the status check and both create
+      // a QuickBooks bill. The loser sees qbStatus 'syncing' and is rejected.
+      let updatedTimecard;
+      try {
+        updatedTimecard = await adminDb.runTransaction(async (tx) => {
+          const snapshot = await tx.get(docRef);
+          if (!snapshot.exists) throw Object.assign(new Error('Time entry not found.'), { status: 404 });
+          const data = snapshot.data();
+          if (data.status === 'voided') throw Object.assign(new Error('Voided submissions cannot be synced to QuickBooks.'), { status: 409 });
+          if (data.status !== 'approved') throw Object.assign(new Error('Only fully approved submissions can be synced to QuickBooks.'), { status: 409 });
+          if (data.qbStatus === 'synced') throw Object.assign(new Error('This submission has already been synced to QuickBooks.'), { status: 409 });
+          if (data.qbStatus === 'syncing') throw Object.assign(new Error('A QuickBooks sync is already in progress for this submission.'), { status: 409 });
+          tx.update(docRef, { qbStatus: 'syncing', updatedAt: new Date().toISOString() });
+          return { id: snapshot.id, ...data };
+        });
+      } catch (error) {
+        return res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not start the QuickBooks sync.' });
       }
-      if (snapshot.data().status === 'voided') {
-        return res.status(409).json({ error: 'Voided submissions cannot be synced to QuickBooks.' });
-      }
-
-      const updatedTimecard = { id: snapshot.id, ...snapshot.data() };
 
       let techEmail = updatedTimecard.technicianEmail;
       let techName = updatedTimecard.technicianName;
@@ -631,7 +777,6 @@ export default async function handler(req, res) {
       const payoutDueDate = new Date(jobDate);
       payoutDueDate.setDate(payoutDueDate.getDate() + 15);
 
-      console.log('[DEBUG retry_qbo_sync] Calling QBO helper with updatedTimecard:', JSON.stringify(updatedTimecard, null, 2));
       try {
         const qboResult = await createQBOBillForTimecard(updatedTimecard, payoutDueDate);
         await docRef.update({
@@ -717,7 +862,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({ error: 'Unsupported time-clock action.' });
   } catch (error) {
-    const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.'].includes(error.message) ? 403 : 500;
+    const status = ['Authentication required.', 'Contractor Portal access is required.', 'Your contractor profile is not linked to this account.', 'Your contractor portal access is suspended.', 'Your contractor portal access has been offboarded.'].includes(error.message) ? 403 : 500;
     console.error('Time clock error:', error);
     return res.status(status).json({ error: status === 500 ? 'Could not update the time clock.' : error.message });
   }

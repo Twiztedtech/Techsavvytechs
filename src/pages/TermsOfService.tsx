@@ -24,6 +24,7 @@ export default function TermsOfService() {
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-white flex items-center gap-2"><span className="text-safety-orange">04.</span> Scheduling and Client Requests</h2>
           <p>Requested appointment windows are not confirmed until shown as scheduled in the portal. Clients and assigned technicians may agree to a replacement window, which is recorded in the appointment history and communicated to TechSavvy. Late cancellation, missed access, or trip charges are reviewed by TechSavvy and are not applied automatically by the portal.</p>
+          <p>If you provide a mobile number, a one-time verification message may be required to confirm it. If you separately opt in to recurring transactional SMS, TechSavvy LLC may send service-request, scheduling, technician-arrival, progress, and completion messages. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance. Consent to recurring messages is not a condition of purchase.</p>
         </section>
 
         <section className="space-y-3">

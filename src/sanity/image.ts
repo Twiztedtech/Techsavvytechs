@@ -1,6 +1,6 @@
-import imageUrlBuilder, {type SanityImageSource} from '@sanity/image-url'
+import {createImageUrlBuilder, type SanityImageSource} from '@sanity/image-url'
 import {sanityConfig} from './config'
 
-const builder = imageUrlBuilder(sanityConfig)
+const builder = createImageUrlBuilder(sanityConfig)
 
 export const urlFor = (source: SanityImageSource) => builder.image(source).auto('format')

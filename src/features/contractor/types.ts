@@ -1,4 +1,4 @@
-export type PortalRole = 'contractor' | 'admin';
+export type PortalRole = "contractor" | "admin";
 
 export interface SupportTicket {
   id: string;
@@ -6,7 +6,7 @@ export interface SupportTicket {
   message: string;
   email: string;
   timestamp: string;
-  status: 'Open';
+  status: "Open";
 }
 
 export interface Contractor {
@@ -17,7 +17,7 @@ export interface Contractor {
   status: string;
   qboVendorId?: string;
   authUid?: string;
-  invitationStatus?: 'ready' | 'sent';
+  invitationStatus?: "ready" | "sent";
   authProvisionedAt?: string;
   invitedAt?: string;
 }
@@ -35,8 +35,19 @@ export interface JobSite {
   dateIssued?: string;
   targetCompletion?: string;
   technicianLeadId?: string;
-  workOrderTemplate?: 'general' | 'nextivity' | 'security' | 'low-voltage' | 'network';
-  equipment?: Array<{ description: string; quantity?: string; notes?: string }>;
+  workOrderTemplate?:
+    | "general"
+    | "nextivity"
+    | "security"
+    | "low-voltage"
+    | "network";
+  equipment?: Array<{
+    description: string;
+    quantity?: string;
+    notes?: string;
+    providedBy?: "client" | "techsavvy";
+  }>;
+  requiredDeliverables?: string[];
   scopeTasks?: string[];
   qaChecklist?: string[];
   signedWorkOrders?: Array<{
@@ -51,11 +62,11 @@ export interface JobSite {
   // assignedTechIds so one job can be shared with several technicians.
   assignedTechId?: string;
   assignedTechIds?: string[];
-  status?: 'voided' | string;
-  voidStatus?: 'voided';
+  status?: "voided" | string;
+  voidStatus?: "voided";
   voidedAt?: string;
   voidedByUid?: string;
-  voidedByRole?: 'admin';
+  voidedByRole?: "admin";
   voidReason?: string;
 }
 
@@ -79,7 +90,7 @@ export interface TimeEntry {
   notes: string;
   photos: string[];
   suppliesItems?: Array<{ id: string; description: string; cost: string }>;
-  voidStatus?: 'requested' | 'voided';
+  voidStatus?: "requested" | "voided";
   voidRequestedAt?: string;
   voidRequestReason?: string;
   voidedAt?: string;

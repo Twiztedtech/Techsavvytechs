@@ -167,6 +167,12 @@ export default async function handler(req, res) {
       });
     }
 
+    if (!accountCreated && !user.emailVerified) {
+      return res.status(409).json({
+        error: 'This email already belongs to an unverified Firebase account. Have the owner verify the email, or use a different address, before sending an invite.',
+      });
+    }
+
     await adminAuth.setCustomUserClaims(user.uid, { ...(user.customClaims || {}), contractor: true });
     const appUrl = (process.env.APP_URL || 'https://techsavvytechs.com').replace(/\/$/, '');
     const passwordResetLink = await adminAuth.generatePasswordResetLink(email, {
