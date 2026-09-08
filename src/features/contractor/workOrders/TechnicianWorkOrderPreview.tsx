@@ -15,6 +15,7 @@ type PreviewJob = {
     quantity?: string;
     notes?: string;
     providedBy?: "client" | "techsavvy";
+    fulfillmentSource?: string;
   }>;
   scopeTasks?: string[];
   qaChecklist?: string[];
@@ -138,7 +139,8 @@ export function TechnicianWorkOrderPreview({
                     </strong>
                     <span className="ml-1 text-slate-500">
                       (
-                      {item.providedBy === "techsavvy"
+                      {item.providedBy === "techsavvy" ||
+                      item.fulfillmentSource === "techsavvy_supplied"
                         ? "TechSavvy provided"
                         : "Client provided"}
                       )

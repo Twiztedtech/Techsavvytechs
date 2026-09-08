@@ -60,3 +60,18 @@
   background: linear-gradient(135deg, rgba(255, 140, 0, 0.3) 0%, rgba(255, 140, 0, 0.1) 100%);
   @apply border-safety-orange/40;
 }
+
+@media (max-width: 640px) {
+  .contractor-dashboard button,
+  .contractor-dashboard a {
+    min-height: 44px;
+  }
+
+  .contractor-dashboard button,
+  .contractor-dashboard a,
+  .contractor-dashboard input,
+  .contractor-dashboard select,
+  .contractor-dashboard textarea {
+    touch-action: manipulation;
+  }
+}
