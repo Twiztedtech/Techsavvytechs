@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 
+export type AdminActionResult = { ok: true } | { ok: false; error?: string };
+
 type RequestRecord = Record<string, any> & {
   id: string;
   requestNumber: string;
