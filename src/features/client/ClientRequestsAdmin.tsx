@@ -2,13 +2,12 @@ import React, { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import {
   AlertTriangle,
-  Building2,
   CalendarClock,
-  CheckCircle2,
   RefreshCw,
   UserPlus,
 } from "lucide-react";
 import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
+import { ClientCompanyEditor } from "./ClientCompanyEditor";
 
 export type AdminActionResult = { ok: true } | { ok: false; error?: string };
 
@@ -64,13 +63,6 @@ export function ClientRequestsAdmin({
     end: "",
     technicianId: "",
   });
-  const [org, setOrg] = useState({
-    name: "",
-    approvedDomains: "",
-    referencePrefixes: "",
-    billingEmail: "",
-    defaultContactPolicy: "techsavvy_only",
-  });
   const load = async () => {
     setLoading(true);
     try {
@@ -86,14 +78,21 @@ export function ClientRequestsAdmin({
   useEffect(() => {
     void load();
   }, []);
-  const post = async (action: string, body: unknown) => {
+  const post = async (
+    action: string,
+    body: unknown,
+  ): Promise<AdminActionResult> => {
     setNotice("");
     try {
       await adminApi(action, { method: "POST", body: JSON.stringify(body) });
       await load();
       setNotice("Saved successfully.");
+      return { ok: true };
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save.");
+      const message =
+        error instanceof Error ? error.message : "Could not save.";
+      setNotice(message);
+      return { ok: false, error: message };
     }
   };
   if (loading)
@@ -509,56 +508,7 @@ export function ClientRequestsAdmin({
             ))
           )}
         </section>
-        <section className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-white">
-            <Building2 className="h-4 w-4 text-green-400" />
-            Add client company
-          </h3>
-          <div className="grid gap-2">
-            <input
-              value={org.name}
-              onChange={(e) => setOrg((v) => ({ ...v, name: e.target.value }))}
-              placeholder="Company name"
-              className="rounded bg-slate-900 p-2 text-xs text-white"
-            />
-            <input
-              value={org.approvedDomains}
-              onChange={(e) =>
-                setOrg((v) => ({ ...v, approvedDomains: e.target.value }))
-              }
-              placeholder="Domains, comma separated"
-              className="rounded bg-slate-900 p-2 text-xs text-white"
-            />
-            <input
-              value={org.referencePrefixes}
-              onChange={(e) =>
-                setOrg((v) => ({ ...v, referencePrefixes: e.target.value }))
-              }
-              placeholder="Prefixes, comma separated"
-              className="rounded bg-slate-900 p-2 text-xs text-white"
-            />
-            <input
-              value={org.billingEmail}
-              onChange={(e) =>
-                setOrg((v) => ({ ...v, billingEmail: e.target.value }))
-              }
-              placeholder="Billing email"
-              className="rounded bg-slate-900 p-2 text-xs text-white"
-            />
-            <button
-              onClick={() =>
-                post("organization", {
-                  ...org,
-                  approvedDomains: org.approvedDomains.split(","),
-                  referencePrefixes: org.referencePrefixes.split(","),
-                })
-              }
-              className="mt-1 rounded bg-green-500 p-2 text-xs font-bold text-slate-950"
-            >
-              Save company
-            </button>
-          </div>
-        </section>
+        <ClientCompanyEditor organizations={data.organizations} post={post} />
       </div>
       <ClientPortalConfiguration
         data={data}

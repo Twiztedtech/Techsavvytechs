@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { auth } from '../../lib/firebase';
+import type { AdminActionResult } from './ClientRequestsAdmin';
 
 type Contractor = Record<string, any> & { id: string; name: string; email: string };
 
-export function ClientPortalConfiguration({ data, contractors, post }: { data: any; contractors: Contractor[]; post: (action: string, body: unknown) => Promise<void> }) {
+export function ClientPortalConfiguration({ data, contractors, post }: { data: any; contractors: Contractor[]; post: (action: string, body: unknown) => Promise<AdminActionResult> }) {
   const [contractorId, setContractorId] = useState(contractors[0]?.id || '');
   const selected = contractors.find((item) => item.id === contractorId);
   const [profile, setProfile] = useState({ publicDisplayName: '', specialty: '', profilePhotoUrl: '', showPhotoToClients: false, allowDirectClientContact: false, businessPhone: '', businessEmail: '', contactHours: '' });

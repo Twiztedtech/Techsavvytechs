@@ -82,10 +82,44 @@ async function saveOrganization(req, res, admin) {
   const prefixes = Array.isArray(req.body?.referencePrefixes)
     ? req.body.referencePrefixes.map((v) => clean(v, 40)).filter(Boolean)
     : current.data()?.referencePrefixes || [];
+  const personnelRoles = [
+    "requester",
+    "sales",
+    "project_manager",
+    "payroll",
+    "accounts_payable",
+    "manager",
+    "other",
+  ];
+  const personnel = Array.isArray(req.body?.personnel)
+    ? req.body.personnel
+        .map((person) => ({
+          id: clean(person?.id, 60) || opaqueToken(),
+          name: clean(person?.name, 150),
+          email: clean(person?.email, 254).toLowerCase(),
+          role: personnelRoles.includes(person?.role) ? person.role : "other",
+          active: person?.active !== false,
+        }))
+        .filter((person) => person.name && person.email)
+    : current.data()?.personnel || [];
+  const personnelEmails = new Set(personnel.map((person) => person.email));
+  const billingRecipientEmails = Array.isArray(
+    req.body?.billingRecipientEmails,
+  )
+    ? [
+        ...new Set(
+          req.body.billingRecipientEmails
+            .map((v) => clean(v, 254).toLowerCase())
+            .filter((email) => personnelEmails.has(email)),
+        ),
+      ]
+    : current.data()?.billingRecipientEmails || [];
   const data = {
     name: clean(req.body?.name || current.data()?.name, 150),
     approvedDomains: [...new Set(domains)],
     referencePrefixes: [...new Set(prefixes)],
+    personnel,
+    billingRecipientEmails,
     defaultContactPolicy: [
       "techsavvy_only",
       "direct_required",
