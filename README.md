@@ -9,7 +9,7 @@ As of September 8, 2026:
 - The public website, contractor portal, CRM, client booking form, client login, admin dispatch queue, and client-safe progress experience are live on Vercel at `techsavvytechs.com`.
 - The client entry points are **Book a Job** for a first request and **Client Login** for returning users; **CRM Login** is available to administrators from the primary navigation.
 - Client companies have a role-based personnel directory (`ClientCompanyEditor`, inside CRM's client-portal admin tab) with multi-recipient billing selection, wired to `POST /api/admin/client-portal?action=organization`.
-- Twilio trial SMS is connected through `+1 737-258-3478`; credentials are encrypted in Vercel and the signed inbound webhook is live at `/api/webhooks/twilio`.
+- Twilio production SMS/MMS is connected through the verified toll-free number `+1 833-709-8324`; credentials are encrypted in Vercel and the signed inbound webhook is live at `/api/webhooks/twilio`.
 - Client accounts use branded Resend email verification and can optionally enable Firebase Identity Platform TOTP multi-factor authentication for future sign-ins.
 - The production deployment stays within the Vercel Hobby limit by consolidating portal operations into 11 server functions (see [`docs/PROJECT_CHECKPOINT.md`](docs/PROJECT_CHECKPOINT.md) for the current count and the 12-function ceiling).
 - Hourly appointment, closeout, and calendar automation is live through the Cloudflare Worker in [`cloudflare/portal-scheduler`](cloudflare/portal-scheduler). Its `0 * * * *` trigger is managed in source control, uses an encrypted shared secret, and replaces the former Vercel daily cron.
