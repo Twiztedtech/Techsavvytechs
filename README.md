@@ -4,15 +4,18 @@ Production source for [techsavvytechs.com](https://techsavvytechs.com): the publ
 
 ## Current production status
 
-As of August 25, 2026:
+As of September 8, 2026:
 
-- The public website, contractor portal, client booking form, client login, admin dispatch queue, and client-safe progress experience are live on Vercel at `techsavvytechs.com`.
-- The client entry points are **Book a Job** for a first request and **Client Login** for returning users.
+- The public website, contractor portal, CRM, client booking form, client login, admin dispatch queue, and client-safe progress experience are live on Vercel at `techsavvytechs.com`.
+- The client entry points are **Book a Job** for a first request and **Client Login** for returning users; **CRM Login** is available to administrators from the primary navigation.
+- Client companies have a role-based personnel directory (`ClientCompanyEditor`, inside CRM's client-portal admin tab) with multi-recipient billing selection, wired to `POST /api/admin/client-portal?action=organization`.
 - Twilio trial SMS is connected through `+1 737-258-3478`; credentials are encrypted in Vercel and the signed inbound webhook is live at `/api/webhooks/twilio`.
 - Client accounts use branded Resend email verification and can optionally enable Firebase Identity Platform TOTP multi-factor authentication for future sign-ins.
-- The production deployment stays within the Vercel Hobby limit by consolidating portal operations into 12 server functions.
+- The production deployment stays within the Vercel Hobby limit by consolidating portal operations into 11 server functions (see [`docs/PROJECT_CHECKPOINT.md`](docs/PROJECT_CHECKPOINT.md) for the current count and the 12-function ceiling).
 - Hourly appointment, closeout, and calendar automation is live through the Cloudflare Worker in [`cloudflare/portal-scheduler`](cloudflare/portal-scheduler). Its `0 * * * *` trigger is managed in source control, uses an encrypted shared secret, and replaces the former Vercel daily cron.
 - Resend Receiving and Google Calendar synchronization still require their production provider credentials and webhook/OAuth registration before those features are fully operational.
+- A security review closed two account-takeover paths (administrator bootstrap and contractor invitations both required a verified email before granting a custom claim), a contractor pay-rate bypass, and two QuickBooks double-billing races; QuickBooks OAuth tokens are now encrypted at rest instead of stored in plaintext. See the security-hardening notes under [Operational notes](#operational-notes).
+- `main` and `codex/client-booking-portal` are reconciled and both pushed to `origin` (GitHub and the self-hosted Forgejo remote). Deploy exclusively via `git push origin main` — an earlier gap where changes were deployed straight from the CLI without ever being committed has been closed; don't reopen it.
 
 ## What this project includes
 
@@ -65,6 +68,7 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 
 ## Operational notes
 
+- **Security hardening (September 2026):** Granting the `admin` or `contractor` custom claim to an existing Firebase account (`/api/admin/bootstrap` and `/api/admin/contractors/invite`) now requires that account's email to be verified first. Public self-signup is open on the client portal, so without this check an attacker could register an unverified account using a target email address before its real owner does, then claim that role. Apply the same `email_verified` requirement to any future code path that grants a privileged claim to an *existing* account by email match. QuickBooks OAuth access/refresh tokens are stored AES-256-GCM encrypted (`encryptedAccessToken`/`encryptedRefreshToken` on `settings/quickbooks`, see `api/_lib/qbo-helper.js`); older connections with legacy plaintext fields are read as a fallback and upgraded automatically on their next token refresh.
 - **Contractor invitations:** Admins choose **Send Branded Invite** in Contractor Sync. The server creates the Firebase account when needed, sends a secure password-setup link, stores Resend's delivery ID, and marks the invite sent only after Resend accepts it. Admins can check the current provider delivery event from the dashboard.
 - **Contractor onboarding:** After first sign-in, a technician uploads a W-9 PDF and accepts the portal terms. The file is stored in a contractor-specific private Storage path. Contractor Sync shows the submission state; administrators can open, approve, or request an update. W-9s are never exposed through a public URL or regular Firestore reads.
 - **Work-order signatures:** Administrators can require a customer signature before final completion. Technicians distinguish daily progress entries from the final entry; progress time never requires sign-off. Final entries display a signature reminder, enforce an administrator-required signed PDF on the server, or—when signatures are only recommended—require a documented technician exception that is retained on the job and emailed to the administrator.
@@ -79,7 +83,9 @@ Configure these as **Production** environment variables in Vercel. Keep secrets 
 
 ## Deployment
 
-Pushing `main` to GitHub triggers the Vercel production deployment. The same push is mirrored to the self-hosted Forgejo remote. The production deployment was verified after the latest hardening and performance updates.
+Pushing `main` to GitHub triggers the Vercel production deployment. The same push is mirrored to the self-hosted Forgejo remote (`git push origin main` pushes both, since `origin` has two push URLs configured). The production deployment was verified after the latest hardening and performance updates.
+
+Deploy only by pushing `main` — never `vercel --prod` directly from a local working tree. A prior gap where production was deployed straight from the CLI let the live site diverge from every branch's git history (uncommitted fixes went live, and `main` itself fell behind); that gap was closed in September 2026 by committing and merging the drifted work back into `main`, but the discipline of git-push-only deploys is what keeps it closed.
 
 Before a live deployment, run lint, build, and `npm audit --omit=dev --audit-level=high`. After changing any Vercel environment value, redeploy the production deployment so it receives the new configuration.
 
