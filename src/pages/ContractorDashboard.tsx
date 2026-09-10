@@ -5,8 +5,10 @@ import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, sig
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { Link } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
-import type { SupportTicket } from '../features/contractor/types';
+import type { SupportTicket, NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
+import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
+import { NotificationHistoryPanel } from '../features/contractor/workOrders/NotificationHistoryPanel';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { ClientRequestsAdmin } from '../features/client/ClientRequestsAdmin';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
@@ -43,6 +45,8 @@ export default function ContractorDashboard() {
   const [authMessage, setAuthMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
+  const [notificationProfile, setNotificationProfile] = useState<NotificationProfile | null>(null);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [contractorJobTab, setContractorJobTab] = useState<'form' | 'instructions'>('form');
   const [completionIntent, setCompletionIntent] = useState<'progress' | 'final'>('progress');
   const [signatureExceptionReason, setSignatureExceptionReason] = useState('');
@@ -448,6 +452,7 @@ export default function ContractorDashboard() {
         setTimeEntries(data.entries || []);
         setAssignedJobIds(data.assignedJobIds || []);
         setSavedTechnicianSignature(data.technicianSignature || '');
+        setNotificationProfile(data.notificationProfile || null);
         if (userRole === 'contractor') setJobSitesList(data.jobs || []);
         if (data.activeEntry) {
           const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
@@ -1341,6 +1346,7 @@ export default function ContractorDashboard() {
           setSupportEmail(loginEmail || '');
           setIsSupportModalOpen(true);
         }}
+        onOpenNotificationPreferences={() => setIsNotificationModalOpen(true)}
         onSignOut={() => void signOut(auth)}
       />
 
@@ -2866,6 +2872,7 @@ export default function ContractorDashboard() {
                         </button>
                       </div>
                     </form>
+                    {editingJobId && <NotificationHistoryPanel jobId={editingJobId} />}
                   </div>
 
                   {/* RIGHT: JOB SITES DATA TABLE */}
@@ -3446,6 +3453,12 @@ export default function ContractorDashboard() {
           setIsSupportModalOpen(false);
           alert(`Support ticket #${ticket.id} created successfully! The system administrator has been notified.`);
         }}
+      />
+      <NotificationPreferencesModal
+        isOpen={isNotificationModalOpen}
+        profile={notificationProfile}
+        onClose={() => setIsNotificationModalOpen(false)}
+        onUpdated={setNotificationProfile}
       />
 
       {isAddContractorOpen && (

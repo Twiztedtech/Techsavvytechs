@@ -6,7 +6,9 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { FieldPath } from "firebase-admin/firestore";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
+import { customerNotifiable, technicianNotifiable } from "./notification-eligibility.js";
 
 export const CLIENT_ROLES = [
   "company_admin",
@@ -59,6 +61,26 @@ export function safeEqual(left, right) {
   const a = Buffer.from(String(left));
   const b = Buffer.from(String(right));
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+const requestLimit = new Map();
+function ipFor(req) {
+  return String(
+    req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
+  )
+    .split(",")[0]
+    .trim();
+}
+export function rateLimited(req, key, max = 5, windowMs = 15 * 60 * 1000) {
+  const bucket = `${key}:${ipFor(req)}`;
+  const cutoff = Date.now() - windowMs;
+  const entries = (requestLimit.get(bucket) || []).filter(
+    (value) => value > cutoff,
+  );
+  if (entries.length >= max) return true;
+  entries.push(Date.now());
+  requestLimit.set(bucket, entries);
+  return false;
 }
 
 export async function optionalUser(req) {
@@ -235,8 +257,18 @@ export async function sendSms({
     .collection("sms_preferences")
     .doc(hashValue(phone))
     .get();
-  if (preference.exists && preference.data().optedIn === false)
+  if (preference.exists && preference.data().optedIn === false) {
+    await adminDb.collection("notification_deliveries").add({
+      channel: "sms",
+      type,
+      jobId,
+      recipientHash: hashValue(phone),
+      status: "opted_out",
+      important,
+      createdAt: nowIso(),
+    });
     return { skipped: true, reason: "opted_out" };
+  }
   const pacificHour = Number(
     new Intl.DateTimeFormat("en-US", {
       timeZone: "America/Los_Angeles",
@@ -291,6 +323,77 @@ export async function sendSms({
   });
   if (!response.ok) throw new Error("SMS delivery was rejected.");
   return result;
+}
+
+export async function clientRecipients(jobId) {
+  const participants = await adminDb
+    .collection("job_participants")
+    .where("jobId", "==", jobId)
+    .get();
+  const users = await Promise.all(
+    participants.docs.map((doc) =>
+      adminDb.collection("client_users").doc(doc.data().clientUid).get(),
+    ),
+  );
+  return users
+    .filter((doc) => doc.exists && doc.data().status === "active")
+    .map((doc) => doc.data());
+}
+
+export async function assignedTechnicianRecipients(job) {
+  const assigned = Array.isArray(job.assignedTechIds)
+    ? job.assignedTechIds
+    : [job.assignedTechId || "ALL"];
+  if (!assigned.length) return [];
+  const snapshot = assigned.includes("ALL")
+    ? await adminDb.collection("contractors").get()
+    : await adminDb
+        .collection("contractors")
+        .where(FieldPath.documentId(), "in", assigned.slice(0, 30))
+        .get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
+ * Resolves who should be notified when a job is completed: assigned
+ * technicians, the internal admin/dispatch alert list, and any active
+ * client-portal participants on the job. Company-personnel/billing
+ * recipients are intentionally not included yet - there is no
+ * notification-role field on client_organizations personnel to key off.
+ */
+export async function completionRecipients(job) {
+  const [technicians, customers] = await Promise.all([
+    assignedTechnicianRecipients(job),
+    clientRecipients(job.id),
+  ]);
+  const adminEmails = (
+    process.env.CLIENT_REQUEST_ALERT_EMAILS ||
+    process.env.SUPPORT_EMAIL ||
+    ""
+  )
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const adminPhones = (process.env.CLIENT_REQUEST_ALERT_PHONES || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return {
+    technicians: technicians.map((technician) => ({
+      id: technician.id,
+      authUid: technician.authUid || "",
+      name: technician.name || "",
+      email: technician.email || "",
+      phone: technician.mobile || "",
+      ...technicianNotifiable(technician),
+    })),
+    admin: { emails: adminEmails, phones: adminPhones },
+    customers: customers.map((customer) => ({
+      email: customer.email || "",
+      phone: customer.phone || "",
+      ...customerNotifiable(customer),
+    })),
+  };
 }
 
 export async function notifyNewRequest(request) {

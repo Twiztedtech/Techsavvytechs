@@ -20,6 +20,18 @@ export interface Contractor {
   invitationStatus?: "ready" | "sent";
   authProvisionedAt?: string;
   invitedAt?: string;
+  mobile?: string;
+  mobileVerified?: boolean;
+  mobileVerificationDeferred?: boolean;
+  smsConsent?: { optedIn: boolean; consentedAt?: string };
+  notificationPreferences?: { email: boolean; sms: boolean };
+}
+
+export interface NotificationProfile {
+  mobile: string;
+  mobileVerified: boolean;
+  mobileVerificationDeferred: boolean;
+  notificationPreferences: { email: boolean; sms: boolean };
 }
 
 export interface JobSite {

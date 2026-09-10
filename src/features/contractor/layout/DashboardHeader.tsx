@@ -5,10 +5,11 @@ interface DashboardHeaderProps {
   canAccessAdmin: boolean;
   onRoleChange: (role: PortalRole) => void;
   onContactAdmin: () => void;
+  onOpenNotificationPreferences?: () => void;
   onSignOut: () => void;
 }
 
-export function DashboardHeader({ role, canAccessAdmin, onRoleChange, onContactAdmin, onSignOut }: DashboardHeaderProps) {
+export function DashboardHeader({ role, canAccessAdmin, onRoleChange, onContactAdmin, onOpenNotificationPreferences, onSignOut }: DashboardHeaderProps) {
   return (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
@@ -26,6 +27,9 @@ export function DashboardHeader({ role, canAccessAdmin, onRoleChange, onContactA
               <button type="button" onClick={() => onRoleChange('contractor')} className={`px-3 py-1 rounded text-xs font-bold transition ${role === 'contractor' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>Contractor View</button>
               <button type="button" onClick={() => onRoleChange('admin')} className={`px-3 py-1 rounded text-xs font-bold transition ${role === 'admin' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>Admin Mode</button>
             </div>
+          )}
+          {role === 'contractor' && onOpenNotificationPreferences && (
+            <button type="button" onClick={onOpenNotificationPreferences} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded font-semibold transition cursor-pointer flex items-center gap-1"><span>🔔</span><span>Notifications</span></button>
           )}
           <button type="button" onClick={onContactAdmin} className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/30 text-amber-400 rounded font-semibold transition cursor-pointer flex items-center gap-1"><span>📞</span><span>Contact Admin</span></button>
           <button type="button" onClick={onSignOut} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold transition cursor-pointer">Sign Out</button>

@@ -17,9 +17,11 @@ import {
   optionalUser,
   escapeHtml,
   publicTechnician,
+  rateLimited,
   recordEvent,
   requireClient,
   requireUser,
+  safeEqual,
   sendEmail,
   sendSms,
   uploadInlineFiles,
@@ -27,27 +29,6 @@ import {
 } from "./client-portal.js";
 
 const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-const requestLimit = new Map();
-
-function ipFor(req) {
-  return String(
-    req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
-  )
-    .split(",")[0]
-    .trim();
-}
-
-function rateLimited(req, key, max = 5, windowMs = 15 * 60 * 1000) {
-  const bucket = `${key}:${ipFor(req)}`;
-  const cutoff = Date.now() - windowMs;
-  const entries = (requestLimit.get(bucket) || []).filter(
-    (value) => value > cutoff,
-  );
-  if (entries.length >= max) return true;
-  entries.push(Date.now());
-  requestLimit.set(bucket, entries);
-  return false;
-}
 
 function requestedWindows(value) {
   if (!Array.isArray(value)) return [];
@@ -611,9 +592,10 @@ async function verifyCode(req, res) {
     return res
       .status(410)
       .json({ error: "The code expired. Request a new one." });
-  const valid =
-    verificationHash(user.uid, clean(req.body?.code, 6)) ===
-    data.verificationCodeHash;
+  const valid = safeEqual(
+    verificationHash(user.uid, clean(req.body?.code, 6)),
+    data.verificationCodeHash,
+  );
   if (!valid) {
     await profileRef.set(
       { verificationAttempts: Number(data.verificationAttempts || 0) + 1 },

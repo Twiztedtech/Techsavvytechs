@@ -1,5 +1,5 @@
 import { adminAuth, adminDb } from './firebase-admin.js';
-import { clean, nowIso, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
+import { clean, clientRecipients, nowIso, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
 
 async function portalUser(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -24,12 +24,6 @@ async function assignedJob(user, contractor, jobId) {
     if (!assigned.includes('ALL') && !assigned.includes(contractor.id)) throw Object.assign(new Error('You are not assigned to this job.'), { statusCode: 403 });
   }
   return job;
-}
-
-async function clientRecipients(jobId) {
-  const participants = await adminDb.collection('job_participants').where('jobId', '==', jobId).get();
-  const users = await Promise.all(participants.docs.map((doc) => adminDb.collection('client_users').doc(doc.data().clientUid).get()));
-  return users.filter((doc) => doc.exists && doc.data().status === 'active').map((doc) => doc.data());
 }
 
 async function createProgress(req, res, user, contractor) {

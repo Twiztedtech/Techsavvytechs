@@ -1,9 +1,11 @@
+import { randomInt } from 'node:crypto';
 import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
 import { createQBOBillForTimecard, reverseQBOTimecard } from '../_lib/qbo-helper.js';
 import clientPortalHandler from '../_lib/client-api-handler.js';
 import adminClientPortalHandler from '../_lib/admin-client-portal-handler.js';
 import jobEventsHandler from '../_lib/job-events-handler.js';
 import { businessDate, businessClock } from '../_lib/business-time.js';
+import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 
 const getUser = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -160,6 +162,88 @@ const sendPortalNotice = async ({ to, subject, heading, message, details = [] })
   }
 };
 
+/**
+ * Fans out the single job-completion notice to assigned technicians, the
+ * internal dispatch alert list, and opted-in client-portal participants.
+ * Called at most once per job (guarded by the completionNotifiedAt
+ * transaction in submit_manual_log) so a double-submit can't duplicate it.
+ */
+const sendCompletionNotifications = async ({ jobId, job, completedByUid, completedAt, totalHours, suppliesCost, travelCost, signatureStatus }) => {
+  const recipients = await completionRecipients({ id: jobId, ...job });
+  const completedByName = recipients.technicians.find((technician) => technician.authUid === completedByUid)?.name || 'A technician';
+  const workOrderNumber = job.workOrderNumber || jobId;
+  const siteName = job.name || 'the job site';
+  const appUrl = (process.env.APP_URL || 'https://techsavvytechs.com').replace(/\/$/, '');
+  const completedAtLocal = new Date(completedAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const deliverableCount = Array.isArray(job.requiredDeliverables) ? job.requiredDeliverables.length : 0;
+  const hasSignedWorkOrder = Array.isArray(job.signedWorkOrders) && job.signedWorkOrders.length > 0;
+
+  const smsBody = `TechSavvy: Work order ${workOrderNumber} at ${siteName} was completed on ${completedAtLocal}. View details in your portal.`;
+
+  const sends = [];
+
+  // Assigned technicians (including whoever just submitted, for their own record).
+  for (const technician of recipients.technicians) {
+    const portalLink = `${appUrl}/contractor/dashboard`;
+    if (technician.email && technician.canEmail) {
+      sends.push(sendEmail({
+        to: technician.email,
+        subject: `Work order ${workOrderNumber} completed`,
+        text: `${completedByName} completed ${workOrderNumber} at ${siteName} on ${completedAtLocal}.\nHours: ${totalHours} | Supplies: $${Number(suppliesCost || 0).toFixed(2)} | Travel: $${Number(travelCost || 0).toFixed(2)}\nSignature: ${signatureStatus}\nRequired deliverables: ${deliverableCount} (${hasSignedWorkOrder ? 'signed work order attached' : 'no signed work order attached'})\n${portalLink}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="font-size:20px">Work order ${escapeHtml(workOrderNumber)} completed</h1><p>${escapeHtml(completedByName)} completed <strong>${escapeHtml(siteName)}</strong> on ${escapeHtml(completedAtLocal)}.</p><div style="background:#f8fafc;padding:15px;border-radius:6px;border:1px solid #e2e8f0"><strong>Hours:</strong> ${escapeHtml(String(totalHours))}<br/><strong>Supplies:</strong> $${Number(suppliesCost || 0).toFixed(2)}<br/><strong>Travel:</strong> $${Number(travelCost || 0).toFixed(2)}<br/><strong>Signature:</strong> ${escapeHtml(signatureStatus)}<br/><strong>Required deliverables:</strong> ${deliverableCount} (${hasSignedWorkOrder ? 'signed work order attached' : 'no signed work order attached'})</div><p><a href="${portalLink}">Open the portal</a></p></div>`,
+        jobId,
+        type: 'job_completion_notice',
+      }).catch(() => null));
+    }
+    if (technician.phone && technician.canSms) {
+      sends.push(sendSms({ to: technician.phone, body: smsBody, jobId, type: 'job_completion_notice' }).catch(() => null));
+    }
+  }
+
+  // Internal admin/dispatch alert list.
+  if (recipients.admin.emails.length) {
+    sends.push(sendEmail({
+      to: recipients.admin.emails,
+      subject: `Work order ${workOrderNumber} completed`,
+      text: `${completedByName} completed ${workOrderNumber} at ${siteName} on ${completedAtLocal}. Hours: ${totalHours}, supplies: $${Number(suppliesCost || 0).toFixed(2)}, travel: $${Number(travelCost || 0).toFixed(2)}. Signature: ${signatureStatus}.`,
+      html: `<p>${escapeHtml(completedByName)} completed <strong>${escapeHtml(workOrderNumber)}</strong> at ${escapeHtml(siteName)} on ${escapeHtml(completedAtLocal)}.</p>`,
+      jobId,
+      type: 'job_completion_notice',
+    }).catch(() => null));
+  }
+  for (const phone of recipients.admin.phones) {
+    sends.push(sendSms({ to: phone, body: smsBody, jobId, type: 'job_completion_notice', important: true }).catch(() => null));
+  }
+
+  // Opted-in client-portal participants. SMS never includes cost details - smsBody above is fixed.
+  for (const customer of recipients.customers) {
+    if (customer.email) {
+      sends.push(sendEmail({
+        to: customer.email,
+        subject: `${workOrderNumber} at ${siteName} is complete`,
+        text: `Your service at ${siteName} (${workOrderNumber}) was completed on ${completedAtLocal}. View details in your portal: ${appUrl}/client`,
+        html: `<p>Your service at <strong>${escapeHtml(siteName)}</strong> (${escapeHtml(workOrderNumber)}) was completed on ${escapeHtml(completedAtLocal)}.</p><p><a href="${appUrl}/client">Open your portal</a></p>`,
+        jobId,
+        type: 'job_completion_notice',
+      }).catch(() => null));
+    }
+    if (customer.phone && customer.canSms) {
+      sends.push(sendSms({ to: customer.phone, body: smsBody, jobId, type: 'job_completion_notice' }).catch(() => null));
+    }
+  }
+
+  await Promise.allSettled(sends);
+  await recordEvent({
+    jobId,
+    type: 'job_completion_notice',
+    actorUid: completedByUid,
+    actorRole: 'contractor',
+    visibility: 'internal',
+    message: `${completedByName} completed ${workOrderNumber} at ${siteName}.`,
+    metadata: { workOrderNumber, siteName, completedAt, completedByUid, completedByName, totalHours, suppliesCost, travelCost, signatureStatus, requiredDeliverableCount: deliverableCount, hasSignedWorkOrder },
+  });
+};
+
 const handleOnboarding = async (req, res, user) => {
   const contractor = await contractorProfileFor(user);
   if (req.method === 'GET') return res.status(200).json({ onboarding: onboardingFor(contractor.data()) });
@@ -195,6 +279,16 @@ export default async function handler(req, res) {
   try {
     const user = await getUser(req);
     if (req.query?.portalOperation === 'onboarding') return await handleOnboarding(req, res, user);
+    if (req.method === 'GET' && req.query?.action === 'notifications') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const jobId = clean(req.query?.jobId, 120);
+      if (!jobId) return res.status(400).json({ error: 'jobId is required.' });
+      const snapshot = await adminDb.collection('notification_deliveries').where('jobId', '==', jobId).limit(200).get();
+      const deliveries = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+      return res.status(200).json({ deliveries });
+    }
     if (req.method === 'GET') {
       const entries = await entriesFor(user);
       const assignedJobs = await workOrdersFor(user);
@@ -221,6 +315,15 @@ export default async function handler(req, res) {
         jobs,
         activeEntry: entries.find((entry) => entry.active === true) || null,
         technicianSignature: contractor ? signatureFor(contractor) : '',
+        notificationProfile: contractor ? {
+          mobile: contractor.data().mobile || '',
+          mobileVerified: contractor.data().mobileVerified === true,
+          mobileVerificationDeferred: contractor.data().mobileVerificationDeferred === true,
+          notificationPreferences: {
+            email: contractor.data().notificationPreferences?.email !== false,
+            sms: contractor.data().notificationPreferences?.sms !== false,
+          },
+        } : null,
       });
     }
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
@@ -232,6 +335,38 @@ export default async function handler(req, res) {
       let ready = 0;
       for (const job of jobs.docs) if (await refreshJobBillingReadiness(job.id)) ready += 1;
       return res.status(200).json({ success: true, checked: jobs.size, ready });
+    }
+    if (action === 'retry_notification') {
+      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      const deliveryId = clean(req.body?.deliveryId, 120);
+      if (!deliveryId) return res.status(400).json({ error: 'deliveryId is required.' });
+      const deliveryRef = adminDb.collection('notification_deliveries').doc(deliveryId);
+      const delivery = await deliveryRef.get();
+      if (!delivery.exists) return res.status(404).json({ error: 'Notification record not found.' });
+      const data = delivery.data();
+      // Phone numbers are never stored on delivery records (only a hash), so
+      // a failed SMS can't be re-sent to just that recipient - re-run the
+      // whole completion fan-out instead, which is safe to repeat manually.
+      if (data.channel === 'sms') {
+        const jobSnap = data.jobId ? await adminDb.collection('jobs').doc(data.jobId).get() : null;
+        if (!jobSnap?.exists) return res.status(404).json({ error: 'The related job no longer exists.' });
+        await sendCompletionNotifications({
+          jobId: data.jobId,
+          job: jobSnap.data(),
+          completedByUid: jobSnap.data().completedByUid || '',
+          completedAt: jobSnap.data().completedAt || nowIso(),
+          totalHours: '',
+          suppliesCost: 0,
+          travelCost: 0,
+          signatureStatus: jobSnap.data().signatureStatus || 'unknown',
+        });
+        return res.status(200).json({ success: true, resent: 'all_sms_recipients' });
+      }
+      if (data.channel === 'email' && Array.isArray(data.recipients) && data.recipients.length) {
+        await sendEmail({ to: data.recipients, subject: `Retry: ${data.type || 'notification'}`, text: 'This is a retry of a previously failed TechSavvy notification. See the portal for full details.', html: '<p>This is a retry of a previously failed TechSavvy notification. See the portal for full details.</p>', jobId: data.jobId, type: data.type || 'retry' });
+        return res.status(200).json({ success: true, resent: 'email' });
+      }
+      return res.status(422).json({ error: 'This notification cannot be retried automatically.' });
     }
     if (action === 'save_signature') {
       const contractor = await contractorProfileFor(user);
@@ -246,6 +381,81 @@ export default async function handler(req, res) {
       const contractor = await contractorProfileFor(user);
       await contractor.ref.set({ signature: { dataUrl: '', updatedAt: new Date().toISOString() } }, { merge: true });
       return res.status(200).json({ success: true, technicianSignature: '' });
+    }
+    if (action === 'save_notification_preferences') {
+      const contractor = await contractorProfileFor(user);
+      const mobile = normalizePhone(req.body?.mobile);
+      if (mobile && !/^\+?[1-9]\d{9,14}$/.test(mobile)) {
+        return res.status(422).json({ error: 'Enter a valid mobile number, including area code.' });
+      }
+      const emailEnabled = req.body?.emailEnabled !== false;
+      const smsEnabled = req.body?.smsEnabled !== false;
+      const update = { notificationPreferences: { email: emailEnabled, sms: smsEnabled } };
+      // Changing the number invalidates any prior verification; the technician must re-verify.
+      if (mobile !== (contractor.data().mobile || '')) {
+        update.mobile = mobile;
+        update.mobileVerified = false;
+        update.mobileVerificationDeferred = false;
+        update.smsConsent = { optedIn: false };
+      }
+      await contractor.ref.set(update, { merge: true });
+      return res.status(200).json({ success: true, notificationPreferences: update.notificationPreferences });
+    }
+    if (action === 'send_mobile_code') {
+      const contractor = await contractorProfileFor(user);
+      if (rateLimited(req, `contractor-verify:${user.uid}`, 4, 30 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Please wait before requesting another code.' });
+      }
+      const mobile = contractor.data().mobile;
+      if (!mobile) return res.status(422).json({ error: 'Save a mobile number before requesting a code.' });
+      const code = String(randomInt(100000, 1000000));
+      await contractor.ref.set({
+        verificationCodeHash: verificationHash(user.uid, code),
+        verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        verificationAttempts: 0,
+      }, { merge: true });
+      const delivery = await sendSms({
+        to: mobile,
+        body: `${code} is your TechSavvy technician portal verification code. It expires in 10 minutes.`,
+        type: 'contractor_verification',
+        important: true,
+      }).catch(() => null);
+      if (!delivery) return res.status(503).json({ error: 'The verification text could not be delivered. Please try again shortly or contact TechSavvy.' });
+      if (delivery.skipped) return res.status(503).json({ error: 'Text verification is not configured yet.' });
+      return res.status(202).json({ success: true });
+    }
+    if (action === 'verify_mobile_code') {
+      const contractor = await contractorProfileFor(user);
+      const data = contractor.data();
+      if (!data.verificationCodeHash) return res.status(404).json({ error: 'Request a verification code first.' });
+      if (Date.parse(data.verificationExpiresAt) < Date.now() || Number(data.verificationAttempts || 0) >= 5) {
+        return res.status(410).json({ error: 'The code expired. Request a new one.' });
+      }
+      const valid = safeEqual(verificationHash(user.uid, clean(req.body?.code, 6)), data.verificationCodeHash);
+      if (!valid) {
+        await contractor.ref.set({ verificationAttempts: Number(data.verificationAttempts || 0) + 1 }, { merge: true });
+        return res.status(422).json({ error: 'The verification code is incorrect.' });
+      }
+      await contractor.ref.set({
+        mobileVerified: true,
+        mobileVerificationDeferred: false,
+        mobileVerifiedAt: nowIso(),
+        smsConsent: { optedIn: true, consentedAt: nowIso() },
+        verificationCodeHash: '',
+        verificationExpiresAt: '',
+      }, { merge: true });
+      return res.status(200).json({ success: true });
+    }
+    if (action === 'defer_mobile_verification') {
+      const contractor = await contractorProfileFor(user);
+      await contractor.ref.set({
+        mobileVerified: false,
+        mobileVerificationDeferred: true,
+        verificationCodeHash: '',
+        verificationExpiresAt: '',
+        smsConsent: { optedIn: false },
+      }, { merge: true });
+      return res.status(200).json({ success: true });
     }
     if (action === 'request_void_timecard') {
       if (user.contractor !== true || user.admin === true) return res.status(403).json({ error: 'Technician access required.' });
@@ -547,10 +757,37 @@ export default async function handler(req, res) {
       };
 
       const entryRef = adminDb.collection('time_entries').doc();
-      const batch = adminDb.batch();
-      batch.set(entryRef, entry);
-      if (assignedJob && completionUpdate) batch.set(assignedJob.ref, completionUpdate, { merge: true });
-      await batch.commit();
+      let notifyCompletion = false;
+      if (assignedJob && completionUpdate) {
+        // A transaction closes the window between checking completionNotifiedAt
+        // and setting it, so a double-submit (double-click, retry) can only
+        // ever trigger the notification fan-out once for this job.
+        notifyCompletion = await adminDb.runTransaction(async (tx) => {
+          const freshJob = await tx.get(assignedJob.ref);
+          const alreadyNotified = Boolean(freshJob.data()?.completionNotifiedAt);
+          tx.set(entryRef, entry);
+          tx.set(assignedJob.ref, {
+            ...completionUpdate,
+            ...(alreadyNotified ? {} : { completionNotifiedAt: completionUpdate.completedAt }),
+          }, { merge: true });
+          return !alreadyNotified;
+        });
+      } else {
+        await entryRef.set(entry);
+      }
+
+      if (notifyCompletion) {
+        await sendCompletionNotifications({
+          jobId: assignedJob.id,
+          job: { ...assignedJob.data(), ...completionUpdate },
+          completedByUid: user.uid,
+          completedAt: completionUpdate.completedAt,
+          totalHours: entry.totalHours,
+          suppliesCost: entry.suppliesCost,
+          travelCost: entry.travelCost,
+          signatureStatus: completionUpdate.signatureStatus,
+        }).catch((error) => console.error('Completion notification fan-out failed:', error));
+      }
 
       if (assignedJob && completionUpdate?.signatureStatus === 'technician_exception') {
         await sendPortalNotice({
