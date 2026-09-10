@@ -3,7 +3,7 @@ import { auth } from '../lib/firebase';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { Link, useNavigate } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
-import type { SupportTicket, NotificationProfile } from '../features/contractor/types';
+import type { NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
@@ -127,7 +127,6 @@ export default function ContractorDashboard() {
   };
 
   // Support Tickets State
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [supportSubject, setSupportSubject] = useState('QuickBooks Sync Error');
   const [supportMessage, setSupportMessage] = useState('');
@@ -1790,7 +1789,6 @@ export default function ContractorDashboard() {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data?.error || 'Could not submit the ticket.');
-            setSupportTickets((currentTickets) => [...currentTickets, data]);
             setSupportMessage('');
             setIsSupportModalOpen(false);
             alert(`Support ticket #${data.id} created successfully! The system administrator has been notified.`);
