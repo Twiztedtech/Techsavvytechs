@@ -1193,7 +1193,7 @@ function QuotesView({
           quantity: String(item.quantity),
           unitPrice: item.unitPrice,
         })),
-        assignedTechIds: [],
+        assignedTechIds: ["ALL"],
         actorUid: auth.currentUser?.uid || "",
       });
       await updateDoc(doc(db, "quotes", quote.id), {
@@ -4477,7 +4477,7 @@ function CreateRecordModal({
           targetCompletion: job.due,
           status: "New",
           quotedValue: Number(job.value || 0),
-          assignedTechIds: [],
+          assignedTechIds: ["ALL"],
           actorUid: auth.currentUser?.uid || "",
         });
         await recordAudit("created", "job", created.id, `Created job ${workOrderNumber} for ${job.customer}`, { value: Number(job.value || 0), due: job.due });
