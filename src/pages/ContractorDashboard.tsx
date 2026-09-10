@@ -19,7 +19,7 @@ export default function ContractorDashboard() {
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [voidTarget, setVoidTarget] = useState<{ kind: 'timecard' | 'job'; id: string; mode: 'request' | 'void' | 'reverse'; label: string } | null>(null);
+  const [voidTarget, setVoidTarget] = useState<{ id: string; label: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [isVoiding, setIsVoiding] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
@@ -360,19 +360,15 @@ export default function ContractorDashboard() {
     setIsVoiding(true);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const action = voidTarget.kind === 'job'
-        ? 'void_job'
-        : voidTarget.mode === 'request' ? 'request_void_timecard' : voidTarget.mode === 'reverse' ? 'reverse_synced_timecard' : 'void_timecard';
       const response = await fetch('/api/portal/time-clock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action, reason: voidReason.trim(), ...(voidTarget.kind === 'job' ? { jobId: voidTarget.id } : { timecardId: voidTarget.id }) }),
+        body: JSON.stringify({ action: 'request_void_timecard', reason: voidReason.trim(), timecardId: voidTarget.id }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not complete the void request.');
       if (data.entry) setTimeEntries((current) => current.map((entry) => entry.id === data.entry.id ? data.entry : entry));
-      if (data.job) setJobSitesList((current) => current.map((job) => job.id === data.job.id ? data.job : job));
-      alert(voidTarget.mode === 'request' ? 'Your void request was sent to the administrator.' : voidTarget.mode === 'reverse' ? 'The incorrect QuickBooks transaction was reversed. The technician has been asked to acknowledge the correction.' : 'The record was voided and retained in history.');
+      alert('Your void request was sent to the administrator.');
       setVoidTarget(null);
       setVoidReason('');
     } catch (error) {
@@ -1505,7 +1501,7 @@ export default function ContractorDashboard() {
                           <span className="text-slate-500">📷 {entry.photos?.length || 0} Photos</span>
                           <div className="flex items-center gap-3">
                             {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && (
-                              <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'request', label: `${entry.jobSite} · ${entry.date}` })} className="text-rose-400 hover:underline font-bold">Request void</button>
+                              <button type="button" onClick={() => setVoidTarget({ id: entry.id, label: `${entry.jobSite} · ${entry.date}` })} className="text-rose-400 hover:underline font-bold">Request void</button>
                             )}
                             {entry.voidStatus === 'requested' && <span className="font-bold text-violet-400">Void requested</span>}
                             <button type="button" onClick={() => setActiveInvoice(entry)} className="text-amber-400 hover:underline font-bold flex items-center gap-1">Review time entry</button>
@@ -1617,7 +1613,7 @@ export default function ContractorDashboard() {
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 w-max">⏳ Accounting review</span>
                               </td>
                               <td className="p-3 text-right">
-                                {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && <button type="button" onClick={() => setVoidTarget({ kind: 'timecard', id: entry.id, mode: 'request', label: `${entry.jobSite} · ${entry.date}` })} className="mr-2 px-2.5 py-1 text-rose-400 font-bold hover:underline text-[11px]">Request void</button>}
+                                {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && <button type="button" onClick={() => setVoidTarget({ id: entry.id, label: `${entry.jobSite} · ${entry.date}` })} className="mr-2 px-2.5 py-1 text-rose-400 font-bold hover:underline text-[11px]">Request void</button>}
                                 {entry.voidStatus === 'requested' && <span className="mr-2 text-[10px] font-bold text-violet-400">Awaiting admin</span>}
                                 <button
                                   type="button"
@@ -1820,14 +1816,14 @@ export default function ContractorDashboard() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-rose-500/30 bg-slate-900 p-6 shadow-2xl">
             <div>
-              <h3 className={`text-lg font-bold ${voidTarget.mode === 'reverse' ? 'text-amber-300' : 'text-rose-400'}`}>{voidTarget.mode === 'request' ? 'Request a void' : voidTarget.mode === 'reverse' ? 'Reverse approved submission' : voidTarget.kind === 'job' ? 'Void work order' : 'Void submission'}</h3>
+              <h3 className="text-lg font-bold text-rose-400">Request a void</h3>
               <p className="mt-1 text-xs text-slate-400">{voidTarget.label}</p>
             </div>
-            <p className="text-sm text-slate-300">{voidTarget.mode === 'request' ? 'Explain why this rejected submission should be voided. The administrator must approve your request.' : voidTarget.mode === 'reverse' ? 'This removes only the QuickBooks transactions linked to this submission, excludes it from payable totals, preserves the audit trail, and asks the technician to agree or dispute.' : 'This removes the record from active work but keeps the original information and reason in history. Assigned technicians will be notified.'}</p>
+            <p className="text-sm text-slate-300">Explain why this rejected submission should be voided. The administrator must approve your request.</p>
             <textarea value={voidReason} onChange={(event) => setVoidReason(event.target.value)} rows={4} maxLength={500} placeholder="Required reason" className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 placeholder-slate-600 focus:border-rose-500 focus:outline-none" />
             <div className="flex justify-end gap-3">
               <button type="button" disabled={isVoiding} onClick={() => { setVoidTarget(null); setVoidReason(''); }} className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">Cancel</button>
-              <button type="button" disabled={isVoiding || !voidReason.trim()} onClick={submitVoidAction} className={`rounded-xl px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${voidTarget.mode === 'reverse' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-rose-600 text-white hover:bg-rose-500'}`}>{isVoiding ? 'Saving…' : voidTarget.mode === 'request' ? 'Send request' : voidTarget.mode === 'reverse' ? 'Reverse and notify technician' : 'Confirm void'}</button>
+              <button type="button" disabled={isVoiding || !voidReason.trim()} onClick={submitVoidAction} className="rounded-xl px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 bg-rose-600 text-white hover:bg-rose-500">{isVoiding ? 'Saving…' : 'Send request'}</button>
             </div>
           </div>
         </div>
