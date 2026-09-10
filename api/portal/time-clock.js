@@ -196,7 +196,10 @@ const sendCompletionNotifications = async ({ jobId, job, completedByUid, complet
       }).catch(() => null));
     }
     if (technician.phone && technician.canSms) {
-      sends.push(sendSms({ to: technician.phone, body: smsBody, jobId, type: 'job_completion_notice' }).catch(() => null));
+      // Unlike a customer's completion text, this is the technician's own
+      // confirmation that their submission went through - treat it like the
+      // admin alert and bypass quiet hours rather than silently deferring it.
+      sends.push(sendSms({ to: technician.phone, body: smsBody, jobId, type: 'job_completion_notice', important: true }).catch(() => null));
     }
   }
 
