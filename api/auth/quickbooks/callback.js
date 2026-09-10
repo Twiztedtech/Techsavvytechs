@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   const { code, realmId, error, state } = req.query;
 
   if (error) {
-    return res.redirect(`/contractor/dashboard?qbo_connect=error&details=${encodeURIComponent(error)}`);
+    return res.redirect(`/crm?qbo_connect=error&details=${encodeURIComponent(error)}`);
   }
 
   const expectedState = req.headers.cookie
@@ -68,8 +68,8 @@ export default async function handler(req, res) {
     });
     res.setHeader('Set-Cookie', 'qbo_oauth_state=; HttpOnly; SameSite=Lax; Path=/api/auth/quickbooks; Max-Age=0; Secure');
 
-    // Redirect user back to the contractor dashboard with a success flag
-    return res.redirect(`/contractor/dashboard?qbo_connect=success&realmId=${realmId}`);
+    // Redirect the admin back to the CRM with a success flag
+    return res.redirect(`/crm?qbo_connect=success&realmId=${realmId}`);
   } catch (err) {
     console.error('QBO Callback Exception:', err);
     return res.status(500).json({ error: 'QuickBooks connection could not be completed.' });

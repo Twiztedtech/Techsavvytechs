@@ -339,6 +339,17 @@ export default function CRM() {
     [],
   );
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qboConnect = params.get("qbo_connect");
+    if (qboConnect === "success") {
+      alert(`QuickBooks Online connected successfully! (Realm ID: ${params.get("realmId")})`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (qboConnect === "error") {
+      alert(`QuickBooks connection failed: ${params.get("details")}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+  useEffect(() => {
     if (access !== "admin") return;
     const stopCustomers = onSnapshot(collection(db, "customers"), (snapshot) =>
       setLiveCustomers(
