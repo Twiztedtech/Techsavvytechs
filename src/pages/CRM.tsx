@@ -51,6 +51,7 @@ import { saveJob } from "../features/jobs/saveJob";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
+import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 
 type Module =
   | "dashboard"
@@ -66,7 +67,8 @@ type Module =
   | "audit"
   | "tickets"
   | "contractors"
-  | "timecards";
+  | "timecards"
+  | "requests";
 const modules: {
   id: Module;
   label: string;
@@ -87,6 +89,7 @@ const modules: {
   { id: "tickets", label: "Support Tickets", icon: LifeBuoy },
   { id: "contractors", label: "Contractor Roster", icon: HardHat },
   { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
+  { id: "requests", label: "Client Requests", icon: Inbox },
 ];
 const tones: Record<string, string> = {
   sky: "border-sky-400/20 bg-sky-400/10 text-sky-600",
@@ -697,6 +700,8 @@ export default function CRM() {
               <ContractorRosterAdmin contractors={technicians} jobs={liveJobs} />
             ) : module === "timecards" ? (
               <TimecardApprovalAdmin contractors={technicians} />
+            ) : module === "requests" ? (
+              <ClientRequestsAdmin contractors={technicians as unknown as { id: string; name: string; email: string }[]} />
             ) : module === "reminders" ? (
               <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} />
             ) : module === "dashboard" ? (
