@@ -1,5 +1,4 @@
 import type { FormEvent } from 'react';
-import type { SupportTicket } from '../types';
 
 interface SupportTicketModalProps {
   isOpen: boolean;
@@ -11,7 +10,7 @@ interface SupportTicketModalProps {
   onSubjectChange: (value: string) => void;
   onMessageChange: (value: string) => void;
   onEmailChange: (value: string) => void;
-  onSubmit: (ticket: SupportTicket) => void;
+  onSubmit: (ticket: { subject: string; message: string; email: string }) => void;
 }
 
 export function SupportTicketModal({
@@ -31,12 +30,9 @@ export function SupportTicketModal({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit({
-      id: `ticket-${Date.now().toString().slice(-4)}`,
       subject,
       message,
       email: email || defaultEmail || 'anonymous@techsavvytechs.com',
-      timestamp: new Date().toLocaleString(),
-      status: 'Open',
     });
   };
 

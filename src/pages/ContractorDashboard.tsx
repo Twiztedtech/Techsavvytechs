@@ -3436,11 +3436,23 @@ export default function ContractorDashboard() {
         onSubjectChange={setSupportSubject}
         onMessageChange={setSupportMessage}
         onEmailChange={setSupportEmail}
-        onSubmit={(ticket) => {
-          setSupportTickets((currentTickets) => [...currentTickets, ticket]);
-          setSupportMessage('');
-          setIsSupportModalOpen(false);
-          alert(`Support ticket #${ticket.id} created successfully! The system administrator has been notified.`);
+        onSubmit={async (ticket) => {
+          try {
+            const token = await auth.currentUser?.getIdToken();
+            const response = await fetch('/api/support-tickets?action=submit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify(ticket),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data?.error || 'Could not submit the ticket.');
+            setSupportTickets((currentTickets) => [...currentTickets, data]);
+            setSupportMessage('');
+            setIsSupportModalOpen(false);
+            alert(`Support ticket #${data.id} created successfully! The system administrator has been notified.`);
+          } catch (error) {
+            alert(error instanceof Error ? error.message : 'Could not submit the ticket.');
+          }
         }}
       />
       <NotificationPreferencesModal

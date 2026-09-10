@@ -5,8 +5,10 @@ export interface SupportTicket {
   subject: string;
   message: string;
   email: string;
-  timestamp: string;
-  status: "Open";
+  contractorUid?: string;
+  createdAt: string;
+  updatedAt?: string;
+  status: "Open" | "Resolved";
 }
 
 export interface Contractor {

@@ -20,6 +20,7 @@ service cloud.firestore {
     // Keeping these collections server-only prevents cross-company access and
     // ensures contractor private fields never reach client browsers.
     match /client_users/{document=**} { allow read, write: if false; }
+    match /support_tickets/{document=**} { allow read, write: if false; }
     match /vendor_requests/{document=**} { allow read, write: if false; }
     match /appointments/{document=**} { allow read, write: if false; }
     match /job_participants/{document=**} { allow read, write: if false; }

@@ -10,27 +10,21 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
   ClipboardCheck,
   Clock3,
-  FileCheck2,
   FileText,
   Gauge,
   HardHat,
   Inbox,
   LayoutDashboard,
-  MapPin,
+  LifeBuoy,
   Menu,
-  MoreHorizontal,
-  PackageCheck,
   Plus,
   ReceiptText,
   Search,
   Settings,
   ShieldCheck,
-  Truck,
   Users,
   Wrench,
   X,
@@ -54,6 +48,9 @@ import {
 import { auth, db } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate } from "../features/crm/record-links";
 import { saveJob } from "../features/jobs/saveJob";
+import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
+import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
+import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 
 type Module =
   | "dashboard"
@@ -66,7 +63,10 @@ type Module =
   | "assets"
   | "reports"
   | "reminders"
-  | "audit";
+  | "audit"
+  | "tickets"
+  | "contractors"
+  | "timecards";
 const modules: {
   id: Module;
   label: string;
@@ -84,152 +84,9 @@ const modules: {
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "reminders", label: "Reminders", icon: Clock3 },
   { id: "audit", label: "Audit Trail", icon: ClipboardCheck },
-];
-const resources = [
-  {
-    name: "Marcus Johnson",
-    trade: "Low Voltage",
-    initials: "MJ",
-    color: "bg-emerald-500",
-    jobs: [
-      { start: 1, span: 3, label: "WO-1842 · Ghilotti", tone: "green" },
-      { start: 5, span: 2, label: "WO-1848 · Arden", tone: "orange" },
-    ],
-  },
-  {
-    name: "Elena Ruiz",
-    trade: "Network Engineer",
-    initials: "ER",
-    color: "bg-sky-500",
-    jobs: [
-      { start: 0, span: 2, label: "WO-1839 · River City", tone: "blue" },
-      { start: 3, span: 3, label: "WO-1851 · Sierra", tone: "green" },
-    ],
-  },
-  {
-    name: "Devon King",
-    trade: "Security Systems",
-    initials: "DK",
-    color: "bg-violet-500",
-    jobs: [{ start: 2, span: 3, label: "WO-1834 · Oak Park", tone: "purple" }],
-  },
-  {
-    name: "Unassigned",
-    trade: "Dispatch queue",
-    initials: "—",
-    color: "bg-slate-700",
-    jobs: [{ start: 4, span: 2, label: "WO-1854 · Northgate", tone: "slate" }],
-  },
-];
-const jobRows = [
-  {
-    no: "WO-2026-1842",
-    customer: "Ghilotti Construction",
-    site: "West Sacramento Yard",
-    description: "MDF / IDF fiber backbone",
-    stage: "In Progress",
-    technician: "Marcus J.",
-    due: "Aug 29",
-    cost: "$18,460",
-    margin: "38%",
-  },
-  {
-    no: "WO-2026-1839",
-    customer: "River City Dental",
-    site: "Roseville Clinic",
-    description: "Switch replacement & cutover",
-    stage: "Scheduled",
-    technician: "Elena R.",
-    due: "Aug 30",
-    cost: "$7,825",
-    margin: "42%",
-  },
-  {
-    no: "WO-2026-1834",
-    customer: "Oak Park Storage",
-    site: "Elk Grove Facility",
-    description: "Camera commissioning",
-    stage: "Field Complete",
-    technician: "Devon K.",
-    due: "Aug 29",
-    cost: "$11,200",
-    margin: "34%",
-  },
-  {
-    no: "WO-2026-1854",
-    customer: "Northgate Pediatrics",
-    site: "Midtown Office",
-    description: "Wireless site survey",
-    stage: "New",
-    technician: "Unassigned",
-    due: "Sep 1",
-    cost: "$1,450",
-    margin: "51%",
-  },
-];
-const activity = [
-  {
-    icon: CheckCircle2,
-    title: "Job marked field complete",
-    detail: "WO-2026-1834 · Oak Park Storage",
-    time: "8 min ago",
-    color: "text-tech-green",
-  },
-  {
-    icon: PackageCheck,
-    title: "Materials allocated",
-    detail: "620 ft Cat6A added to WO-2026-1842",
-    time: "24 min ago",
-    color: "text-sky-500",
-  },
-  {
-    icon: FileCheck2,
-    title: "Quote accepted",
-    detail: "QT-1028 · Sierra Commerce · $31,200",
-    time: "42 min ago",
-    color: "text-safety-orange",
-  },
-  {
-    icon: Clock3,
-    title: "Technician started travel",
-    detail: "Elena Ruiz → River City Dental",
-    time: "1 hr ago",
-    color: "text-violet-500",
-  },
-];
-const customers = [
-  {
-    name: "Ghilotti Construction",
-    sites: 4,
-    openJobs: 3,
-    assets: 26,
-    value: "$142,800",
-    contact: "Dana Wu",
-  },
-  {
-    name: "River City Dental",
-    sites: 3,
-    openJobs: 2,
-    assets: 18,
-    value: "$86,420",
-    contact: "Chris Moore",
-  },
-  {
-    name: "Oak Park Storage",
-    sites: 6,
-    openJobs: 1,
-    assets: 64,
-    value: "$74,210",
-    contact: "Jordan Lee",
-  },
-  {
-    name: "Sierra Commerce",
-    sites: 2,
-    openJobs: 1,
-    assets: 8,
-    value: "$58,900",
-    contact: "Sam Patel",
-  },
+  { id: "tickets", label: "Support Tickets", icon: LifeBuoy },
+  { id: "contractors", label: "Contractor Roster", icon: HardHat },
+  { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
 ];
 const tones: Record<string, string> = {
   sky: "border-sky-400/20 bg-sky-400/10 text-sky-600",
@@ -276,6 +133,12 @@ type LiveJob = {
   equipment?: { description: string; quantity?: string; unitPrice?: number; providedBy?: string; fulfillmentSource?: string; notes?: string }[];
   scopeTasks?: string[];
   schedule?: { date?: string; start?: string; end?: string };
+  workOrderTemplate?: string;
+  travelRate?: number;
+  technicianLeadId?: string;
+  siteContact?: string;
+  qaChecklist?: string[];
+  signatureRequired?: boolean;
 };
 type LiveQuote = {
   id: string;
@@ -817,6 +680,12 @@ export default function CRM() {
               />
             ) : module === "audit" ? (
               <AuditTrailView logs={auditLogs} />
+            ) : module === "tickets" ? (
+              <SupportTicketsAdmin />
+            ) : module === "contractors" ? (
+              <ContractorRosterAdmin contractors={technicians} jobs={liveJobs} />
+            ) : module === "timecards" ? (
+              <TimecardApprovalAdmin contractors={technicians} />
             ) : module === "reminders" ? (
               <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} />
             ) : module === "dashboard" ? (
@@ -851,6 +720,7 @@ export default function CRM() {
         <JobDetailModal
           job={liveJobs.find((job) => job.id === selectedJob.id) || selectedJob}
           customers={liveCustomers}
+          technicians={technicians}
           timeEntries={billingTimeEntries.filter((entry) => entry.jobId === selectedJob.id)}
           onClose={() => setSelectedJob(null)}
         />
@@ -871,239 +741,6 @@ export default function CRM() {
         />
       )}
     </div>
-  );
-}
-
-function ScheduleView() {
-  const hours = [
-    "7 AM",
-    "8 AM",
-    "9 AM",
-    "10 AM",
-    "11 AM",
-    "12 PM",
-    "1 PM",
-    "2 PM",
-  ];
-  return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col justify-between gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-sm font-bold">Dispatch board</h2>
-          <p className="mt-1 text-[10px] text-slate-400">
-            Saturday, August 29 · Sacramento region
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button className="rounded border border-slate-200 p-2">
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button className="rounded border border-slate-200 px-3 text-[10px] font-semibold">
-            Today
-          </button>
-          <button className="rounded border border-slate-200 p-2">
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </header>
-      <div className="overflow-x-auto">
-        <div className="min-w-[950px]">
-          <div className="grid grid-cols-[190px_repeat(8,minmax(90px,1fr))] border-b border-slate-200 bg-slate-50">
-            <div className="border-r border-slate-200 px-4 py-3 text-[9px] font-bold uppercase text-slate-400">
-              Technician
-            </div>
-            {hours.map((h) => (
-              <div
-                key={h}
-                className="border-r border-slate-200 py-3 text-center text-[9px] text-slate-400"
-              >
-                {h}
-              </div>
-            ))}
-          </div>
-          {resources.map((r) => (
-            <div
-              key={r.name}
-              className="grid min-h-20 grid-cols-[190px_repeat(8,minmax(90px,1fr))] border-b border-slate-100"
-            >
-              <div className="flex items-center gap-3 border-r border-slate-200 px-4">
-                <span
-                  className={`grid h-8 w-8 place-items-center rounded-full ${r.color} text-[9px] font-bold text-white`}
-                >
-                  {r.initials}
-                </span>
-                <div>
-                  <p className="text-[11px] font-semibold">{r.name}</p>
-                  <p className="text-[9px] text-slate-400">{r.trade}</p>
-                </div>
-              </div>
-              <div className="relative col-span-8 grid grid-cols-8 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px)] bg-[size:12.5%_100%]">
-                {r.jobs.map((j) => (
-                  <div
-                    key={j.label}
-                    style={{ gridColumn: `${j.start + 1} / span ${j.span}` }}
-                    className={`m-2 flex items-center rounded border px-3 text-[10px] font-semibold ${tones[j.tone]}`}
-                  >
-                    <Truck className="mr-2 h-3.5 w-3.5" />
-                    {j.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DashboardView({
-  jobs,
-  go,
-}: {
-  jobs: typeof jobRows;
-  go: (m: Module) => void;
-}) {
-  return (
-    <>
-      <div className="grid gap-5 xl:grid-cols-[1.45fr_.55fr]">
-        <JobTable jobs={jobs} onAll={() => go("jobs")} />
-        <section className="rounded border border-slate-200 bg-white shadow-sm">
-          <header className="flex items-center justify-between border-b border-slate-100 p-4">
-            <div>
-              <h2 className="text-sm font-bold">Live activity</h2>
-              <p className="text-[10px] text-slate-400">
-                Office and field updates
-              </p>
-            </div>
-            <Activity className="h-4 w-4 text-tech-green" />
-          </header>
-          <div className="divide-y divide-slate-100">
-            {activity.map(({ icon: Icon, title, detail, time, color }) => (
-              <div key={title} className="flex gap-3 p-4">
-                <span className="grid h-8 w-8 place-items-center rounded bg-slate-50">
-                  <Icon className={`h-4 w-4 ${color}`} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold">{title}</p>
-                  <p className="truncate text-[10px] text-slate-400">
-                    {detail}
-                  </p>
-                  <p className="text-[9px] text-slate-300">{time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        <MiniPanel
-          icon={CircleDollarSign}
-          title="Job profitability"
-          value="38.6%"
-          detail="Average gross margin"
-          progress={72}
-        />
-        <MiniPanel
-          icon={ClipboardCheck}
-          title="Quote conversion"
-          value="68%"
-          detail="24 accepted of 35"
-          progress={68}
-        />
-        <MiniPanel
-          icon={ShieldCheck}
-          title="Asset compliance"
-          value="92%"
-          detail="118 of 128 current"
-          progress={92}
-        />
-      </div>
-    </>
-  );
-}
-
-function JobTable({
-  jobs,
-  onAll,
-}: {
-  jobs: typeof jobRows;
-  onAll?: () => void;
-}) {
-  return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex items-center justify-between border-b border-slate-100 p-4">
-        <div>
-          <h2 className="text-sm font-bold">Job control</h2>
-          <p className="text-[10px] text-slate-400">
-            Cost, schedule and delivery status
-          </p>
-        </div>
-        <button
-          onClick={onAll}
-          className="text-[10px] font-semibold text-tech-green-deep"
-        >
-          View all jobs
-        </button>
-      </header>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[850px] text-left">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[9px] uppercase text-slate-400">
-            <tr>
-              {[
-                "Job / Customer",
-                "Site",
-                "Stage",
-                "Technician",
-                "Due",
-                "Value / Margin",
-                "",
-              ].map((h) => (
-                <th key={h} className="px-4 py-3">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {jobs.map((j) => (
-              <tr key={j.no} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <p className="font-mono text-[9px] text-tech-green-deep">
-                    {j.no}
-                  </p>
-                  <p className="text-[11px] font-semibold">{j.customer}</p>
-                  <p className="text-[9px] text-slate-400">{j.description}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <p className="text-[10px]">{j.site}</p>
-                  <p className="flex items-center gap-1 text-[9px] text-slate-400">
-                    <MapPin className="h-3 w-3" />
-                    Sacramento region
-                  </p>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px]">
-                    {j.stage}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-[10px]">{j.technician}</td>
-                <td className="px-4 py-3 text-[10px]">{j.due}</td>
-                <td className="px-4 py-3">
-                  <p className="text-[10px] font-semibold">{j.cost}</p>
-                  <p className="text-[9px] text-tech-green-deep">
-                    {j.margin} margin
-                  </p>
-                </td>
-                <td className="px-4 py-3">
-                  <MoreHorizontal className="h-4 w-4 text-slate-400" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 
@@ -1464,158 +1101,6 @@ function MaterialAllocations({ jobs, onOpen }: { jobs: LiveJob[]; onOpen: (job: 
   return <section className="rounded border bg-white p-5"><h2 className="font-bold">Job materials & equipment</h2><p className="my-3 text-xs text-slate-500">Live allocations from work orders. These are job requirements, not warehouse stock counts.</p>{allocations.length ? allocations.map(({ job, item, index }) => <div key={`${job.id}-${index}`} className="flex justify-between gap-3 border-b py-3 text-xs"><div><strong>{item.description}</strong><p>Qty {item.quantity || '—'} · {item.providedBy === 'client' || item.fulfillmentSource === 'customer_shipped' ? 'Client provided' : item.providedBy === 'techsavvy' || item.fulfillmentSource === 'techsavvy_supplied' ? 'TechSavvy provided' : 'Provider not specified'}</p></div><button onClick={() => onOpen(job)} className="text-green-700 underline">{job.name || job.id}</button></div>) : <p>No materials allocated to jobs.</p>}</section>;
 }
 
-function WorkModuleView({
-  module,
-  jobs,
-}: {
-  module: Module;
-  jobs: typeof jobRows;
-}) {
-  if (module === "jobs") return <JobTable jobs={jobs} />;
-  const config: Record<
-    string,
-    {
-      icon: typeof FileText;
-      title: string;
-      description: string;
-      stats: [string, string][];
-    }
-  > = {
-    quotes: {
-      icon: FileText,
-      title: "Quote & estimate workspace",
-      description:
-        "Build labor, materials, service fees and options, then convert accepted work directly into jobs.",
-      stats: [
-        ["Draft", "3"],
-        ["Awaiting approval", "5"],
-        ["Accepted this month", "12"],
-        ["Quoted value", "$128K"],
-      ],
-    },
-    invoices: {
-      icon: ReceiptText,
-      title: "Billing & payments",
-      description:
-        "Turn completed work into itemized invoices with labor, materials and purchase orders reconciled.",
-      stats: [
-        ["Ready to invoice", "5"],
-        ["Sent", "8"],
-        ["Overdue", "3"],
-        ["Receivable", "$38.4K"],
-      ],
-    },
-    catalog: {
-      icon: Boxes,
-      title: "Materials, stock & purchasing",
-      description:
-        "Manage catalog pricing, warehouse and truck stock, supplier purchase orders and job allocations.",
-      stats: [
-        ["Catalog items", "1,248"],
-        ["Low stock", "14"],
-        ["Open POs", "6"],
-        ["Stock value", "$82.6K"],
-      ],
-    },
-    assets: {
-      icon: Wrench,
-      title: "Customer asset management",
-      description:
-        "Track installed equipment by site, maintenance schedules, serial numbers and service history.",
-      stats: [
-        ["Assets", "128"],
-        ["Due service", "10"],
-        ["Overdue", "4"],
-        ["Compliance", "92%"],
-      ],
-    },
-    reports: {
-      icon: BarChart3,
-      title: "Operations & financial reporting",
-      description:
-        "Monitor job profitability, technician productivity, quote conversion and labor recovery.",
-      stats: [
-        ["Gross margin", "38.6%"],
-        ["Labor utilization", "84%"],
-        ["Quote conversion", "68%"],
-        ["Revenue MTD", "$94.2K"],
-      ],
-    },
-  };
-  const item = config[module] ?? config.quotes;
-  const Icon = item.icon;
-  return (
-    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex gap-4 border-b border-slate-100 pb-5">
-        <span className="grid h-11 w-11 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep">
-          <Icon className="h-5 w-5" />
-        </span>
-        <div>
-          <h2 className="text-base font-bold">{item.title}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-slate-500">
-            {item.description}
-          </p>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {item.stats.map(([l, v]) => (
-          <div
-            key={l}
-            className="rounded border border-slate-200 bg-slate-50 p-4"
-          >
-            <p className="text-[9px] font-semibold uppercase text-slate-400">
-              {l}
-            </p>
-            <p className="mt-2 font-display text-xl">{v}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 grid min-h-56 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 text-center">
-        <div>
-          <Icon className="mx-auto h-8 w-8 text-slate-300" />
-          <p className="mt-3 text-xs font-semibold">
-            Select or create a record to begin
-          </p>
-          <p className="text-[10px] text-slate-400">
-            Ready for your live operational data.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-function MiniPanel({
-  icon: Icon,
-  title,
-  value,
-  detail,
-  progress,
-}: {
-  icon: typeof CircleDollarSign;
-  title: string;
-  value: string;
-  detail: string;
-  progress: number;
-}) {
-  return (
-    <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-tech-green-deep" />
-          <h3 className="text-[11px] font-bold">{title}</h3>
-        </div>
-        <span className="font-display text-lg">{value}</span>
-      </div>
-      <div className="mt-4 h-1.5 rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-tech-green"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <p className="mt-2 text-[9px] text-slate-400">{detail}</p>
-    </section>
-  );
-}
 
 function QuotesView({
   quotes,
@@ -2535,11 +2020,13 @@ function LiveJobsView({
 function JobDetailModal({
   job,
   customers,
+  technicians,
   timeEntries,
   onClose,
 }: {
   job: LiveJob;
   customers: LiveCustomer[];
+  technicians: Technician[];
   timeEntries: BillingTimeEntry[];
   onClose: () => void;
 }) {
@@ -2552,6 +2039,13 @@ function JobDetailModal({
     quotedValue: String(job.quotedValue || ""),
     hourlyRate: String(job.hourlyRate || ""),
     estimatedHours: String(job.estimatedHours || ""),
+    workOrderNumber: job.workOrderNumber || "",
+    workOrderTemplate: job.workOrderTemplate || "general",
+    travelRate: String(job.travelRate ?? ""),
+    technicianLeadId: job.technicianLeadId || "",
+    siteContact: job.siteContact || "",
+    targetCompletion: job.targetCompletion || "",
+    signatureRequired: job.signatureRequired ?? false,
   });
   const [materials, setMaterials] = useState(
     job.equipment?.length
@@ -2565,6 +2059,9 @@ function JobDetailModal({
   );
   const [tasks, setTasks] = useState(
     job.scopeTasks?.length ? job.scopeTasks : [""],
+  );
+  const [qaChecklist, setQaChecklist] = useState(
+    job.qaChecklist?.length ? job.qaChecklist : [""],
   );
   const [saving, setSaving] = useState(false);
   const materialCost = materials.reduce(
@@ -2586,28 +2083,44 @@ function JobDetailModal({
     if (!selectedCustomer) { alert('Select an existing CRM customer before saving this job.'); return; }
     setSaving(true);
     try {
+      const equipment = materials
+        .filter((x) => x.description.trim())
+        .map((x) => ({
+          ...x,
+          description: x.description.trim(),
+          quantity: x.quantity,
+          unitPrice: Number(x.unitPrice || 0),
+        }));
+      await saveJob(
+        {
+          id: job.id,
+          name: form.name.trim(),
+          vendorName: form.customer.trim(),
+          customerId: selectedCustomer.id,
+          address: form.address.trim(),
+          status: form.status,
+          notes: form.notes.trim(),
+          quotedValue: quoted,
+          hourlyRate: Number(form.hourlyRate || 0),
+          workOrderNumber: form.workOrderNumber.trim(),
+          workOrderTemplate: form.workOrderTemplate,
+          travelRate: Number(form.travelRate || 0),
+          technicianLeadId: form.technicianLeadId,
+          siteContact: form.siteContact.trim(),
+          targetCompletion: form.targetCompletion,
+          signatureRequired: form.signatureRequired,
+          equipment,
+          scopeTasks: tasks.map((x) => x.trim()).filter(Boolean),
+          qaChecklist: qaChecklist.map((x) => x.trim()).filter(Boolean),
+        },
+        job as unknown as Record<string, unknown>,
+      );
+      // estimatedHours/estimatedCost/margin are CRM-only computed fields, not
+      // part of buildJobRecord's shared schema, so they're merged separately.
       await updateDoc(doc(db, "jobs", job.id), {
-        name: form.name.trim(),
-        vendorName: form.customer.trim(),
-        customerId: selectedCustomer.id,
-        address: form.address.trim(),
-        status: form.status,
-        notes: form.notes.trim(),
-        quotedValue: quoted,
-        hourlyRate: Number(form.hourlyRate || 0),
         estimatedHours: Number(form.estimatedHours || 0),
-        equipment: materials
-          .filter((x) => x.description.trim())
-          .map((x) => ({
-            ...x,
-            description: x.description.trim(),
-            quantity: x.quantity,
-            unitPrice: Number(x.unitPrice || 0),
-          })),
-        scopeTasks: tasks.map((x) => x.trim()).filter(Boolean),
         estimatedCost: laborCost + materialCost,
         margin,
-        updatedAt: serverTimestamp(),
       });
       await recordAudit("updated", "job", job.id, `Updated job ${job.workOrderNumber || job.id}`, { status: form.status, margin });
       onClose();
@@ -2685,6 +2198,61 @@ function JobDetailModal({
             onChange={(v) => setForm({ ...form, estimatedHours: v })}
             type="number"
           />
+          <Field
+            label="Work order number"
+            value={form.workOrderNumber}
+            onChange={(v) => setForm({ ...form, workOrderNumber: v })}
+          />
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Work order template
+            <select
+              value={form.workOrderTemplate}
+              onChange={(e) => setForm({ ...form, workOrderTemplate: e.target.value })}
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              {["general", "nextivity", "security", "low-voltage", "network"].map((x) => (
+                <option key={x} value={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Travel rate ($/hr)"
+            value={form.travelRate}
+            onChange={(v) => setForm({ ...form, travelRate: v })}
+            type="number"
+          />
+          <label className="text-[9px] font-bold uppercase text-slate-500">
+            Technician lead
+            <select
+              value={form.technicianLeadId}
+              onChange={(e) => setForm({ ...form, technicianLeadId: e.target.value })}
+              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+            >
+              <option value="">Unassigned</option>
+              {technicians.map((tech) => (
+                <option key={tech.id} value={tech.id}>{tech.name || tech.companyName || tech.id}</option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Site contact"
+            value={form.siteContact}
+            onChange={(v) => setForm({ ...form, siteContact: v })}
+          />
+          <Field
+            label="Target completion"
+            value={form.targetCompletion}
+            onChange={(v) => setForm({ ...form, targetCompletion: v })}
+            type="date"
+          />
+          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-500">
+            <input
+              type="checkbox"
+              checked={form.signatureRequired}
+              onChange={(e) => setForm({ ...form, signatureRequired: e.target.checked })}
+            />
+            Signature required before completion
+          </label>
           <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-green-700 underline" href="/contractor/dashboard?adminTab=timecards">Review timecards</a></div>
           <label className="sm:col-span-2 text-[9px] font-bold uppercase text-slate-500">
             Job and site notes
@@ -2796,6 +2364,41 @@ function JobDetailModal({
               <button
                 type="button"
                 onClick={() => setTasks(tasks.filter((_, i) => i !== index))}
+                className="text-red-500"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6">
+          <div className="flex justify-between">
+            <h3 className="text-[10px] font-bold uppercase text-slate-500">
+              QA checklist
+            </h3>
+            <button
+              type="button"
+              onClick={() => setQaChecklist([...qaChecklist, ""])}
+              className="text-[9px] font-bold text-tech-green-deep"
+            >
+              + Add checklist item
+            </button>
+          </div>
+          {qaChecklist.map((item, index) => (
+            <div key={index} className="mt-2 flex gap-2">
+              <input
+                value={item}
+                onChange={(e) =>
+                  setQaChecklist(
+                    qaChecklist.map((x, i) => (i === index ? e.target.value : x)),
+                  )
+                }
+                placeholder="Completion verification step"
+                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setQaChecklist(qaChecklist.filter((_, i) => i !== index))}
                 className="text-red-500"
               >
                 ×
