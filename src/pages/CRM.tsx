@@ -53,6 +53,7 @@ import {
 } from "firebase/auth";
 import { auth, db } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate } from "../features/crm/record-links";
+import { saveJob } from "../features/jobs/saveJob";
 
 type Module =
   | "dashboard"
@@ -1659,7 +1660,7 @@ function QuotesView({
   const convert = async (quote: LiveQuote) => {
     setWorking(quote.id);
     try {
-      const created = await addDoc(collection(db, "jobs"), {
+      const created = await saveJob({
         workOrderNumber: `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
         sourceQuoteId: quote.id,
         customerId: quote.customerId || null,
@@ -1674,8 +1675,7 @@ function QuotesView({
           unitPrice: item.unitPrice,
         })),
         assignedTechIds: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        actorUid: auth.currentUser?.uid || "",
       });
       await updateDoc(doc(db, "quotes", quote.id), {
         status: "Converted",
@@ -4704,7 +4704,7 @@ function CreateRecordModal({
         await recordAudit("created", "customer", created.id, `Created customer ${customer.name.trim()}`, { email: customer.email.trim(), site: customer.site.trim() });
       } else {
         const workOrderNumber = `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
-        const created = await addDoc(collection(db, "jobs"), {
+        const created = await saveJob({
           workOrderNumber,
           vendorName: job.customer,
           customerId: customerFor({ vendorName: job.customer }, records)?.id || null,
@@ -4714,8 +4714,7 @@ function CreateRecordModal({
           status: "New",
           quotedValue: Number(job.value || 0),
           assignedTechIds: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          actorUid: auth.currentUser?.uid || "",
         });
         await recordAudit("created", "job", created.id, `Created job ${workOrderNumber} for ${job.customer}`, { value: Number(job.value || 0), due: job.due });
       }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, db, storage } from '../lib/firebase';
-import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { Link } from 'react-router';
@@ -9,6 +9,7 @@ import type { SupportTicket, NotificationProfile } from '../features/contractor/
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
 import { NotificationHistoryPanel } from '../features/contractor/workOrders/NotificationHistoryPanel';
+import { saveJob } from '../features/jobs/saveJob';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { ClientRequestsAdmin } from '../features/client/ClientRequestsAdmin';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
@@ -2586,7 +2587,6 @@ export default function ContractorDashboard() {
                           alert('Assign at least one technician, or choose anyone.');
                           return;
                         }
-                        const nowStr = new Date().toISOString();
                         const jobId = editingJobId || `j-${Date.now().toString().slice(-6)}`;
                         const existingJob = jobSitesList.find((job) => job.id === jobId);
                         setIsSavingJob(true);
@@ -2594,8 +2594,7 @@ export default function ContractorDashboard() {
                           const newAttachments = adminJobFiles.length
                             ? await uploadWorkOrderDocuments(jobId, adminJobFiles)
                             : [];
-                          const job = {
-                            ...existingJob,
+                          const job = await saveJob({
                             id: jobId,
                             name: adminJobName,
                             address: adminJobAddress || 'Address on file',
@@ -2618,22 +2617,12 @@ export default function ContractorDashboard() {
                             scopeTasks: adminJobScopeTasks.map((task) => task.trim()).filter(Boolean),
                             qaChecklist: adminJobQaChecklist.map((item) => item.trim()).filter(Boolean),
                             signatureRequired: adminJobSignatureRequired,
-                            signatureStatus: existingJob?.signatureStatus || (existingJob?.signedWorkOrders?.length ? 'signed' : 'pending'),
-                            signaturePolicyUpdatedAt: existingJob?.signatureRequired === adminJobSignatureRequired ? existingJob?.signaturePolicyUpdatedAt || nowStr : nowStr,
-                            signaturePolicyUpdatedByUid: existingJob?.signatureRequired === adminJobSignatureRequired ? existingJob?.signaturePolicyUpdatedByUid || auth.currentUser?.uid || '' : auth.currentUser?.uid || '',
-                            signaturePolicyHistory: existingJob?.signatureRequired === adminJobSignatureRequired
-                              ? existingJob?.signaturePolicyHistory || []
-                              : [...(existingJob?.signaturePolicyHistory || []), { required: adminJobSignatureRequired, changedAt: nowStr, changedByUid: auth.currentUser?.uid || '' }],
                             // Keep the original single-value field for backward
                             // compatibility while the array drives multi-tech access.
-                            assignedTechId: adminJobAssignedTechIds.includes('ALL')
-                              ? 'ALL'
-                              : adminJobAssignedTechIds[0],
                             assignedTechIds: adminJobAssignedTechIds,
                             attachments: [...(existingJob?.attachments || []), ...newAttachments],
-                            updatedAt: nowStr,
-                          };
-                          await setDoc(doc(db, 'jobs', jobId), job);
+                            actorUid: auth.currentUser?.uid || '',
+                          }, existingJob);
                           setJobSitesList((previous) => {
                             const exists = previous.some((item) => item.id === jobId);
                             return exists ? previous.map((item) => item.id === jobId ? job : item) : [...previous, job];
