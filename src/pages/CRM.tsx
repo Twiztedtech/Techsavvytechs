@@ -50,6 +50,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate } from "../features/crm/record-links";
 import { saveJob } from "../features/jobs/saveJob";
+import { buildJobRecord } from "../features/jobs/buildJobRecord";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
@@ -3994,6 +3995,7 @@ function AssetsView({
 }) {
   const [generating, setGenerating] = useState(false);
   const [serviceAsset, setServiceAsset] = useState<CustomerAsset | null>(null);
+  const [editingAsset, setEditingAsset] = useState<CustomerAsset | null>(null);
   const today = localDate();
   const dueAssets = assets.filter(
     (asset) =>
@@ -4010,33 +4012,42 @@ function AssetsView({
     setGenerating(true);
     try {
       const batch = writeBatch(db);
+      const now = new Date().toISOString();
       readyToGenerate.forEach((asset, index) => {
         const jobRef = doc(collection(db, "jobs"));
         const workOrderNumber = `PM-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}-${index + 1}`;
+        // Built via buildJobRecord (not a hand-rolled object literal) so this
+        // gets the same full field set - hourlyRate, signatureRequired,
+        // assignedTechIds, etc. - as every other job-creation path, instead
+        // of leaving them undefined/empty the way this batch write used to.
+        const record = buildJobRecord(
+          {
+            id: jobRef.id,
+            workOrderNumber,
+            vendorName: asset.customerName,
+            customerId: asset.customerId,
+            name: asset.maintenance?.description || `Preventative maintenance · ${asset.name}`,
+            address: asset.site,
+            notes: `Asset: ${asset.name}\nManufacturer/model: ${asset.manufacturer || "—"} ${asset.model || ""}\nSerial: ${asset.serialNumber || "—"}`,
+            targetCompletion: asset.maintenance?.nextServiceDate,
+            hourlyRate: 55,
+            assignedTechIds: ["ALL"],
+            status: "New",
+            scopeTasks: [
+              "Inspect asset condition",
+              "Perform scheduled maintenance",
+              "Record test results and exceptions",
+              "Update customer asset service history",
+            ],
+          },
+          null,
+          now,
+        );
         batch.set(jobRef, {
-          id: jobRef.id,
-          workOrderNumber,
+          ...record,
           assetId: asset.id,
           recurringMaintenance: true,
-          vendorName: asset.customerName,
-          customerId: asset.customerId,
-          name:
-            asset.maintenance?.description ||
-            `Preventative maintenance · ${asset.name}`,
-          address: asset.site,
-          notes: `Asset: ${asset.name}\nManufacturer/model: ${asset.manufacturer || "—"} ${asset.model || ""}\nSerial: ${asset.serialNumber || "—"}`,
-          targetCompletion: asset.maintenance?.nextServiceDate,
           estimatedHours: asset.maintenance?.estimatedHours || 1,
-          status: "New",
-          assignedTechIds: [],
-          scopeTasks: [
-            "Inspect asset condition",
-            "Perform scheduled maintenance",
-            "Record test results and exceptions",
-            "Update customer asset service history",
-          ],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
         });
         batch.update(doc(db, "customer_assets", asset.id), {
           lastGeneratedDueDate: asset.maintenance?.nextServiceDate,
@@ -4194,8 +4205,14 @@ function AssetsView({
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => setServiceAsset(asset)}
+                          onClick={() => setEditingAsset(asset)}
                           className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setServiceAsset(asset)}
+                          className="ml-1 rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
                         >
                           Record service
                         </button>
@@ -4235,6 +4252,13 @@ function AssetsView({
           onClose={() => setServiceAsset(null)}
         />
       )}
+      {editingAsset && (
+        <AssetModal
+          customers={customers}
+          asset={editingAsset}
+          onClose={() => setEditingAsset(null)}
+        />
+      )}
     </>
   );
 }
@@ -4264,27 +4288,29 @@ function AssetMetric({
 
 function AssetModal({
   customers,
+  asset,
   onClose,
 }: {
   customers: LiveCustomer[];
+  asset?: CustomerAsset | null;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
-    customerId: "",
-    site: "",
-    name: "",
-    category: "Network Equipment",
-    manufacturer: "",
-    model: "",
-    serialNumber: "",
-    installDate: "",
-    warrantyExpiration: "",
-    status: "Active",
-    maintenanceEnabled: true,
-    frequencyMonths: "12",
-    nextServiceDate: "",
-    maintenanceDescription: "Preventative inspection and service",
-    estimatedHours: "1",
+    customerId: asset?.customerId || "",
+    site: asset?.site || "",
+    name: asset?.name || "",
+    category: asset?.category || "Network Equipment",
+    manufacturer: asset?.manufacturer || "",
+    model: asset?.model || "",
+    serialNumber: asset?.serialNumber || "",
+    installDate: asset?.installDate || "",
+    warrantyExpiration: asset?.warrantyExpiration || "",
+    status: asset?.status || "Active",
+    maintenanceEnabled: asset?.maintenance?.enabled ?? true,
+    frequencyMonths: String(asset?.maintenance?.frequencyMonths ?? "12"),
+    nextServiceDate: asset?.maintenance?.nextServiceDate || "",
+    maintenanceDescription: asset?.maintenance?.description || "Preventative inspection and service",
+    estimatedHours: String(asset?.maintenance?.estimatedHours ?? "1"),
   });
   const [saving, setSaving] = useState(false);
   const selectedCustomer = customers.find(
@@ -4295,7 +4321,7 @@ function AssetModal({
     if (!selectedCustomer) return;
     setSaving(true);
     try {
-      const created = await addDoc(collection(db, "customer_assets"), {
+      const data = {
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         site: form.site.trim(),
@@ -4314,11 +4340,19 @@ function AssetModal({
           description: form.maintenanceDescription.trim(),
           estimatedHours: Number(form.estimatedHours || 1),
         },
-        serviceHistory: [],
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
-      await recordAudit("created", "customer-asset", created.id, `Created asset ${form.name.trim()} for ${selectedCustomer.name}`, { site: form.site, maintenanceEnabled: form.maintenanceEnabled });
+      };
+      if (asset) {
+        await updateDoc(doc(db, "customer_assets", asset.id), data);
+        await recordAudit("updated", "customer-asset", asset.id, `Updated asset ${form.name.trim()}`, { site: form.site, maintenanceEnabled: form.maintenanceEnabled });
+      } else {
+        const created = await addDoc(collection(db, "customer_assets"), {
+          ...data,
+          serviceHistory: [],
+          createdAt: serverTimestamp(),
+        });
+        await recordAudit("created", "customer-asset", created.id, `Created asset ${form.name.trim()} for ${selectedCustomer.name}`, { site: form.site, maintenanceEnabled: form.maintenanceEnabled });
+      }
       onClose();
     } finally {
       setSaving(false);
@@ -4335,7 +4369,7 @@ function AssetModal({
             <p className="text-[9px] font-bold uppercase text-tech-green-deep">
               Customer equipment register
             </p>
-            <h2 className="font-display text-lg uppercase">New asset</h2>
+            <h2 className="font-display text-lg uppercase">{asset ? "Edit asset" : "New asset"}</h2>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
