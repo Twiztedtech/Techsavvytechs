@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -45,13 +45,18 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { auth, db } from "../lib/firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { auth, db, storage } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate } from "../features/crm/record-links";
 import { saveJob } from "../features/jobs/saveJob";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
+
+const TechnicianWorkOrderPreview = lazy(() =>
+  import("../features/contractor/workOrders/TechnicianWorkOrderPreview").then(({ TechnicianWorkOrderPreview }) => ({ default: TechnicianWorkOrderPreview })),
+);
 
 type Module =
   | "dashboard"
@@ -142,6 +147,7 @@ type LiveJob = {
   siteContact?: string;
   qaChecklist?: string[];
   signatureRequired?: boolean;
+  attachments?: Array<{ name: string; url: string; size?: number; contentType?: string; uploadedAt?: string }>;
 };
 type LiveQuote = {
   id: string;
@@ -303,6 +309,7 @@ export default function CRM() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
   const [selectedJob, setSelectedJob] = useState<LiveJob | null>(null);
+  const [previewJob, setPreviewJob] = useState<LiveJob | null>(null);
   const [invoiceJob, setInvoiceJob] = useState<LiveJob | null>(null);
   const [paymentInvoice, setPaymentInvoice] = useState<LiveInvoice | null>(
     null,
@@ -737,9 +744,20 @@ export default function CRM() {
           job={liveJobs.find((job) => job.id === selectedJob.id) || selectedJob}
           customers={liveCustomers}
           technicians={technicians}
+          assignableTechnicians={assignableTechnicians}
           timeEntries={billingTimeEntries.filter((entry) => entry.jobId === selectedJob.id)}
           onClose={() => setSelectedJob(null)}
+          onPreview={(job) => setPreviewJob(job)}
         />
+      )}
+      {previewJob && (
+        <Suspense fallback={null}>
+          <TechnicianWorkOrderPreview
+            job={previewJob}
+            technicianName={technicians.find((tech) => tech.id === previewJob.technicianLeadId)?.name || "Assigned Technician"}
+            onClose={() => setPreviewJob(null)}
+          />
+        </Suspense>
       )}
       {invoiceJob && (
         <InvoiceModal job={invoiceJob} timeEntries={billingTimeEntries.filter((entry)=>entry.jobId===invoiceJob.id)} onClose={() => setInvoiceJob(null)} />
@@ -2037,14 +2055,18 @@ function JobDetailModal({
   job,
   customers,
   technicians,
+  assignableTechnicians,
   timeEntries,
   onClose,
+  onPreview,
 }: {
   job: LiveJob;
   customers: LiveCustomer[];
   technicians: Technician[];
+  assignableTechnicians: Technician[];
   timeEntries: BillingTimeEntry[];
   onClose: () => void;
+  onPreview: (job: LiveJob) => void;
 }) {
   const [form, setForm] = useState({
     name: job.name || "",
@@ -2079,7 +2101,12 @@ function JobDetailModal({
   const [qaChecklist, setQaChecklist] = useState(
     job.qaChecklist?.length ? job.qaChecklist : [""],
   );
+  const [assignedTechIds, setAssignedTechIds] = useState<string[]>(
+    job.assignedTechIds?.length ? job.assignedTechIds : ["ALL"],
+  );
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [voiding, setVoiding] = useState(false);
   const materialCost = materials.reduce(
     (sum, item) =>
       sum + Number(item.quantity || 0) * Number(item.unitPrice || 0),
@@ -2097,6 +2124,10 @@ function JobDetailModal({
     e.preventDefault();
     const selectedCustomer = customerFor({ vendorName: form.customer }, customers);
     if (!selectedCustomer) { alert('Select an existing CRM customer before saving this job.'); return; }
+    if (!assignedTechIds.includes("ALL") && assignedTechIds.length === 0) {
+      alert('Assign at least one technician, or choose anyone.');
+      return;
+    }
     setSaving(true);
     try {
       const equipment = materials
@@ -2107,6 +2138,20 @@ function JobDetailModal({
           quantity: x.quantity,
           unitPrice: Number(x.unitPrice || 0),
         }));
+      const uploaded = await Promise.all(
+        newFiles.map(async (file) => {
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+          const fileRef = ref(storage, `work-order-documents/${job.id}/${Date.now()}-${safeName}`);
+          await uploadBytes(fileRef, file, { contentType: file.type || "application/octet-stream" });
+          return {
+            name: file.name,
+            url: await getDownloadURL(fileRef),
+            size: file.size,
+            contentType: file.type || "Document",
+            uploadedAt: new Date().toISOString(),
+          };
+        }),
+      );
       await saveJob(
         {
           id: job.id,
@@ -2128,6 +2173,8 @@ function JobDetailModal({
           equipment,
           scopeTasks: tasks.map((x) => x.trim()).filter(Boolean),
           qaChecklist: qaChecklist.map((x) => x.trim()).filter(Boolean),
+          assignedTechIds,
+          attachments: [...(job.attachments || []), ...uploaded],
         },
         job as unknown as Record<string, unknown>,
       );
@@ -2144,6 +2191,27 @@ function JobDetailModal({
       setSaving(false);
     }
   };
+  const voidWorkOrder = async () => {
+    const reason = window.prompt("Reason for voiding this work order?");
+    if (!reason?.trim()) return;
+    setVoiding(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/portal/time-clock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "void_job", jobId: job.id, reason: reason.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not void this work order.");
+      await recordAudit("voided", "job", job.id, `Voided job ${job.workOrderNumber || job.id}`, { reason: reason.trim() });
+      onClose();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not void this work order.");
+    } finally {
+      setVoiding(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
       <form
@@ -2156,6 +2224,11 @@ function JobDetailModal({
               {job.workOrderNumber || job.id}
             </p>
             <h2 className="mt-1 font-display text-xl uppercase">Job details</h2>
+            {job.status !== "voided" && (
+              <button type="button" onClick={() => onPreview(job)} className="mt-1 text-[10px] font-bold text-tech-green-deep underline">
+                Preview technician view
+              </button>
+            )}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -2245,11 +2318,46 @@ function JobDetailModal({
               className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
             >
               <option value="">Unassigned</option>
-              {technicians.map((tech) => (
-                <option key={tech.id} value={tech.id}>{tech.name || tech.companyName || tech.id}</option>
-              ))}
+              {assignableTechnicians
+                .filter((tech) => assignedTechIds.includes("ALL") || assignedTechIds.includes(tech.id))
+                .map((tech) => (
+                  <option key={tech.id} value={tech.id}>{tech.name || tech.companyName || tech.id}</option>
+                ))}
             </select>
           </label>
+          <div className="sm:col-span-2">
+            <label className="text-[9px] font-bold uppercase text-slate-500">Assign technicians</label>
+            <div className="mt-1.5 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded border border-slate-200">
+              <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-600 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={assignedTechIds.includes("ALL")}
+                  onChange={(e) => setAssignedTechIds(e.target.checked ? ["ALL"] : [])}
+                />
+                Anyone (all technicians)
+              </label>
+              {assignableTechnicians.map((tech) => (
+                <label key={tech.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={!assignedTechIds.includes("ALL") && assignedTechIds.includes(tech.id)}
+                    disabled={assignedTechIds.includes("ALL")}
+                    onChange={(e) =>
+                      setAssignedTechIds((current) => {
+                        const withoutAll = current.filter((id) => id !== "ALL");
+                        return e.target.checked ? [...withoutAll, tech.id] : withoutAll.filter((id) => id !== tech.id);
+                      })
+                    }
+                    className="disabled:opacity-40"
+                  />
+                  <span>{tech.name || tech.companyName || tech.id}</span>
+                </label>
+              ))}
+            </div>
+            {!assignedTechIds.includes("ALL") && assignedTechIds.length === 0 && (
+              <p className="mt-1 text-[10px] text-red-500">Select at least one technician or choose anyone.</p>
+            )}
+          </div>
           <Field
             label="Site contact"
             value={form.siteContact}
@@ -2422,6 +2530,29 @@ function JobDetailModal({
             </div>
           ))}
         </div>
+        <div className="mt-6">
+          <h3 className="text-[10px] font-bold uppercase text-slate-500">SOW and work order documents</h3>
+          {job.attachments?.length ? (
+            <ul className="mt-2 space-y-1">
+              {job.attachments.map((file, index) => (
+                <li key={index} className="text-xs">
+                  <a href={file.url} target="_blank" rel="noreferrer" className="text-tech-green-deep underline">
+                    📎 {file.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-[10px] text-slate-400">No documents uploaded yet.</p>
+          )}
+          <input
+            type="file"
+            multiple
+            onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))}
+            className="mt-2 w-full text-xs"
+          />
+          <p className="mt-1 text-[10px] text-slate-400">PDF, Word, text, or image files. Uploads become available to signed-in technicians.</p>
+        </div>
         <div className="mt-6 grid grid-cols-3 gap-3 rounded bg-slate-50 p-4 text-center">
           <div>
             <p className="text-[9px] uppercase text-slate-400">Labor cost</p>
@@ -2444,20 +2575,34 @@ function JobDetailModal({
             </b>
           </div>
         </div>
-        <div className="sticky bottom-0 mt-6 flex justify-end gap-2 border-t border-slate-100 bg-white py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded border px-4 py-2 text-xs"
-          >
-            Cancel
-          </button>
-          <button
-            disabled={saving}
-            className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
-          >
-            {saving ? "Saving…" : "Save job"}
-          </button>
+        <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-2 border-t border-slate-100 bg-white py-4">
+          {job.status !== "voided" ? (
+            <button
+              type="button"
+              disabled={voiding}
+              onClick={voidWorkOrder}
+              className="rounded border border-rose-300 px-4 py-2 text-xs font-bold text-rose-600 disabled:opacity-40"
+            >
+              {voiding ? "Voiding…" : "Void work order"}
+            </button>
+          ) : (
+            <span className="text-[10px] font-bold uppercase text-slate-400">Voided</span>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border px-4 py-2 text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={saving}
+              className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Save job"}
+            </button>
+          </div>
         </div>
       </form>
     </div>
