@@ -247,23 +247,6 @@ async function convertRequest(req, res, admin) {
   if (customerMatches.size > 1) return res.status(409).json({ error: 'Multiple CRM customers match this company. Resolve the duplicate customer records before converting.' });
   const customerRef = customerMatches.empty ? adminDb.collection('customers').doc() : customerMatches.docs[0].ref;
   const deliverables = Array.isArray(request.deliverables) ? request.deliverables : String(request.deliverables || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-  let organizationId = request.organizationId;
-  if (!organizationId) {
-    const orgRef = adminDb.collection("client_organizations").doc();
-    await orgRef.set({
-      name: request.companyName,
-      approvedDomains: [request.requesterEmail.split("@")[1]],
-      referencePrefixes: [
-        String(request.clientReference || "").replace(/[\d]+$/, ""),
-      ].filter(Boolean),
-      defaultContactPolicy: "techsavvy_only",
-      status: "active",
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-      createdByUid: admin.uid,
-    });
-    organizationId = orgRef.id;
-  }
   const jobRef = adminDb.collection("jobs").doc();
   const workOrderNumber =
     clean(req.body?.workOrderNumber, 80) ||
@@ -307,7 +290,6 @@ async function convertRequest(req, res, admin) {
     assignedTechIds,
     assignedTechId: assignedTechIds[0],
     technicianLeadId: clean(req.body?.technicianLeadId, 120),
-    clientOrganizationId: organizationId,
     sourceRequestId: requestId,
     createdByClientUid: request.createdByClientUid || "",
     clientStatus: "scheduling",
@@ -340,7 +322,7 @@ async function convertRequest(req, res, admin) {
     {
       status: "converted",
       convertedJobId: jobRef.id,
-      organizationId,
+      customerId: customerRef.id,
       updatedAt: nowIso(),
     },
     { merge: true },
@@ -353,7 +335,7 @@ async function convertRequest(req, res, admin) {
       {
         jobId: jobRef.id,
         clientUid: request.createdByClientUid,
-        organizationId,
+        customerId: customerRef.id,
         roles: ["requester"],
         notifications: {
           email: true,

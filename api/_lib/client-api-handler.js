@@ -65,7 +65,7 @@ function isUrgent(windows) {
 async function findOrganization(domain) {
   if (!domain) return null;
   const snapshot = await adminDb
-    .collection("client_organizations")
+    .collection("customers")
     .where("approvedDomains", "array-contains", domain)
     .limit(1)
     .get();
@@ -124,8 +124,8 @@ async function createRequest(req, res) {
     if (profileDoc.exists && profileDoc.data().status === "active") {
       clientProfile = { id: profileDoc.id, ...profileDoc.data() };
       const organizationDoc = await adminDb
-        .collection("client_organizations")
-        .doc(clientProfile.organizationId)
+        .collection("customers")
+        .doc(clientProfile.customerId)
         .get();
       if (!organizationDoc.exists)
         return res
@@ -163,7 +163,7 @@ async function createRequest(req, res) {
   if (organization?.id) {
     const duplicate = await adminDb
       .collection("vendor_requests")
-      .where("organizationId", "==", organization.id)
+      .where("customerId", "==", organization.id)
       .where("clientReference", "==", clientReference)
       .limit(1)
       .get();
@@ -179,7 +179,7 @@ async function createRequest(req, res) {
     companyName: clientProfile
       ? organization.name
       : clean(req.body.companyName, 150),
-    organizationId: organization?.id || "",
+    customerId: organization?.id || "",
     createdByClientUid: clientProfile?.id || user?.uid || "",
     requesterName: clientProfile
       ? clean(clientProfile.displayName, 120)
@@ -334,7 +334,7 @@ async function publicRequestStatus(req, res) {
     if (!message) return res.status(422).json({ error: "Enter a reply." });
     await adminDb.collection("job_messages").add({
       requestId,
-      organizationId: snapshot.data().organizationId || "",
+      customerId: snapshot.data().customerId || "",
       authorName: snapshot.data().requesterName,
       authorRole: "client",
       visibility: "client",
@@ -397,16 +397,13 @@ async function registerMembership(req, res) {
       .json({ error: "Verify your email before requesting company access." });
   const organization = await findOrganization(emailDomain(email));
   const requestedOrgId = clean(req.body?.organizationId, 100);
-  const organizationId = organization?.id || requestedOrgId;
-  if (!organizationId)
+  const customerId = organization?.id || requestedOrgId;
+  if (!customerId)
     return res.status(422).json({
       error:
         "No approved company matches this email domain. Submit a first job request or contact TechSavvy.",
     });
-  const org = await adminDb
-    .collection("client_organizations")
-    .doc(organizationId)
-    .get();
+  const org = await adminDb.collection("customers").doc(customerId).get();
   if (!org.exists) return res.status(404).json({ error: "Company not found." });
   const requestedRoles = Array.isArray(req.body?.roles)
     ? req.body.roles.filter(
@@ -418,7 +415,7 @@ async function registerMembership(req, res) {
     .doc(user.uid)
     .set(
       {
-        organizationId,
+        customerId,
         email,
         displayName: clean(req.body?.displayName || user.name || email, 120),
         phone: normalizePhone(req.body?.phone),
@@ -450,7 +447,7 @@ async function registerMembership(req, res) {
   matchingRequests.docs.forEach((doc) =>
     batch.set(
       doc.ref,
-      { createdByClientUid: user.uid, organizationId, updatedAt: nowIso() },
+      { createdByClientUid: user.uid, customerId, updatedAt: nowIso() },
       { merge: true },
     ),
   );
@@ -460,7 +457,7 @@ async function registerMembership(req, res) {
       await adminDb.collection("jobs").doc(request.data().convertedJobId).set(
         {
           createdByClientUid: user.uid,
-          clientOrganizationId: organizationId,
+          customerId,
           updatedAt: nowIso(),
         },
         { merge: true },
@@ -472,7 +469,7 @@ async function registerMembership(req, res) {
           {
             jobId: request.data().convertedJobId,
             clientUid: user.uid,
-            organizationId,
+            customerId,
             roles: ["requester"],
             notifications: { email: true, sms: req.body?.smsConsent === true },
             createdAt: nowIso(),
@@ -654,17 +651,14 @@ async function getMe(req, res) {
       .status(200)
       .json({ user: { uid: user.uid, email: user.email }, profile: null });
   const data = profile.data();
-  const org = data.organizationId
-    ? await adminDb
-        .collection("client_organizations")
-        .doc(data.organizationId)
-        .get()
+  const org = data.customerId
+    ? await adminDb.collection("customers").doc(data.customerId).get()
     : null;
   let members = [];
   if (data.status === "active" && hasRole(data, "company_admin")) {
     const memberSnapshot = await adminDb
       .collection("client_users")
-      .where("organizationId", "==", data.organizationId)
+      .where("customerId", "==", data.customerId)
       .limit(100)
       .get();
     members = memberSnapshot.docs.map((doc) => {
@@ -698,7 +692,7 @@ async function listJobs(req, res) {
   const { profile } = await requireClient(req);
   const jobsSnapshot = await adminDb
     .collection("jobs")
-    .where("clientOrganizationId", "==", profile.organizationId)
+    .where("customerId", "==", profile.customerId)
     .limit(100)
     .get();
   let allowedIds = null;
@@ -844,7 +838,7 @@ async function postMessage(req, res) {
   const token = opaqueToken();
   const ref = await adminDb.collection("job_messages").add({
     jobId,
-    organizationId: profile.organizationId,
+    customerId: profile.customerId,
     authorUid: profile.id,
     authorName: profile.displayName,
     authorRole: "client",
@@ -858,7 +852,7 @@ async function postMessage(req, res) {
     : undefined;
   await adminDb.collection("conversation_tokens").doc(hashValue(token)).set({
     jobId,
-    organizationId: profile.organizationId,
+    customerId: profile.customerId,
     active: true,
     createdAt: nowIso(),
   });
@@ -963,7 +957,7 @@ async function requestScopeChange(req, res) {
   const job = await adminDb.collection("jobs").doc(jobId).get();
   const ref = await adminDb.collection("scope_versions").add({
     jobId,
-    organizationId: profile.organizationId,
+    customerId: profile.customerId,
     version: Number(job.data().currentScopeVersion || 1) + 1,
     status: "client_requested",
     reason,
@@ -993,7 +987,7 @@ async function approveCompanyMember(req, res) {
       .json({ error: "Company Administrator role required." });
   const uid = clean(req.body?.uid, 128);
   const target = await adminDb.collection("client_users").doc(uid).get();
-  if (!target.exists || target.data().organizationId !== profile.organizationId)
+  if (!target.exists || target.data().customerId !== profile.customerId)
     return res.status(404).json({ error: "Membership request not found." });
   if (
     target.data().emailVerified !== true ||

@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   if (!response.ok) return res.status(502).json({ error: 'Could not retrieve inbound email.' });
   const message = clean(email.text || email.html?.replace(/<[^>]+>/g, ' ') || data.subject, 10000);
   const jobId = tokenDoc.data().jobId;
-  await adminDb.collection('job_messages').add({ jobId, organizationId: tokenDoc.data().organizationId, authorName: clean(data.from, 200), authorRole: 'email', visibility: 'client', message, subject: clean(data.subject, 300), source: 'email', providerId: emailId, attachments: data.attachments || [], createdAt: nowIso() });
+  await adminDb.collection('job_messages').add({ jobId, customerId: tokenDoc.data().customerId, authorName: clean(data.from, 200), authorRole: 'email', visibility: 'client', message, subject: clean(data.subject, 300), source: 'email', providerId: emailId, attachments: data.attachments || [], createdAt: nowIso() });
   await recordEvent({ jobId, type: 'email_reply_received', actorRole: 'client', visibility: 'client', message: 'A reply was added to the job conversation.' });
   return res.status(200).json({ received: true });
 }

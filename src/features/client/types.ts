@@ -8,7 +8,7 @@ export type ClientRole =
 
 export interface ClientProfile {
   id: string;
-  organizationId: string;
+  customerId: string;
   email: string;
   displayName: string;
   phone: string;

@@ -133,7 +133,7 @@ export async function canAccessJob(profile, jobId) {
     adminDb.collection("jobs").doc(jobId).get(),
     adminDb.collection("job_participants").doc(participantId).get(),
   ]);
-  if (!job.exists || job.data().clientOrganizationId !== profile.organizationId)
+  if (!job.exists || job.data().customerId !== profile.customerId)
     return false;
   return job.data().createdByClientUid === profile.id || participant.exists;
 }
