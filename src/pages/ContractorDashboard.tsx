@@ -200,7 +200,7 @@ export default function ContractorDashboard() {
         setAssignedJobIds(data.assignedJobIds || []);
         setSavedTechnicianSignature(data.technicianSignature || '');
         setNotificationProfile(data.notificationProfile || null);
-        if (userRole === 'contractor') setJobSitesList(data.jobs || []);
+        setJobSitesList(data.jobs || []);
         if (data.activeEntry) {
           const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
           setActiveShift({ isClockedIn: true, startTime: data.activeEntry.clockIn, jobName: data.activeEntry.jobSite, elapsedSeconds: Math.max(0, Math.floor((Date.now() - started) / 1000)) });
@@ -210,14 +210,8 @@ export default function ContractorDashboard() {
       }
     };
     void loadTimeClock();
-    // Keep the approval view current while technicians are clocking time in
-    // the field, without requiring the administrator to refresh the browser.
-    const refreshTimer = userRole === 'admin'
-      ? window.setInterval(() => { void loadTimeClock(); }, 30000)
-      : null;
     return () => {
       cancelled = true;
-      if (refreshTimer) window.clearInterval(refreshTimer);
     };
   }, [isAuthenticated, userRole]);
 
@@ -981,7 +975,7 @@ export default function ContractorDashboard() {
                           {jobSitesList.filter((job) => {
                             if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase())) return false;
                             const assignedIds = getAssignedTechIds(job);
-                            return userRole === 'admin' || assignedIds.includes('ALL') || assignedJobIds.includes(job.id);
+                            return assignedIds.includes('ALL') || assignedJobIds.includes(job.id);
                           }).map((site) => (
                             <option key={site.id} value={site.id} className="bg-slate-900 text-slate-100 py-1">
                               {site.name}
@@ -1773,7 +1767,7 @@ export default function ContractorDashboard() {
 
       {isSigningWorkOrder && selectedJobObj && (
         <Suspense fallback={null}>
-          <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={userRole === 'contractor' ? saveTechnicianSignature : undefined} onClose={() => setIsSigningWorkOrder(false)} onComplete={(workOrder) => { setJobSitesList((current) => current.map((job) => job.id === selectedJobObj.id ? { ...job, signedWorkOrders: [...(job.signedWorkOrders || []), workOrder], signatureStatus: 'signed' } : job)); setIsSigningWorkOrder(false); }} />
+          <WorkOrderSigningModal job={selectedJobObj} technicianName={loginEmail} savedTechnicianSignature={savedTechnicianSignature} onSaveTechnicianSignature={saveTechnicianSignature} onClose={() => setIsSigningWorkOrder(false)} onComplete={(workOrder) => { setJobSitesList((current) => current.map((job) => job.id === selectedJobObj.id ? { ...job, signedWorkOrders: [...(job.signedWorkOrders || []), workOrder], signatureStatus: 'signed' } : job)); setIsSigningWorkOrder(false); }} />
         </Suspense>
       )}
       <SupportTicketModal
