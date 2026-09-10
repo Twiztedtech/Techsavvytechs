@@ -19,7 +19,6 @@ service cloud.firestore {
     // Client portal records are projected through authenticated server APIs.
     // Keeping these collections server-only prevents cross-company access and
     // ensures contractor private fields never reach client browsers.
-    match /client_organizations/{document=**} { allow read, write: if false; }
     match /client_users/{document=**} { allow read, write: if false; }
     match /vendor_requests/{document=**} { allow read, write: if false; }
     match /appointments/{document=**} { allow read, write: if false; }
