@@ -73,6 +73,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Materials/parts catalog with pricing and on-hand quantity.
+    match /catalog_items/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
     // Immutable administrator and system activity history.
     match /audit_logs/{auditId} {
       allow read, create: if isAdmin();

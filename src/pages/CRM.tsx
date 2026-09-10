@@ -34,6 +34,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -107,6 +108,17 @@ const tones: Record<string, string> = {
   slate: "border-slate-400/20 bg-slate-500/15 text-slate-700",
 };
 
+type CatalogItem = {
+  id: string;
+  name: string;
+  sku?: string;
+  category?: string;
+  unitPrice?: number;
+  quantityOnHand?: number;
+  reorderThreshold?: number;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
 type LiveCustomer = {
   id: string;
   name: string;
@@ -303,6 +315,7 @@ export default function CRM() {
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
   const [billingTimeEntries, setBillingTimeEntries] = useState<BillingTimeEntry[]>([]);
   const [assets, setAssets] = useState<CustomerAsset[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [reminderDeliveries, setReminderDeliveries] = useState<ReminderDelivery[]>([]);
   const [createType, setCreateType] = useState<"customer" | "job" | null>(null);
@@ -411,6 +424,9 @@ export default function CRM() {
     const stopAuditLogs = onSnapshot(collection(db, "audit_logs"), (snapshot) =>
       setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
     );
+    const stopCatalogItems = onSnapshot(collection(db, "catalog_items"), (snapshot) =>
+      setCatalogItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as CatalogItem)),
+    );
     const stopReminderDeliveries = onSnapshot(collection(db, "reminder_deliveries"), (snapshot) =>
       setReminderDeliveries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ReminderDelivery)),
     );
@@ -424,6 +440,7 @@ export default function CRM() {
       stopAssets();
       stopAuditLogs();
       stopReminderDeliveries();
+      stopCatalogItems();
     };
   }, [access]);
   const jobsForTable = useMemo(
@@ -680,6 +697,8 @@ export default function CRM() {
                 onOpen={setSelectedJob}
                 onSchedule={setScheduleJob}
               />
+            ) : module === "catalog" ? (
+              <CatalogView items={catalogItems} jobs={liveJobs} onOpenJob={setSelectedJob} />
             ) : module === "invoices" ? (
               <InvoicesView
                 invoices={liveInvoices}
@@ -1207,6 +1226,185 @@ function ReportBar({ label, width, display, danger = false }: { key?: string; la
   return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-tech-green"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
 }
 function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-[10px] text-slate-400">{text}</div>; }
+
+function CatalogView({
+  items,
+  jobs,
+  onOpenJob,
+}: {
+  items: CatalogItem[];
+  jobs: LiveJob[];
+  onOpenJob: (job: LiveJob) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [editingItem, setEditingItem] = useState<CatalogItem | "new" | null>(null);
+  const money = (value = 0) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  const visible = items.filter((item) =>
+    [item.name, item.sku, item.category].filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase()),
+  );
+  const lowStock = items.filter((item) => (item.quantityOnHand ?? 0) <= (item.reorderThreshold ?? 5));
+  const stockValue = items.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantityOnHand || 0), 0);
+  const remove = async (item: CatalogItem) => {
+    if (!confirm(`Remove ${item.name} from the catalog?`)) return;
+    await deleteDoc(doc(db, "catalog_items", item.id));
+    await recordAudit("deleted", "catalog_item", item.id, `Removed catalog item ${item.name}`, {});
+  };
+  return (
+    <div className="space-y-5">
+      <section className="rounded border border-slate-200 bg-white shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-sm font-bold">Materials & stock catalog</h2>
+            <p className="text-[10px] text-slate-400">Pricing and on-hand quantity for parts and materials</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search catalog…"
+              className="rounded border border-slate-200 px-3 py-2 text-xs outline-none focus:border-tech-green"
+            />
+            <button onClick={() => setEditingItem("new")} className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white">
+              <Plus className="mr-1 inline h-3 w-3" /> Add item
+            </button>
+          </div>
+        </header>
+        <div className="grid gap-3 p-4 sm:grid-cols-3">
+          <div className="rounded border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[9px] font-bold uppercase text-slate-400">Catalog items</p>
+            <p className="mt-1 font-display text-xl">{items.length}</p>
+          </div>
+          <div className="rounded border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[9px] font-bold uppercase text-slate-400">Low stock</p>
+            <p className={`mt-1 font-display text-xl ${lowStock.length ? "text-orange-600" : ""}`}>{lowStock.length}</p>
+          </div>
+          <div className="rounded border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[9px] font-bold uppercase text-slate-400">Stock value</p>
+            <p className="mt-1 font-display text-xl">{money(stockValue)}</p>
+          </div>
+        </div>
+        {visible.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left">
+              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+                <tr>
+                  {["Item", "SKU", "Category", "Unit price", "On hand", "Status", "Actions"].map((h) => (
+                    <th key={h} className="px-4 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visible.map((item) => {
+                  const low = (item.quantityOnHand ?? 0) <= (item.reorderThreshold ?? 5);
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-[11px] font-semibold">{item.name}</td>
+                      <td className="px-4 py-3 text-[10px] text-slate-400">{item.sku || "—"}</td>
+                      <td className="px-4 py-3 text-[10px] text-slate-400">{item.category || "—"}</td>
+                      <td className="px-4 py-3 text-[10px]">{money(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-[10px] font-semibold">{item.quantityOnHand ?? 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-[9px] ${low ? "bg-orange-50 text-orange-700" : "bg-green-50 text-green-700"}`}>
+                          {low ? "Low stock" : "In stock"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingItem(item)} className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold">Edit</button>
+                          <button onClick={() => void remove(item)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid min-h-48 place-items-center p-6 text-center">
+            <div>
+              <Boxes className="mx-auto h-8 w-8 text-slate-300" />
+              <p className="mt-3 text-xs font-semibold">{items.length ? "No items match your search" : "No catalog items yet"}</p>
+              <p className="mt-1 text-[10px] text-slate-400">Add parts and materials to track pricing and on-hand quantity.</p>
+            </div>
+          </div>
+        )}
+      </section>
+      <MaterialAllocations jobs={jobs} onOpen={onOpenJob} />
+      {editingItem && (
+        <CatalogItemModal item={editingItem === "new" ? null : editingItem} onClose={() => setEditingItem(null)} />
+      )}
+    </div>
+  );
+}
+
+function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: item?.name || "",
+    sku: item?.sku || "",
+    category: item?.category || "",
+    unitPrice: String(item?.unitPrice ?? ""),
+    quantityOnHand: String(item?.quantityOnHand ?? "0"),
+    reorderThreshold: String(item?.reorderThreshold ?? "5"),
+  });
+  const [saving, setSaving] = useState(false);
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const data = {
+        name: form.name.trim(),
+        sku: form.sku.trim(),
+        category: form.category.trim(),
+        unitPrice: Number(form.unitPrice || 0),
+        quantityOnHand: Number(form.quantityOnHand || 0),
+        reorderThreshold: Number(form.reorderThreshold || 0),
+        updatedAt: serverTimestamp(),
+      };
+      if (item) {
+        await updateDoc(doc(db, "catalog_items", item.id), data);
+        await recordAudit("updated", "catalog_item", item.id, `Updated catalog item ${data.name}`, {});
+      } else {
+        const created = await addDoc(collection(db, "catalog_items"), { ...data, createdAt: serverTimestamp() });
+        await recordAudit("created", "catalog_item", created.id, `Added catalog item ${data.name}`, {});
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form onSubmit={save} className="w-full max-w-md rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl">
+        <div className="flex items-start justify-between">
+          <h2 className="font-display text-lg uppercase">{item ? "Edit catalog item" : "Add catalog item"}</h2>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3">
+          <Field label="Item name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="SKU" value={form.sku} onChange={(v) => setForm({ ...form, sku: v })} />
+            <Field label="Category" value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Unit price" value={form.unitPrice} onChange={(v) => setForm({ ...form, unitPrice: v })} type="number" />
+            <Field label="On hand" value={form.quantityOnHand} onChange={(v) => setForm({ ...form, quantityOnHand: v })} type="number" />
+            <Field label="Reorder at" value={form.reorderThreshold} onChange={(v) => setForm({ ...form, reorderThreshold: v })} type="number" />
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">Cancel</button>
+          <button disabled={saving} className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+            {saving ? "Saving…" : "Save item"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function MaterialAllocations({ jobs, onOpen }: { jobs: LiveJob[]; onOpen: (job: LiveJob) => void }) {
   const allocations = jobs.flatMap((job) => (job.equipment || []).map((item, index) => ({ job, item, index })));
