@@ -3,7 +3,7 @@ import { auth, db, storage } from '../lib/firebase';
 import { addDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { SupportTicket, NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
@@ -20,6 +20,7 @@ const TechnicianWorkOrderPreview = lazy(() => import('../features/contractor/wor
 
 
 export default function ContractorDashboard() {
+  const navigate = useNavigate();
   // Authentication & View State
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
@@ -93,8 +94,12 @@ export default function ContractorDashboard() {
       alert('This email has not been invited to the Contractor Portal. Please contact TechSavvy for access.');
       return;
     }
-    setCanAccessAdmin(isAdmin);
-    setUserRole(isAdmin ? 'admin' : 'contractor');
+    if (isAdmin) {
+      navigate('/crm', { replace: true });
+      return;
+    }
+    setCanAccessAdmin(false);
+    setUserRole('contractor');
     setIsAuthenticated(true);
   }), []);
 

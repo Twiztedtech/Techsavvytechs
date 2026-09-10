@@ -2253,7 +2253,7 @@ function JobDetailModal({
             />
             Signature required before completion
           </label>
-          <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-green-700 underline" href="/contractor/dashboard?adminTab=timecards">Review timecards</a></div>
+          <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-green-700 underline" href="/crm">Review timecards</a></div>
           <label className="sm:col-span-2 text-[9px] font-bold uppercase text-slate-500">
             Job and site notes
             <textarea
