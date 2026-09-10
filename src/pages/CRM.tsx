@@ -792,6 +792,7 @@ function CustomersView({
   const [inviting, setInviting] = useState("");
   const [managing, setManaging] = useState("");
   const [portalDays, setPortalDays] = useState(90);
+  const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
   const invite = async (customer: LiveCustomer) => {
     setInviting(customer.id);
     try {
@@ -851,9 +852,17 @@ function CustomersView({
                 key={c.id}
                 className="rounded border border-slate-200 p-4 hover:border-tech-green/40"
               >
-                <span className="grid h-9 w-9 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep">
-                  <Building2 className="h-4 w-4" />
-                </span>
+                <div className="flex items-start justify-between">
+                  <span className="grid h-9 w-9 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <button
+                    onClick={() => setEditingCustomer(c)}
+                    className="text-[9px] font-bold uppercase text-slate-400 hover:text-tech-green-deep"
+                  >
+                    Edit
+                  </button>
+                </div>
                 <h3 className="mt-4 text-xs font-bold">{c.name}</h3>
                 <p className="text-[10px] text-slate-400">
                   Primary: {c.contact || "Not set"}
@@ -907,7 +916,76 @@ function CustomersView({
           onCreate={onCreate}
         />
       )}
+      {editingCustomer && (
+        <CustomerEditModal customer={editingCustomer} onClose={() => setEditingCustomer(null)} />
+      )}
     </section>
+  );
+}
+
+function CustomerEditModal({
+  customer,
+  onClose,
+}: {
+  customer: LiveCustomer;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: customer.name || "",
+    contact: customer.contact || "",
+    email: customer.email || "",
+    phone: customer.phone || "",
+    lifetimeValue: String(customer.lifetimeValue || ""),
+  });
+  const [saving, setSaving] = useState(false);
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "customers", customer.id), {
+        name: form.name.trim(),
+        contact: form.contact.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        lifetimeValue: Number(form.lifetimeValue || 0),
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit("updated", "customer", customer.id, `Updated customer ${form.name.trim()}`, {});
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={save}
+        className="w-full max-w-md rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"
+      >
+        <div className="flex items-start justify-between">
+          <h2 className="font-display text-lg uppercase">Edit customer</h2>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3">
+          <Field label="Customer name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
+          <Field label="Primary contact" value={form.contact} onChange={(v) => setForm({ ...form, contact: v })} />
+          <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
+          <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+          <Field label="Lifetime value" value={form.lifetimeValue} onChange={(v) => setForm({ ...form, lifetimeValue: v })} type="number" />
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">
+            Cancel
+          </button>
+          <button disabled={saving} className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+            {saving ? "Saving…" : "Save customer"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
