@@ -21,7 +21,7 @@ async function listDashboard(res) {
     scopeChanges,
   ] = await Promise.all([
     adminDb.collection("vendor_requests").limit(100).get(),
-    adminDb.collection("client_organizations").limit(100).get(),
+    adminDb.collection("customers").limit(100).get(),
     adminDb.collection("client_users").limit(200).get(),
     adminDb.collection("settings").doc("client_portal").get(),
     adminDb.collection("appointments").limit(200).get(),
@@ -67,13 +67,15 @@ async function listDashboard(res) {
 }
 
 async function saveOrganization(req, res, admin) {
-  const organizationId =
+  // Phase 1 of the customers/client_organizations merge: this now reads and
+  // writes the CRM `customers` collection instead of `client_organizations`.
+  // `organizationId` in the request body is kept as the external field name
+  // (ClientCompanyEditor.tsx isn't changed in this phase) but is now a
+  // `customers` document id.
+  const customerId =
     clean(req.body?.organizationId, 120) ||
-    adminDb.collection("client_organizations").doc().id;
-  const current = await adminDb
-    .collection("client_organizations")
-    .doc(organizationId)
-    .get();
+    adminDb.collection("customers").doc().id;
+  const current = await adminDb.collection("customers").doc(customerId).get();
   const domains = Array.isArray(req.body?.approvedDomains)
     ? req.body.approvedDomains
         .map((v) => clean(v, 120).toLowerCase().replace(/^@/, ""))
@@ -138,13 +140,10 @@ async function saveOrganization(req, res, admin) {
   };
   if (!data.name)
     return res.status(422).json({ error: "Company name is required." });
-  await adminDb
-    .collection("client_organizations")
-    .doc(organizationId)
-    .set(data, { merge: true });
+  await adminDb.collection("customers").doc(customerId).set(data, { merge: true });
   return res
     .status(200)
-    .json({ organization: { id: organizationId, ...data } });
+    .json({ organization: { id: customerId, ...data } });
 }
 
 async function approveMember(req, res, admin) {
