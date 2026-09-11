@@ -1245,6 +1245,9 @@ export default function ContractorDashboard() {
                     </div>
 
                     {/* TIME & RATE GRID */}
+                    {alreadyLoggedForManualDate && (
+                      <p className="rounded-lg border border-green-500/30 bg-green-500/10 p-2.5 text-[11px] font-semibold text-green-300">✓ Hours for this job on {logDate} already come from the time clock and won't change here — add supplies, travel, notes, or mark it complete below.</p>
+                    )}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">Clock In</label>
@@ -1252,7 +1255,8 @@ export default function ContractorDashboard() {
                           type="time"
                           value={clockIn}
                           onChange={(e) => setClockIn(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                          disabled={alreadyLoggedForManualDate}
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 disabled:opacity-40"
                         />
                       </div>
 
@@ -1262,7 +1266,8 @@ export default function ContractorDashboard() {
                           type="time"
                           value={clockOut}
                           onChange={(e) => setClockOut(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                          disabled={alreadyLoggedForManualDate}
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 disabled:opacity-40"
                         />
                       </div>
 
@@ -1272,7 +1277,8 @@ export default function ContractorDashboard() {
                           type="number"
                           value={breakMinutes}
                           onChange={(e) => setBreakMinutes(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                          disabled={alreadyLoggedForManualDate}
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 disabled:opacity-40"
                         />
                       </div>
 
@@ -1453,17 +1459,13 @@ export default function ContractorDashboard() {
                       </div>
                     )}
 
-                    {alreadyLoggedForManualDate ? (
-                      <p className="rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-center text-xs font-bold text-green-300">✓ Already logged for this job on {logDate} via the time clock — no manual entry needed.</p>
-                    ) : (
-                      <button
-                        type="submit"
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
-                      >
-                        <span>{completionIntent === 'final' && !isCustomJob ? 'Submit Final Entry & Complete Job' : 'Submit Progress Time for Review'}</span>
-                        <span>→</span>
-                      </button>
-                    )}
+                    <button
+                      type="submit"
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
+                    >
+                      <span>{alreadyLoggedForManualDate ? 'Update supplies / notes for this shift' : completionIntent === 'final' && !isCustomJob ? 'Submit Final Entry & Complete Job' : 'Submit Progress Time for Review'}</span>
+                      <span>→</span>
+                    </button>
                       </>
                     )}
                   </form>

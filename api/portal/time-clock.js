@@ -710,24 +710,31 @@ export default async function handler(req, res) {
       const signatureExceptionNotes = cleanReason(req.body?.signatureExceptionNotes);
 
       let assignedJob = null;
+      let existingLiveEntry = null;
       if (jobId) {
         assignedJob = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId) || null;
         if (!assignedJob) return res.status(403).json({ error: 'You are not assigned to this work order.' });
         if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
           return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
         }
-        // Manual entry is only a fallback for a forgotten clock-in. If the time
-        // clock was already used for this job today (or a manual entry already
-        // exists), this submission would be a duplicate -- reject it rather
-        // than double-paying the technician and double-billing the customer.
+        // Manual entry is only a fallback for a forgotten clock-in, but techs
+        // routinely still use this same form afterward to attach supplies,
+        // travel, notes, photos, or mark the job complete for a shift they
+        // already clocked. So: if today's existing entry for this job came
+        // from the time clock (has clockInAt), this submission updates it in
+        // place -- adding the extras without touching the authoritative
+        // clock-derived hours. If it came from an earlier manual submission
+        // instead, a second one really would duplicate hours -- reject that.
         const alreadyLoggedToday = await adminDb.collection('time_entries')
           .where('technicianUid', '==', user.uid)
           .where('jobId', '==', jobId)
           .where('date', '==', date || businessDate(new Date()))
           .get();
-        if (alreadyLoggedToday.docs.some((doc) => doc.data().status !== 'voided')) {
+        const existingNonVoided = alreadyLoggedToday.docs.find((doc) => doc.data().status !== 'voided');
+        if (existingNonVoided && !existingNonVoided.data().clockInAt) {
           return res.status(409).json({ error: 'You already have hours logged for this job today.' });
         }
+        existingLiveEntry = existingNonVoided || null;
       }
       // A technician's self-reported rate is only used for ad-hoc entries with
       // no assigned work order. Once a real job is matched, its administrator-set
@@ -761,36 +768,63 @@ export default async function handler(req, res) {
       }
 
       const now = new Date();
+      const existingData = existingLiveEntry?.data();
+      // Adding supplies/travel/notes/photos/completion to an already-clocked
+      // shift: keep the authoritative clock-derived hours untouched (don't
+      // let the pre-filled form fields overwrite them), preserve laborStatus
+      // as-is (hours haven't changed), and only put suppliesStatus/travelStatus
+      // back to pending because this submission may be adding them for the
+      // first time.
+      const isLaborActive = Number(totalHours || existingData?.totalHours || 0) > 0;
+      const isSuppliesActive = Number(suppliesCost) > 0;
+      const isTravelActive = Number(travelCost) > 0;
+      const laborStatus = existingData?.laborStatus || 'pending';
+      const suppliesStatus = isSuppliesActive ? 'pending' : (existingData?.suppliesStatus || 'pending');
+      const travelStatus = isTravelActive ? 'pending' : (existingData?.travelStatus || 'pending');
+      const overallStatus = completionUpdate
+        ? (existingData?.status || 'pending')
+        : ((!isLaborActive || laborStatus === 'approved') && (!isSuppliesActive || suppliesStatus === 'approved') && (!isTravelActive || travelStatus === 'approved')
+          ? 'approved'
+          : (existingData?.status && existingData.status !== 'pending' ? existingData.status : 'pending'));
       const entry = {
         jobId: jobId || '',
         jobSite: jobSite || 'Custom Job Site',
         address: address || 'Address on file',
         date: date || businessDate(now),
-        clockIn: clockIn || '07:00',
-        clockOut: clockOut || '15:30',
-        breakMinutes,
-        totalHours: totalHours || '8.50',
+        ...(existingLiveEntry ? {
+          clockIn: existingData.clockIn,
+          clockOut: existingData.clockOut,
+          clockInAt: existingData.clockInAt,
+          clockOutAt: existingData.clockOutAt,
+          breakMinutes: existingData.breakMinutes,
+          totalHours: existingData.totalHours,
+        } : {
+          clockIn: clockIn || '07:00',
+          clockOut: clockOut || '15:30',
+          breakMinutes,
+          totalHours: totalHours || '8.50',
+        }),
         rate,
         suppliesCost,
         suppliesItems,
         travelCost,
-        laborStatus: 'pending',
-        suppliesStatus: 'pending',
-        travelStatus: 'pending',
+        laborStatus,
+        suppliesStatus,
+        travelStatus,
         notes,
-        status: 'pending',
-        qbStatus: 'pending',
+        status: overallStatus,
+        qbStatus: existingData?.qbStatus || 'pending',
         photos,
         completionIntent,
         signatureDisposition: completionIntent === 'final' ? (completionUpdate?.signatureStatus || 'signed') : 'not_applicable',
         ...(completionIntent === 'final' && completionUpdate?.signatureStatus === 'technician_exception' ? { signatureExceptionReason, signatureExceptionNotes } : {}),
         technicianUid: user.uid,
         active: false,
-        createdAt: now.toISOString(),
+        createdAt: existingData?.createdAt || now.toISOString(),
         updatedAt: now.toISOString(),
       };
 
-      const entryRef = adminDb.collection('time_entries').doc();
+      const entryRef = existingLiveEntry ? existingLiveEntry.ref : adminDb.collection('time_entries').doc();
       let notifyCompletion = false;
       if (assignedJob && completionUpdate) {
         // A transaction closes the window between checking completionNotifiedAt
