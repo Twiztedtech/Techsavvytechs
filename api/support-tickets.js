@@ -37,10 +37,8 @@ async function submitTicket(req, res) {
 
 async function listTickets(req, res) {
   await requireAdmin(req);
-  const snapshot = await adminDb.collection('support_tickets').limit(200).get();
-  const tickets = snapshot.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const snapshot = await adminDb.collection('support_tickets').orderBy('createdAt', 'desc').limit(200).get();
+  const tickets = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   return res.status(200).json({ tickets });
 }
 
