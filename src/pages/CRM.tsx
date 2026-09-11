@@ -36,7 +36,10 @@ import {
   collection,
   deleteDoc,
   doc,
+  limit,
   onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   updateDoc,
   writeBatch,
@@ -422,8 +425,10 @@ export default function CRM() {
           ),
         ),
     );
-    const stopAuditLogs = onSnapshot(collection(db, "audit_logs"), (snapshot) =>
-      setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
+    const stopAuditLogs = onSnapshot(
+      query(collection(db, "audit_logs"), orderBy("createdAt", "desc"), limit(500)),
+      (snapshot) =>
+        setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
     );
     const stopCatalogItems = onSnapshot(collection(db, "catalog_items"), (snapshot) =>
       setCatalogItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as CatalogItem)),
