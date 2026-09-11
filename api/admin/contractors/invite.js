@@ -51,7 +51,7 @@ async function sendBrandedInvitation({ email, name, resetLink }) {
 
 const terminalJobStatuses = new Set(['complete', 'completed', 'closed', 'cancelled', 'canceled', 'voided']);
 
-const assignedContractorIds = (job) => Array.isArray(job.assignedTechIds)
+const assignedContractorIds = (job) => Array.isArray(job.assignedTechIds) && job.assignedTechIds.length > 0
   ? job.assignedTechIds
   : [job.assignedTechId || 'ALL'];
 
