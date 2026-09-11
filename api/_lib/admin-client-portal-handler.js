@@ -300,6 +300,18 @@ async function convertRequest(req, res, admin) {
     currentScopeVersion: 1,
     closeoutStatus: "",
     conversationTokenHash: hashValue(conversationToken),
+    // Same defaults buildJobRecord() applies on every other job-creation path
+    // (src/features/jobs/buildJobRecord.ts) -- kept in sync manually since this
+    // server file can't import that client-side TS module. status must never be
+    // left undefined (technician job-list queries filter on it), and
+    // signatureRequired must be a real boolean, never undefined, or the
+    // "require signature before completion" policy silently never applies.
+    status: "New",
+    signatureRequired: false,
+    signatureStatus: "pending",
+    signaturePolicyUpdatedAt: nowIso(),
+    signaturePolicyUpdatedByUid: admin.uid || "",
+    signaturePolicyHistory: [{ required: false, changedAt: nowIso(), changedByUid: admin.uid || "" }],
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
