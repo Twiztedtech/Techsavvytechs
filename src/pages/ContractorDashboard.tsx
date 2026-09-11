@@ -270,6 +270,16 @@ export default function ContractorDashboard() {
   const activeJobSites = jobSitesList.filter((job) => !['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase()));
   const selectedJobObj = activeJobSites.find(j => j.id === selectedJobId) || activeJobSites[0];
 
+  // The time clock is the default way to log a shift; manual entry is only a
+  // fallback for a forgotten clock-in. Whichever method is used first for a
+  // job on a given day should be the only one used -- these mirror the
+  // server-side dedup check in api/portal/time-clock.js so a tech sees why a
+  // button is disabled instead of hitting a rejected submission.
+  const todayStr = new Date().toISOString().split('T')[0];
+  const hasLoggedEntryFor = (jobId, date) => timeEntries.some((entry) => entry.jobId === jobId && entry.date === date && entry.status !== 'voided');
+  const alreadyClockedInToday = Boolean(selectedJobId) && hasLoggedEntryFor(selectedJobId, todayStr);
+  const alreadyLoggedForManualDate = Boolean(selectedJobId) && !isCustomJob && hasLoggedEntryFor(selectedJobId, logDate);
+
   // Filtered History Entries
   const filteredHistoryEntries = timeEntries.filter(entry => {
     const matchesJob = historyFilterJob === 'ALL' || entry.jobSite === historyFilterJob;
@@ -937,9 +947,11 @@ export default function ContractorDashboard() {
                         <button
                           type="button"
                           onClick={handleStartShift}
-                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition shadow-lg shadow-green-600/20 flex items-center gap-1.5"
+                          disabled={alreadyClockedInToday}
+                          title={alreadyClockedInToday ? 'You already have hours logged for this job today.' : undefined}
+                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition shadow-lg shadow-green-600/20 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          🟢 Clock In Now
+                          🟢 {alreadyClockedInToday ? 'Already logged today' : 'Clock In Now'}
                         </button>
                       ) : (
                         <button
@@ -1441,13 +1453,17 @@ export default function ContractorDashboard() {
                       </div>
                     )}
 
-                    <button
-                      type="submit"
-                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
-                    >
-                      <span>{completionIntent === 'final' && !isCustomJob ? 'Submit Final Entry & Complete Job' : 'Submit Progress Time for Review'}</span>
-                      <span>→</span>
-                    </button>
+                    {alreadyLoggedForManualDate ? (
+                      <p className="rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-center text-xs font-bold text-green-300">✓ Already logged for this job on {logDate} via the time clock — no manual entry needed.</p>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
+                      >
+                        <span>{completionIntent === 'final' && !isCustomJob ? 'Submit Final Entry & Complete Job' : 'Submit Progress Time for Review'}</span>
+                        <span>→</span>
+                      </button>
+                    )}
                       </>
                     )}
                   </form>

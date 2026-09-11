@@ -615,6 +615,19 @@ export default async function handler(req, res) {
       if (!job) return res.status(403).json({ error: 'You are not assigned to this work order.' });
       if (job.data().status === 'voided') return res.status(409).json({ error: 'This work order has been voided and is no longer active.' });
       const now = new Date();
+      // The time clock is the default way to log a shift; manual entry is only
+      // a fallback for when a tech forgot to clock in onsite. Whichever method
+      // is used first for a job on a given day wins -- a second attempt via the
+      // other method is rejected rather than creating a duplicate, double-paid,
+      // double-billed entry.
+      const alreadyLoggedToday = await adminDb.collection('time_entries')
+        .where('technicianUid', '==', user.uid)
+        .where('jobId', '==', jobId)
+        .where('date', '==', businessDate(now))
+        .get();
+      if (alreadyLoggedToday.docs.some((doc) => doc.data().status !== 'voided')) {
+        return res.status(409).json({ error: 'You already have hours logged for this job today. No need to clock in again.' });
+      }
       const entry = {
         jobId,
         jobSite: job.data().name,
@@ -702,6 +715,18 @@ export default async function handler(req, res) {
         if (!assignedJob) return res.status(403).json({ error: 'You are not assigned to this work order.' });
         if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
           return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
+        }
+        // Manual entry is only a fallback for a forgotten clock-in. If the time
+        // clock was already used for this job today (or a manual entry already
+        // exists), this submission would be a duplicate -- reject it rather
+        // than double-paying the technician and double-billing the customer.
+        const alreadyLoggedToday = await adminDb.collection('time_entries')
+          .where('technicianUid', '==', user.uid)
+          .where('jobId', '==', jobId)
+          .where('date', '==', date || businessDate(new Date()))
+          .get();
+        if (alreadyLoggedToday.docs.some((doc) => doc.data().status !== 'voided')) {
+          return res.status(409).json({ error: 'You already have hours logged for this job today.' });
         }
       }
       // A technician's self-reported rate is only used for ad-hoc entries with
