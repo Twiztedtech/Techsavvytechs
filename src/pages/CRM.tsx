@@ -39,7 +39,7 @@ import {
   limit,
   onSnapshot,
   orderBy,
-  query,
+  query as firestoreQuery,
   serverTimestamp,
   updateDoc,
   writeBatch,
@@ -426,7 +426,7 @@ export default function CRM() {
         ),
     );
     const stopAuditLogs = onSnapshot(
-      query(collection(db, "audit_logs"), orderBy("createdAt", "desc"), limit(500)),
+      firestoreQuery(collection(db, "audit_logs"), orderBy("createdAt", "desc"), limit(500)),
       (snapshot) =>
         setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
     );
