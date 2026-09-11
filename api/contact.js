@@ -431,8 +431,8 @@ async function reminderCandidates() {
   const tomorrow = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
   const maintenanceLimit = new Date(today.getTime() + 14 * 86400000).toISOString().slice(0, 10);
   const candidates = [];
-  jobsSnapshot.docs.forEach((doc) => { const entity = doc.data(); const serviceDate = entity.schedule?.date || entity.targetCompletion; if (serviceDate === tomorrow) candidates.push({ type: "appointment", entityId: doc.id, entity, customer: customerByName.get(entity.vendorName) }); });
-  quotesSnapshot.docs.forEach((doc) => { const entity = doc.data(); const created = dateValue(entity.createdAt); if (["Pending", "Sent", "Draft"].includes(entity.status) && (!created || today.getTime() - created.getTime() >= 3 * 86400000)) candidates.push({ type: "quote", entityId: doc.id, entity, customer: customerByName.get(entity.customer) }); });
+  jobsSnapshot.docs.forEach((doc) => { const entity = doc.data(); const serviceDate = entity.schedule?.date || entity.targetCompletion; if (serviceDate === tomorrow) candidates.push({ type: "appointment", entityId: doc.id, entity, customer: (entity.customerId && customerById.get(entity.customerId)) || customerByName.get(entity.vendorName) }); });
+  quotesSnapshot.docs.forEach((doc) => { const entity = doc.data(); const created = dateValue(entity.createdAt); if (["Pending", "Sent", "Draft"].includes(entity.status) && (!created || today.getTime() - created.getTime() >= 3 * 86400000)) candidates.push({ type: "quote", entityId: doc.id, entity, customer: (entity.customerId && customerById.get(entity.customerId)) || customerByName.get(entity.customer) }); });
   invoicesSnapshot.docs.forEach((doc) => { const entity = doc.data(); if (Number(entity.balance || 0) > 0 && entity.dueDate && new Date(`${entity.dueDate}T00:00:00`) < today) candidates.push({ type: "invoice", entityId: doc.id, entity, customer: customerByName.get(entity.customer) }); });
   assetsSnapshot.docs.forEach((doc) => { const entity = doc.data(); const due = entity.maintenance?.nextServiceDate; if (entity.status === "Active" && entity.maintenance?.enabled && due && due >= today.toISOString().slice(0, 10) && due <= maintenanceLimit) candidates.push({ type: "maintenance", entityId: doc.id, entity, customer: customerById.get(entity.customerId) }); });
   return candidates.filter((candidate) => candidate.customer);
@@ -468,8 +468,15 @@ async function sendManualReminder(req, res) {
   const entitySnapshot = await adminDb.collection(collectionName).doc(entityId).get();
   if (!entitySnapshot.exists) return res.status(404).json({ error: "The reminder record was not found." });
   const entity = entitySnapshot.data();
-  const customerSnapshot = type === "maintenance" ? await adminDb.collection("customers").doc(entity.customerId).get() : await adminDb.collection("customers").where("name", "==", entity.vendorName || entity.customer).limit(1).get();
-  const customer = type === "maintenance" ? (customerSnapshot.exists ? { id: customerSnapshot.id, ...customerSnapshot.data() } : null) : (customerSnapshot.empty ? null : { id: customerSnapshot.docs[0].id, ...customerSnapshot.docs[0].data() });
+  let customer = null;
+  if (entity.customerId) {
+    const byIdSnapshot = await adminDb.collection("customers").doc(entity.customerId).get();
+    if (byIdSnapshot.exists) customer = { id: byIdSnapshot.id, ...byIdSnapshot.data() };
+  }
+  if (!customer) {
+    const byNameSnapshot = await adminDb.collection("customers").where("name", "==", entity.vendorName || entity.customer).limit(1).get();
+    if (!byNameSnapshot.empty) customer = { id: byNameSnapshot.docs[0].id, ...byNameSnapshot.docs[0].data() };
+  }
   if (!customer) return res.status(422).json({ error: "The record is not linked to a customer." });
   const result = await deliverReminder({ type, entityId, entity, customer, actor: user, manual: true });
   return res.status(200).json({ success: true, ...result, email: customer.email });
