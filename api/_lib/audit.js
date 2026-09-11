@@ -12,7 +12,7 @@ export async function writeAudit({ actor, action, entityType, entityId, summary,
       summary,
       details,
       source,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
     });
   } catch (error) {
     console.error("Audit log write failed:", error);
