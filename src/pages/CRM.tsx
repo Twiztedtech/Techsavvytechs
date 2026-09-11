@@ -51,7 +51,7 @@ import {
 } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../lib/firebase";
-import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate } from "../features/crm/record-links";
+import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate, needsDispatch } from "../features/crm/record-links";
 import { saveJob } from "../features/jobs/saveJob";
 import { buildJobRecord } from "../features/jobs/buildJobRecord";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
@@ -484,7 +484,7 @@ export default function CRM() {
     const overdue = liveInvoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today);
     const currency = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
     return [
-      { label: "New requests", value: newJobs.length, icon: Inbox, tone: "sky", sub: `${newJobs.filter((job) => !job.assignedTechId && !job.assignedTechName).length} unassigned` },
+      { label: "New requests", value: newJobs.length, icon: Inbox, tone: "sky", sub: `${newJobs.filter(needsDispatch).length} unassigned` },
       { label: "Quotes pending", value: pendingQuotes.length, icon: FileText, tone: "orange", sub: currency(pendingQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0)) },
       { label: "Jobs in progress", value: activeJobs.length, icon: HardHat, tone: "green", sub: `${activeJobs.filter((job) => job.schedule?.date).length} scheduled` },
       { label: "Ready to invoice", value: readyToInvoice.length, icon: ReceiptText, tone: "violet", sub: currency(readyToInvoice.reduce((sum, job) => sum + Number(job.quotedValue || 0), 0)) },
@@ -1123,7 +1123,7 @@ function ReportsView({
   const completedJobs = jobs.filter((job) => isClosedJob(job) && !['Cancelled', 'voided'].includes(job.status || ''));
   const marginJobs = jobs.filter((job) => Number.isFinite(Number(job.margin)) && Number(job.margin) !== 0);
   const averageMargin = marginJobs.length ? marginJobs.reduce((sum, job) => sum + Number(job.margin || 0), 0) / marginJobs.length : 0;
-  const unassigned = activeJobs.filter((job) => !job.assignedTechId && !job.assignedTechName).length;
+  const unassigned = activeJobs.filter(needsDispatch).length;
   const maintenanceAssets = assets.filter((asset) => asset.maintenance?.enabled);
   const dueMaintenance = maintenanceAssets.filter((asset) => asset.maintenance?.nextServiceDate && new Date(`${asset.maintenance.nextServiceDate}T00:00:00`) <= new Date(today.getTime() + 30 * 86400000));
 
@@ -2048,7 +2048,7 @@ function LiveSchedulingQueue({
   jobs: LiveJob[];
   onSchedule: (job: LiveJob) => void;
 }) {
-  const queue = jobs.filter((job) => !job.assignedTechName);
+  const queue = jobs.filter(needsDispatch);
   return (
     <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
@@ -3892,7 +3892,7 @@ function ScheduleModal({
   technicians: Technician[];
   onClose: () => void;
 }) {
-  const [techIds, setTechIds] = useState<string[]>(job.assignedTechIds?.length ? job.assignedTechIds : job.assignedTechId ? [job.assignedTechId] : []);
+  const [techIds, setTechIds] = useState<string[]>((job.assignedTechIds?.length ? job.assignedTechIds : job.assignedTechId ? [job.assignedTechId] : []).filter((id) => id !== "ALL"));
   const [date, setDate] = useState(job.schedule?.date || job.targetCompletion || "");
   const [start, setStart] = useState(job.schedule?.start || "08:00");
   const [end, setEnd] = useState(job.schedule?.end || "12:00");

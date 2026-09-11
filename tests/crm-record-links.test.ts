@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assignmentIds, customerFor, isClosedJob, laborSummary, localDate } from '../src/features/crm/record-links.ts';
+import { assignmentIds, customerFor, isClosedJob, laborSummary, localDate, needsDispatch } from '../src/features/crm/record-links.ts';
 import { businessClock, businessDate } from '../api/_lib/business-time.js';
 test('legacy approved timecards count without billing markers, rejected/voided/running do not', () => {
   assert.deepEqual(laborSummary([
@@ -20,6 +20,14 @@ test('stable customer ID wins; ambiguous names never auto-link', () => {
   assert.equal(customerFor({ vendorName: ' atg ' }, customers.slice(0, 1))?.id, 'a');
 });
 test('assignment IDs retain lead order and do not duplicate', () => assert.deepEqual(assignmentIds({ assignedTechId: 'b', assignedTechIds: ['a', 'b'] }), ['b', 'a']));
+test('"ALL" assignment still needs dispatch; a specific technician does not', () => {
+  assert.equal(needsDispatch({}), true);
+  assert.equal(needsDispatch({ assignedTechIds: [] }), true);
+  assert.equal(needsDispatch({ assignedTechIds: ['ALL'] }), true);
+  assert.equal(needsDispatch({ assignedTechId: 'ALL' }), true);
+  assert.equal(needsDispatch({ assignedTechIds: ['ALL', 'tech-1'] }), false);
+  assert.equal(needsDispatch({ assignedTechId: 'tech-1' }), false);
+});
 test('billing-complete jobs do not inflate active workload', () => {
   for (const status of ['Invoiced', 'Ready to Invoice', 'Field Complete', 'voided']) assert.equal(isClosedJob({ status }), true);
   assert.equal(isClosedJob({ status: 'Scheduled' }), false);

@@ -2,6 +2,12 @@ type Assignment = { assignedTechId?: string; assignedTechIds?: string[] };
 export function assignmentIds(job: Assignment): string[] {
   return [...new Set([job.assignedTechId, ...(job.assignedTechIds || [])].filter((id): id is string => Boolean(id)))];
 }
+// "ALL" means the job is open to any technician, not that a specific one
+// has taken it -- it must still count as unassigned for dispatch queues
+// and unassigned KPIs, the same as having no assignment at all.
+export function needsDispatch(job: Assignment): boolean {
+  return !assignmentIds(job).some((id) => id !== 'ALL');
+}
 export function isClosedJob(job: { status?: string }): boolean {
   return ['complete', 'completed', 'closed', 'cancelled', 'canceled', 'voided', 'invoiced', 'ready to invoice', 'field complete'].includes((job.status || '').toLowerCase());
 }
