@@ -665,8 +665,14 @@ export default async function handler(req, res) {
       if (!activeEntry) return res.status(409).json({ error: 'There is no active shift to stop.' });
       const ended = new Date();
       const started = new Date(activeEntry.clockInAt || activeEntry.clockIn);
-      const totalHours = Math.max(0, (ended.getTime() - started.getTime()) / 3600000).toFixed(2);
-      const update = { clockOut: businessClock(ended), clockOutAt: ended.toISOString(), totalHours, active: false, updatedAt: ended.toISOString() };
+      const rawHours = Math.max(0, (ended.getTime() - started.getTime()) / 3600000);
+      // The live clock has no break/pause control, so an unrecorded lunch would
+      // otherwise be billed to the customer and paid to the technician as worked
+      // time. Auto-deduct a standard 30-minute meal break for any shift long
+      // enough to plausibly include one, matching the manual log form's default.
+      const breakMinutes = rawHours > 5 ? 30 : 0;
+      const totalHours = Math.max(0, rawHours - breakMinutes / 60).toFixed(2);
+      const update = { clockOut: businessClock(ended), clockOutAt: ended.toISOString(), breakMinutes, totalHours, active: false, updatedAt: ended.toISOString() };
       await adminDb.collection('time_entries').doc(activeEntry.id).set(update, { merge: true });
       return res.status(200).json({ entry: { ...activeEntry, ...update } });
     }
