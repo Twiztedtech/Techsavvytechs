@@ -4,6 +4,20 @@ import { getEntryTotals } from "../contractor/timesheets/calculations";
 
 type Entry = Record<string, any> & { id: string };
 
+// Mirrors the server's timeEntryFullyApproved() in api/portal/time-clock.js --
+// entry.status can read "approved" once any single active line item is
+// approved (see setItemStatus below), so it alone does not mean every line
+// item has cleared review and is safe to sync to QuickBooks.
+function isFullyApproved(entry: Entry): boolean {
+  const checks: [boolean, string][] = [
+    [Number(entry.totalHours || 0) > 0, entry.laborStatus],
+    [Number(entry.suppliesCost || 0) > 0, entry.suppliesStatus],
+    [Number(entry.travelCost || 0) > 0, entry.travelStatus],
+    [Number(entry.bonusCost || 0) > 0, entry.bonusStatus],
+  ];
+  return checks.every(([active, status]) => !active || status === "approved");
+}
+
 async function timeClockApi(body: Record<string, any>) {
   const token = await auth.currentUser?.getIdToken();
   const response = await fetch("/api/portal/time-clock", {
@@ -231,7 +245,7 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                       <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-semibold rounded cursor-help" title={entry.qboSyncError}>QBO Sync Failed</span>
                       <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow">🔄 Retry Sync</button>
                     </span>
-                  ) : entry.status === "approved" ? (
+                  ) : entry.status === "approved" && isFullyApproved(entry) ? (
                     <span className="flex items-center gap-2">
                       <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[9px] font-semibold rounded">Ready for QBO Sync</span>
                       <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow">Sync to QuickBooks</button>

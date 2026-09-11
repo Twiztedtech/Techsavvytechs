@@ -988,7 +988,7 @@ export default async function handler(req, res) {
           if (!snapshot.exists) throw Object.assign(new Error('Time entry not found.'), { status: 404 });
           const data = snapshot.data();
           if (data.status === 'voided') throw Object.assign(new Error('Voided submissions cannot be synced to QuickBooks.'), { status: 409 });
-          if (data.status !== 'approved') throw Object.assign(new Error('Only fully approved submissions can be synced to QuickBooks.'), { status: 409 });
+          if (!timeEntryFullyApproved(data)) throw Object.assign(new Error('Only fully approved submissions can be synced to QuickBooks.'), { status: 409 });
           if (data.qbStatus === 'synced') throw Object.assign(new Error('This submission has already been synced to QuickBooks.'), { status: 409 });
           if (data.qbStatus === 'syncing') throw Object.assign(new Error('A QuickBooks sync is already in progress for this submission.'), { status: 409 });
           tx.update(docRef, { qbStatus: 'syncing', updatedAt: new Date().toISOString() });
