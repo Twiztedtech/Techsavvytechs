@@ -399,6 +399,17 @@ export async function reconcileQboInvoices() {
   const now = new Date();
   const changes = [];
 
+  // So a newly-imported invoice can resolve customerId, not just a display
+  // name -- requires syncQboCustomers() to have linked/created the customer
+  // first (its qboCustomerId matches CustomerRef.value here).
+  const customersSnapshot = await adminDb.collection("customers").get();
+  const customerByQboId = new Map(
+    customersSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter((c) => c.qboCustomerId)
+      .map((c) => [String(c.qboCustomerId), c.id]),
+  );
+
   // Invoices created directly in QuickBooks (not through this app) have no
   // local record at all, so the loop below -- which only ever updates
   // existing local docs -- would never see them. Mirror a lightweight record
@@ -437,7 +448,7 @@ export async function reconcileQboInvoices() {
     await ref.set({
       invoiceNumber: remote.DocNumber || `QBO-${qboId}`,
       jobId: null,
-      customerId: null,
+      customerId: customerByQboId.get(String(remote.CustomerRef?.value || "")) || null,
       workOrderNumber: "",
       customer: remote.CustomerRef?.name || "QuickBooks customer",
       site: "",
@@ -504,6 +515,87 @@ export async function reconcileQboInvoices() {
     if (changed) changes.push({ id: local.id, invoiceNumber: local.invoiceNumber || local.id, previousBalance: Number(local.balance ?? local.total ?? 0), balance, amountPaid, status });
   }
   return { checked: localInvoices.length, updated: changes.length, imported, changes };
+}
+
+// Pulls QuickBooks' customer list into the CRM's own `customers` collection,
+// so future invoice imports (see the loop above) can resolve `customerId`
+// via the stable `qboCustomerId` link instead of a fragile name match, and
+// so new jobs/quotes/invoices created in the CRM can be billed against the
+// same customer identity QuickBooks already has. Never overwrites an
+// existing CRM customer's other fields -- an already-matched name only gets
+// the qboCustomerId link backfilled onto it. A name matching more than one
+// local customer is left unresolved (reported, not guessed) rather than
+// risking a wrong link.
+export async function syncQboCustomers() {
+  const { accessToken, realmId } = await getValidQboToken();
+  const query = encodeURIComponent("select * from Customer maxresults 1000");
+  const response = await fetch(
+    `${qboCompanyBaseUrl(realmId)}/query?query=${query}&minorversion=75`,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } },
+  );
+  if (!response.ok)
+    throw new Error("QuickBooks customer sync failed: " + (await response.text()));
+  const qboCustomers = ((await response.json()).QueryResponse?.Customer || [])
+    .filter((customer) => customer.Active !== false && customer.Job !== true);
+
+  const localSnapshot = await adminDb.collection("customers").get();
+  const localCustomers = localSnapshot.docs.map((doc) => ({ id: doc.id, ref: doc.ref, ...doc.data() }));
+  const localByQboId = new Map(localCustomers.filter((c) => c.qboCustomerId).map((c) => [String(c.qboCustomerId), c]));
+  const localByName = new Map();
+  for (const local of localCustomers) {
+    const key = String(local.name || "").trim().toLowerCase();
+    if (!key) continue;
+    if (!localByName.has(key)) localByName.set(key, []);
+    localByName.get(key).push(local);
+  }
+
+  const now = new Date().toISOString();
+  const linked = [];
+  const created = [];
+  const ambiguous = [];
+  let alreadyLinked = 0;
+
+  for (const remote of qboCustomers) {
+    const qboId = String(remote.Id);
+    if (localByQboId.has(qboId)) {
+      alreadyLinked++;
+      continue;
+    }
+    const name = String(remote.DisplayName || remote.CompanyName || "").trim();
+    if (!name) continue;
+    const nameMatches = localByName.get(name.toLowerCase()) || [];
+    if (nameMatches.length > 1) {
+      ambiguous.push({ qboId, name, localMatches: nameMatches.map((c) => c.id) });
+      continue;
+    }
+    if (nameMatches.length === 1) {
+      await nameMatches[0].ref.update({ qboCustomerId: qboId, updatedAt: now });
+      linked.push({ qboId, name, customerId: nameMatches[0].id });
+      continue;
+    }
+    const ref = adminDb.collection("customers").doc();
+    await ref.set({
+      name,
+      contact: "",
+      email: remote.PrimaryEmailAddr?.Address || "",
+      phone: remote.PrimaryPhone?.FreeFormNumber || "",
+      sites: remote.BillAddr?.Line1 ? [remote.BillAddr.Line1] : [],
+      assets: 0,
+      lifetimeValue: 0,
+      qboCustomerId: qboId,
+      importedFromQbo: true,
+      personnel: [],
+      billingRecipientEmails: [],
+      approvedDomains: [],
+      referencePrefixes: [],
+      defaultContactPolicy: "techsavvy_only",
+      createdAt: now,
+      updatedAt: now,
+    });
+    created.push({ qboId, name, customerId: ref.id });
+  }
+
+  return { totalQboCustomers: qboCustomers.length, alreadyLinked, linked, created, ambiguous };
 }
 
 /**

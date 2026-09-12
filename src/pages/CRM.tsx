@@ -124,6 +124,7 @@ type CatalogItem = {
   createdAt?: unknown;
   updatedAt?: unknown;
 };
+type CustomerPersonnel = { id?: string; name: string; email: string; role: string; active?: boolean };
 type LiveCustomer = {
   id: string;
   name: string;
@@ -135,6 +136,12 @@ type LiveCustomer = {
   lifetimeValue?: number;
   portalDelivery?: { status: string; email: string; sentAt: string; expiresAt?: string; revokedAt?: string };
   reminderPreferences?: { enabled?: boolean; appointment?: boolean; quote?: boolean; invoice?: boolean; maintenance?: boolean };
+  qboCustomerId?: string;
+  personnel?: CustomerPersonnel[];
+  billingRecipientEmails?: string[];
+  approvedDomains?: string[];
+  referencePrefixes?: string[];
+  defaultContactPolicy?: string;
 };
 type LiveJob = {
   id: string;
@@ -820,6 +827,22 @@ function CustomersView({
   const [managing, setManaging] = useState("");
   const [portalDays, setPortalDays] = useState(90);
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
+  const [syncingCustomers, setSyncingCustomers] = useState(false);
+  const syncFromQuickBooks = async () => {
+    setSyncingCustomers(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/admin/quickbooks/status?operation=sync-customers", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "QuickBooks customer sync failed.");
+      const ambiguousNote = result.ambiguous.length ? ` ${result.ambiguous.length} name(s) matched more than one CRM customer and were left unresolved -- check the Audit Trail for details.` : "";
+      alert(`QuickBooks customer sync complete: ${result.linked.length} linked to existing customers, ${result.created.length} new customers created.${ambiguousNote}`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "QuickBooks customer sync failed.");
+    } finally {
+      setSyncingCustomers(false);
+    }
+  };
   const invite = async (customer: LiveCustomer) => {
     setInviting(customer.id);
     try {
@@ -866,7 +889,10 @@ function CustomersView({
             Live contacts, sites, assets and transaction history
           </p>
         </div>
-        <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-400">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-slate-200 px-2 py-1.5 text-[10px] font-semibold normal-case text-slate-700"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => void syncFromQuickBooks()} disabled={syncingCustomers} className="rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[9px] font-bold uppercase text-tech-green-deep disabled:opacity-40">{syncingCustomers ? "Syncing…" : "Sync from QuickBooks"}</button>
+          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-400">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-slate-200 px-2 py-1.5 text-[10px] font-semibold normal-case text-slate-700"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
+        </div>
       </header>
       {records.length ? (
         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
@@ -892,7 +918,7 @@ function CustomersView({
                 </div>
                 <h3 className="mt-4 text-xs font-bold">{c.name}</h3>
                 <p className="text-[10px] text-slate-400">
-                  Primary: {c.contact || "Not set"}
+                  Primary: {c.personnel?.find((p) => p.role === "primary_contact" && p.active !== false)?.name || c.contact || "Not set"}
                 </p>
                 {(() => {
                   const expiresAt = c.portalDelivery?.expiresAt;
@@ -950,6 +976,18 @@ function CustomersView({
   );
 }
 
+const customerPersonnelRoleLabels: Record<string, string> = {
+  primary_contact: "Primary contact",
+  owner: "Owner",
+  requester: "Requester",
+  sales: "Sales",
+  project_manager: "Project manager",
+  payroll: "Payroll",
+  accounts_payable: "Accounts payable",
+  manager: "Manager",
+  other: "Other",
+};
+
 function CustomerEditModal({
   customer,
   onClose,
@@ -964,10 +1002,21 @@ function CustomerEditModal({
     phone: customer.phone || "",
     lifetimeValue: String(customer.lifetimeValue || ""),
   });
+  const [personnel, setPersonnel] = useState<CustomerPersonnel[]>(
+    customer.personnel?.length ? customer.personnel.map((p) => ({ ...p, active: p.active !== false })) : [],
+  );
   const [saving, setSaving] = useState(false);
+  const updatePerson = (index: number, field: keyof CustomerPersonnel, value: string) =>
+    setPersonnel((current) => current.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
+  const removePerson = (index: number) => setPersonnel((current) => current.filter((_, i) => i !== index));
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
+    const cleanPersonnel = personnel
+      .filter((p) => p.name.trim() || p.email.trim())
+      .map((p) => ({ id: p.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: p.name.trim(), email: p.email.trim().toLowerCase(), role: p.role || "other", active: p.active !== false }));
+    const incomplete = cleanPersonnel.find((p) => !p.name || !p.email);
+    if (incomplete) { alert("Each person needs both a name and an email address."); return; }
     setSaving(true);
     try {
       await updateDoc(doc(db, "customers", customer.id), {
@@ -976,6 +1025,7 @@ function CustomerEditModal({
         email: form.email.trim(),
         phone: form.phone.trim(),
         lifetimeValue: Number(form.lifetimeValue || 0),
+        personnel: cleanPersonnel,
         updatedAt: serverTimestamp(),
       });
       await recordAudit("updated", "customer", customer.id, `Updated customer ${form.name.trim()}`, {});
@@ -988,7 +1038,7 @@ function CustomerEditModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={save}
-        className="w-full max-w-md rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"
       >
         <div className="flex items-start justify-between">
           <h2 className="font-display text-lg uppercase">Edit customer</h2>
@@ -1002,6 +1052,26 @@ function CustomerEditModal({
           <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
           <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
           <Field label="Lifetime value" value={form.lifetimeValue} onChange={(v) => setForm({ ...form, lifetimeValue: v })} type="number" />
+        </div>
+        <div className="mt-5 rounded border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">People at this company</p>
+            <button type="button" onClick={() => setPersonnel((current) => [...current, { name: "", email: "", role: "other", active: true }])} className="rounded border border-tech-green/30 px-2 py-1 text-[9px] font-bold text-tech-green-deep">+ Add person</button>
+          </div>
+          <p className="mb-2 text-[9px] text-slate-400">The company stays on file even if the people here change — reassign roles instead of recreating the customer.</p>
+          <div className="space-y-2">
+            {personnel.map((person, index) => (
+              <div key={person.id || index} className="grid gap-2 rounded border border-slate-200 bg-white p-2 md:grid-cols-[1fr_1.3fr_1fr_auto]">
+                <input value={person.name} onChange={(e) => updatePerson(index, "name", e.target.value)} placeholder="Name" className="rounded border border-slate-200 px-2 py-1.5 text-xs" />
+                <input type="email" value={person.email} onChange={(e) => updatePerson(index, "email", e.target.value)} placeholder="Email" className="rounded border border-slate-200 px-2 py-1.5 text-xs" />
+                <select value={person.role} onChange={(e) => updatePerson(index, "role", e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-xs">
+                  {Object.entries(customerPersonnelRoleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <button type="button" onClick={() => removePerson(index)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Remove</button>
+              </div>
+            ))}
+            {!personnel.length && <p className="py-2 text-center text-[10px] text-slate-400">No one added yet.</p>}
+          </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">

@@ -1,6 +1,6 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
-import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices } from '../../_lib/qbo-helper.js';
+import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers } from '../../_lib/qbo-helper.js';
 import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
@@ -19,6 +19,19 @@ export default async function handler(req, res) {
       const result = await reconcileQboInvoices();
       for (const change of result.changes) await writeAudit({ actor: user, action: 'payment-reconciled', entityType: 'invoice', entityId: change.id, summary: `QuickBooks updated ${change.invoiceNumber}: balance ${change.previousBalance} → ${change.balance}`, details: change, source: 'api' });
       await writeAudit({ actor: user, action: 'reconciled', entityType: 'quickbooks', entityId: 'invoices', summary: `Reconciled ${result.checked} QuickBooks invoice${result.checked === 1 ? '' : 's'}; ${result.updated} balance${result.updated === 1 ? '' : 's'} changed; ${result.imported || 0} new invoice${result.imported === 1 ? '' : 's'} imported from QuickBooks`, details: { checked: result.checked, updated: result.updated, imported: result.imported || 0 }, source: 'api' });
+      return res.status(200).json({ success: true, ...result });
+    }
+    if (req.method === 'POST' && req.query?.operation === 'sync-customers') {
+      const result = await syncQboCustomers();
+      await writeAudit({
+        actor: user,
+        action: 'customers-synced',
+        entityType: 'quickbooks',
+        entityId: 'customers',
+        summary: `Synced QuickBooks customers: ${result.linked.length} linked to existing CRM customers, ${result.created.length} new customers created, ${result.ambiguous.length} left unresolved (name matched more than one CRM customer)`,
+        details: result,
+        source: 'api',
+      });
       return res.status(200).json({ success: true, ...result });
     }
     if (req.method === 'POST' && req.query?.operation === 'sync-invoice') {
