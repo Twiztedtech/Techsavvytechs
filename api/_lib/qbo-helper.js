@@ -367,12 +367,24 @@ export async function getQboInvoicePaymentLink(invoiceId) {
   return { invoice, invoiceLink: invoice?.InvoiceLink || null };
 }
 
+// Status is derived the same way for both a reconciled local invoice and a
+// freshly-imported one, so an invoice that started life in QuickBooks (never
+// created by this app) looks and sorts identically once it's mirrored here.
+function qboInvoiceStatus(remote, balance, amountPaid, now) {
+  const remoteStatus = String(remote.invoiceStatus || "").toUpperCase();
+  if (remoteStatus.includes("VOID")) return "Void";
+  if (balance === 0) return "Paid";
+  if (amountPaid > 0) return "Partially Paid";
+  if (remote.DueDate && new Date(`${remote.DueDate}T00:00:00`) < now) return "Overdue";
+  return "Open";
+}
+
 export async function reconcileQboInvoices() {
   const localSnapshot = await adminDb.collection("invoices").get();
   const localInvoices = localSnapshot.docs
     .map((doc) => ({ id: doc.id, ref: doc.ref, ...doc.data() }))
     .filter((invoice) => invoice.qboSync?.id);
-  if (!localInvoices.length) return { checked: 0, updated: 0, changes: [] };
+  const localQboIds = new Set(localInvoices.map((invoice) => String(invoice.qboSync.id)));
 
   const { accessToken, realmId } = await getValidQboToken();
   const query = encodeURIComponent("select * from Invoice maxresults 1000");
@@ -386,14 +398,74 @@ export async function reconcileQboInvoices() {
   const byId = new Map(qboInvoices.map((invoice) => [String(invoice.Id), invoice]));
   const now = new Date();
   const changes = [];
+
+  // Invoices created directly in QuickBooks (not through this app) have no
+  // local record at all, so the loop below -- which only ever updates
+  // existing local docs -- would never see them. Mirror a lightweight record
+  // for each one so revenue billed outside the CRM still shows up here (e.g.
+  // Job Profitability, the Invoices tab). This only starts capturing
+  // invoices from whatever's in QuickBooks as of now/each future run; it is
+  // not a historical backfill, and jobId is left unset since a QBO-only
+  // invoice has no CRM job to link to.
+  let imported = 0;
+  for (const remote of qboInvoices) {
+    const qboId = String(remote.Id);
+    if (localQboIds.has(qboId)) continue;
+    const total = Number(remote.TotalAmt || 0);
+    const balance = Math.max(0, Number(remote.Balance ?? total));
+    const amountPaid = Math.max(0, total - balance);
+    const status = qboInvoiceStatus(remote, balance, amountPaid, now);
+    const importedAt = new Date().toISOString();
+    const ref = adminDb.collection("invoices").doc();
+    await ref.set({
+      invoiceNumber: remote.DocNumber || `QBO-${qboId}`,
+      jobId: null,
+      customerId: null,
+      workOrderNumber: "",
+      customer: remote.CustomerRef?.name || "QuickBooks customer",
+      site: "",
+      status,
+      issueDate: remote.TxnDate || importedAt.slice(0, 10),
+      dueDate: remote.DueDate || "",
+      lineItems: [{ description: "Imported from QuickBooks", quantity: 1, unitPrice: total, kind: "service" }],
+      subtotal: total,
+      discount: 0,
+      taxRate: 0,
+      tax: 0,
+      total,
+      amountPaid,
+      balance,
+      payments: [],
+      paymentTerms: "",
+      customerMessage: "",
+      earlyBillingOverride: false,
+      sourceTimeEntryIds: [],
+      importedFromQbo: true,
+      qboSync: {
+        status: "synced",
+        id: remote.Id,
+        syncToken: remote.SyncToken || null,
+        invoiceLink: remote.InvoiceLink || null,
+        onlinePaymentEnabled: Boolean(remote.InvoiceLink),
+        lastReconciledAt: importedAt,
+        qboLastUpdatedAt: remote.MetaData?.LastUpdatedTime || null,
+        reconciliationStatus: "current",
+      },
+      createdAt: importedAt,
+      updatedAt: importedAt,
+    });
+    localQboIds.add(qboId);
+    imported++;
+  }
+
+  if (!localInvoices.length && !imported) return { checked: 0, updated: 0, imported: 0, changes: [] };
   for (const local of localInvoices) {
     const remote = byId.get(String(local.qboSync.id));
     if (!remote) continue;
     const total = Number(remote.TotalAmt ?? local.total ?? 0);
     const balance = Math.max(0, Number(remote.Balance ?? local.balance ?? total));
     const amountPaid = Math.max(0, total - balance);
-    const remoteStatus = String(remote.invoiceStatus || "").toUpperCase();
-    const status = remoteStatus.includes("VOID") ? "Void" : balance === 0 ? "Paid" : amountPaid > 0 ? "Partially Paid" : remote.DueDate && new Date(`${remote.DueDate}T00:00:00`) < now ? "Overdue" : "Open";
+    const status = qboInvoiceStatus(remote, balance, amountPaid, now);
     const changed = Number(local.balance ?? local.total ?? 0) !== balance || Number(local.amountPaid || 0) !== amountPaid || local.status !== status;
     const reconciledAt = new Date().toISOString();
     await local.ref.update({
@@ -414,7 +486,7 @@ export async function reconcileQboInvoices() {
     });
     if (changed) changes.push({ id: local.id, invoiceNumber: local.invoiceNumber || local.id, previousBalance: Number(local.balance ?? local.total ?? 0), balance, amountPaid, status });
   }
-  return { checked: localInvoices.length, updated: changes.length, changes };
+  return { checked: localInvoices.length, updated: changes.length, imported, changes };
 }
 
 /**

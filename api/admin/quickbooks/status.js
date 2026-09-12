@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && req.query?.operation === 'reconcile-invoices') {
       const result = await reconcileQboInvoices();
       for (const change of result.changes) await writeAudit({ actor: user, action: 'payment-reconciled', entityType: 'invoice', entityId: change.id, summary: `QuickBooks updated ${change.invoiceNumber}: balance ${change.previousBalance} → ${change.balance}`, details: change, source: 'api' });
-      await writeAudit({ actor: user, action: 'reconciled', entityType: 'quickbooks', entityId: 'invoices', summary: `Reconciled ${result.checked} QuickBooks invoice${result.checked === 1 ? '' : 's'}; ${result.updated} balance${result.updated === 1 ? '' : 's'} changed`, details: { checked: result.checked, updated: result.updated }, source: 'api' });
+      await writeAudit({ actor: user, action: 'reconciled', entityType: 'quickbooks', entityId: 'invoices', summary: `Reconciled ${result.checked} QuickBooks invoice${result.checked === 1 ? '' : 's'}; ${result.updated} balance${result.updated === 1 ? '' : 's'} changed; ${result.imported || 0} new invoice${result.imported === 1 ? '' : 's'} imported from QuickBooks`, details: { checked: result.checked, updated: result.updated, imported: result.imported || 0 }, source: 'api' });
       return res.status(200).json({ success: true, ...result });
     }
     if (req.method === 'POST' && req.query?.operation === 'sync-invoice') {

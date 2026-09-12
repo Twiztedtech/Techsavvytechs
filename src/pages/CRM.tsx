@@ -3078,7 +3078,7 @@ function InvoicesView({
       const response = await fetch("/api/admin/quickbooks/status?operation=reconcile-invoices", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "QuickBooks reconciliation failed.");
-      alert(`QuickBooks reconciliation complete: ${result.checked} checked, ${result.updated} balance${result.updated === 1 ? "" : "s"} changed.`);
+      alert(`QuickBooks reconciliation complete: ${result.checked} checked, ${result.updated} balance${result.updated === 1 ? "" : "s"} changed, ${result.imported || 0} new invoice${result.imported === 1 ? "" : "s"} imported.`);
     } catch (error) { alert(error instanceof Error ? error.message : "QuickBooks reconciliation failed."); }
     finally { setReconciling(false); }
   };
