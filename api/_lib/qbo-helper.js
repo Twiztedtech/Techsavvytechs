@@ -403,14 +403,31 @@ export async function reconcileQboInvoices() {
   // local record at all, so the loop below -- which only ever updates
   // existing local docs -- would never see them. Mirror a lightweight record
   // for each one so revenue billed outside the CRM still shows up here (e.g.
-  // Job Profitability, the Invoices tab). This only starts capturing
-  // invoices from whatever's in QuickBooks as of now/each future run; it is
-  // not a historical backfill, and jobId is left unset since a QBO-only
-  // invoice has no CRM job to link to.
+  // Job Profitability, the Invoices tab).
+  //
+  // IMPORTANT: this must never backfill QuickBooks' history into the CRM --
+  // the CRM is explicitly a lower-security surface than QuickBooks, so only
+  // invoices *created in QBO from this point forward* are mirrored here.
+  // The cutoff is a persisted watermark rather than "today", so it survives
+  // restarts and doesn't drift. The first run after this watermark is
+  // introduced sets it to now and imports nothing that run (there's nothing
+  // in QBO yet with a CreateTime after "now"); every run after that only
+  // imports invoices created after the watermark.
+  const qboSettingsRef = adminDb.collection("settings").doc("quickbooks");
+  const qboSettingsSnap = await qboSettingsRef.get();
+  let watermark = qboSettingsSnap.data()?.invoiceSyncWatermarkAt;
+  if (!watermark) {
+    watermark = now.toISOString();
+    await qboSettingsRef.set({ invoiceSyncWatermarkAt: watermark }, { merge: true });
+  }
+  const watermarkMs = new Date(watermark).getTime();
+
   let imported = 0;
   for (const remote of qboInvoices) {
     const qboId = String(remote.Id);
     if (localQboIds.has(qboId)) continue;
+    const createdAt = remote.MetaData?.CreateTime;
+    if (!createdAt || new Date(createdAt).getTime() < watermarkMs) continue;
     const total = Number(remote.TotalAmt || 0);
     const balance = Math.max(0, Number(remote.Balance ?? total));
     const amountPaid = Math.max(0, total - balance);
