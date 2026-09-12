@@ -157,6 +157,24 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
     }
   };
 
+  const correctRate = async (entry: Entry) => {
+    const input = window.prompt(`New pay rate for this shift (currently $${entry.rate || 75}/hr):`, String(entry.rate || ""));
+    if (input === null) return;
+    const rate = Number(input);
+    if (!(rate > 0)) {
+      alert("Please enter a valid positive hourly rate.");
+      return;
+    }
+    const reason = window.prompt("Reason for this rate correction?");
+    if (!reason?.trim()) return;
+    try {
+      const data = await timeClockApi({ action: "correct_rate", timecardId: entry.id, rate, reason: reason.trim() });
+      if (data.entry) setEntries((prev) => prev.map((item) => (item.id === entry.id ? { ...item, ...data.entry } : item)));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not correct the rate.");
+    }
+  };
+
   const addBonus = async (entry: Entry, amountStr: string) => {
     const amount = Number(amountStr);
     if (!(amount > 0)) {
@@ -308,6 +326,18 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
 
               <div className="flex-1 max-w-lg space-y-2">
                 {lineItem("Labor", "labor", "totalHours", "laborStatus", "laborFeedback", `${entry.totalHours} hrs @ $${entry.rate || 75}/hr`)}
+                {Number(entry.totalHours || 0) > 0 && entry.status !== "voided" && !entry.active && (
+                  entry.qbStatus === "synced" ? (
+                    <div className="px-1 text-[9px] text-slate-600">Rate locked — already synced to QuickBooks</div>
+                  ) : (
+                    <div className="px-1 flex items-center justify-between gap-2">
+                      <button type="button" onClick={() => correctRate(entry)} className="text-[9px] font-bold uppercase text-indigo-400 hover:text-indigo-300 underline underline-offset-2">✎ Correct rate</button>
+                      {entry.rateCorrection && (
+                        <span className="text-[9px] text-slate-500" title={entry.rateCorrection.reason}>was ${entry.rateCorrection.previousRate}/hr</span>
+                      )}
+                    </div>
+                  )
+                )}
                 {lineItem("Supplies", "supplies", "suppliesCost", "suppliesStatus", "suppliesFeedback", `$${Number(entry.suppliesCost || 0).toFixed(2)}`)}
                 {lineItem("Travel", "travel", "travelCost", "travelStatus", "travelFeedback", `$${Number(entry.travelCost || 0).toFixed(2)}`)}
                 {entry.bonusCost && Number(entry.bonusCost) > 0 ? (

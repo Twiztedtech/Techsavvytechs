@@ -1118,6 +1118,39 @@ export default async function handler(req, res) {
       }
     }
 
+    if (action === 'correct_rate') {
+      if (user.admin !== true) {
+        return res.status(403).json({ error: 'Administrator access required.' });
+      }
+
+      const timecardId = String(req.body?.timecardId || '');
+      const newRate = Number(req.body?.rate);
+      const reason = cleanReason(req.body?.reason);
+      if (!timecardId || !Number.isFinite(newRate) || newRate <= 0) {
+        return res.status(400).json({ error: 'A valid timecard ID and rate are required.' });
+      }
+      if (!reason) {
+        return res.status(422).json({ error: 'A reason is required to correct a pay rate.' });
+      }
+
+      const docRef = adminDb.collection('time_entries').doc(timecardId);
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.status === 'voided') return res.status(409).json({ error: 'Voided submissions cannot be changed.' });
+      if (entry.active) return res.status(409).json({ error: 'An active shift cannot have its rate corrected. Wait for the technician to clock out.' });
+      if (entry.qbStatus === 'synced') return res.status(409).json({ error: 'This entry is already synced to QuickBooks. Use "Reverse synced timecard" first, then correct the rate.' });
+
+      const previousRate = Number(entry.rate || 0);
+      const now = new Date().toISOString();
+      await docRef.set({
+        rate: newRate,
+        rateCorrection: { previousRate, newRate, reason, correctedAt: now, correctedByUid: user.uid },
+        updatedAt: now,
+      }, { merge: true });
+
+      return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, rate: newRate } });
+    }
     if (action === 'add_bonus') {
       if (user.admin !== true) {
         return res.status(403).json({ error: 'Administrator access required.' });
