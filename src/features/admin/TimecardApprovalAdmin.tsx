@@ -73,6 +73,9 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
   );
 
   const filtered = technicianFilter === "ALL" ? entries : entries.filter((entry) => entry.technicianUid === technicianFilter);
+  const totalOwed = filtered
+    .filter((tc) => tc.status !== "voided" && tc.qbStatus !== "synced")
+    .reduce((sum, tc) => sum + getEntryTotals(tc).totalGross, 0);
 
   const setItemStatus = async (entryId: string, itemType: string, status: "approved" | "rejected") => {
     let feedback = "";
@@ -172,7 +175,7 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
         <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
           <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending Timecards</div>
           <div className="text-2xl font-bold mt-1 text-amber-500">{filtered.filter((tc) => tc.status !== "approved" && tc.status !== "voided").length}</div>
@@ -188,6 +191,10 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
         <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
           <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sync Failures</div>
           <div className="text-2xl font-bold mt-1 text-red-500">{filtered.filter((tc) => tc.qbStatus === "failed").length}</div>
+        </div>
+        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
+          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Total Owed to Tech</div>
+          <div className="text-2xl font-bold mt-1 text-emerald-400">${totalOwed.toFixed(2)}</div>
         </div>
       </div>
 
