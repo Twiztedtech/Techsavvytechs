@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import {
   AlertTriangle,
   CalendarClock,
+  Paperclip,
   RefreshCw,
   UserPlus,
 } from "lucide-react";
@@ -97,7 +98,7 @@ export function ClientRequestsAdmin({
   };
   if (loading)
     return (
-      <div className="grid min-h-64 place-items-center text-sm text-slate-400">
+      <div className="grid min-h-64 place-items-center text-sm text-crm-muted">
         <RefreshCw className="h-5 w-5 animate-spin" />
       </div>
     );
@@ -110,19 +111,19 @@ export function ClientRequestsAdmin({
   return (
     <div className="space-y-6">
       {notice && (
-        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+        <div className="rounded border border-crm-warning/30 bg-crm-warning/10 p-3 text-xs text-amber-800">
           {notice}
         </div>
       )}
       {data.failedNotifications.length > 0 && (
-        <div className="flex gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+        <div className="flex gap-3 rounded-xl border border-crm-error/30 bg-crm-error/10 p-4 text-sm text-red-800">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <div>
             <strong>
               {data.failedNotifications.length} notification deliveries need
               attention.
             </strong>
-            <p className="mt-1 text-xs text-red-200/70">
+            <p className="mt-1 text-xs text-red-700/80">
               Review provider configuration or delivery errors before relying on
               alerts.
             </p>
@@ -147,51 +148,51 @@ export function ClientRequestsAdmin({
         ].map(([label, value]) => (
           <div
             key={String(label)}
-            className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+            className="rounded-xl border border-crm-hairline bg-crm-canvas p-4"
           >
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
               {label}
             </p>
-            <p className="mt-2 text-2xl font-black text-white">{value}</p>
+            <p className="crm-display-md mt-2 text-crm-ink">{value}</p>
           </div>
         ))}
       </div>
       <section>
-        <h3 className="mb-3 text-sm font-bold text-white">Job requests</h3>
+        <h3 className="mb-3 text-sm font-bold text-crm-ink">Job requests</h3>
         <div className="space-y-3">
           {openRequests.map((request: RequestRecord) => (
             <article
               key={request.id}
-              className="rounded-xl border border-slate-800 bg-slate-950 p-5"
+              className="rounded-xl border border-crm-hairline bg-crm-canvas p-5"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] text-green-400">
+                    <span className="font-mono text-[10px] text-crm-success">
                       {request.requestNumber}
                     </span>
                     {request.urgent && (
-                      <span className="rounded bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-300">
+                      <span className="rounded bg-crm-error/15 px-2 py-0.5 text-[9px] font-bold text-crm-error">
                         URGENT
                       </span>
                     )}
                   </div>
-                  <h4 className="mt-1 text-lg font-bold text-white">
+                  <h4 className="mt-1 text-lg font-bold text-crm-ink">
                     {request.siteName}
                   </h4>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-crm-muted">
                     {request.companyName} · {request.clientReference} ·{" "}
                     {request.requesterName}
                   </p>
-                  <p className="mt-2 text-xs text-slate-300">
+                  <p className="mt-2 text-xs text-crm-body">
                     {request.scopeSummary}
                   </p>
                   {request.scopeTasks?.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
                         Scope tasks
                       </p>
-                      <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-slate-300">
+                      <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-crm-body">
                         {request.scopeTasks.map(
                           (task: string, index: number) => (
                             <li key={`${index}-${task}`}>{task}</li>
@@ -202,17 +203,17 @@ export function ClientRequestsAdmin({
                   )}
                   {request.equipment?.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
                         Equipment and materials
                       </p>
-                      <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                      <ul className="mt-1 space-y-1 text-xs text-crm-body">
                         {request.equipment.map((item: any, index: number) => (
                           <li key={`${index}-${item.description}`}>
-                            <span className="font-bold text-white">
+                            <span className="font-bold text-crm-ink">
                               {item.quantity ? `${item.quantity} × ` : ""}
                               {item.description}
                             </span>{" "}
-                            <span className="text-slate-500">
+                            <span className="text-crm-muted">
                               —{" "}
                               {item.providedBy === "techsavvy"
                                 ? "TechSavvy provided"
@@ -225,10 +226,10 @@ export function ClientRequestsAdmin({
                   )}
                   {request.deliverables?.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
                         Required deliverables
                       </p>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-crm-body">
                         {request.deliverables.map(
                           (item: string, index: number) => (
                             <li key={`${index}-${item}`}>{item}</li>
@@ -238,18 +239,18 @@ export function ClientRequestsAdmin({
                     </div>
                   )}
                   {request.attachments?.length > 0 && (
-                    <p className="mt-3 text-xs font-bold text-amber-300">
-                      📎 {request.attachments.length} attached document
+                    <p className="mt-3 flex items-center gap-1.5 text-xs font-bold text-crm-warning">
+                      <Paperclip className="h-3.5 w-3.5" /> {request.attachments.length} attached document
                       {request.attachments.length === 1 ? "" : "s"}
                     </p>
                   )}
-                  <p className="mt-2 text-[10px] text-slate-500">
+                  <p className="mt-2 text-[10px] text-crm-muted">
                     Preferred: {request.requestedWindows?.[0]?.date}{" "}
                     {request.requestedWindows?.[0]?.start}–
                     {request.requestedWindows?.[0]?.end}
                   </p>
                 </div>
-                <span className="rounded bg-white/5 px-3 py-1 text-xs capitalize text-amber-300">
+                <span className="rounded-full bg-crm-warning/10 px-3 py-1 text-xs capitalize text-crm-warning">
                   {request.status.replace(/_/g, " ")}
                 </span>
               </div>
@@ -261,7 +262,7 @@ export function ClientRequestsAdmin({
                       status: "reviewing",
                     })
                   }
-                  className="rounded border border-slate-700 px-3 py-2 text-[10px] font-bold text-slate-300"
+                  className="rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body"
                 >
                   Reviewing
                 </button>
@@ -275,7 +276,7 @@ export function ClientRequestsAdmin({
                         reviewNote: note,
                       });
                   }}
-                  className="rounded border border-amber-500/30 px-3 py-2 text-[10px] font-bold text-amber-300"
+                  className="rounded-lg border border-crm-warning/30 px-3 py-2 text-[10px] font-bold text-crm-warning"
                 >
                   Request clarification
                 </button>
@@ -284,7 +285,7 @@ export function ClientRequestsAdmin({
                     setConvert((v) => ({ ...v, requestId: request.id }))
                   }
                   disabled={Boolean(request.convertedJobId)}
-                  className="rounded bg-green-500 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40"
+                  className="rounded-lg bg-crm-primary px-3 py-2 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-40"
                 >
                   {request.convertedJobId
                     ? "Converted"
@@ -300,13 +301,13 @@ export function ClientRequestsAdmin({
                         reviewNote: note,
                       });
                   }}
-                  className="rounded border border-red-500/30 px-3 py-2 text-[10px] font-bold text-red-300"
+                  className="rounded-lg border border-crm-error/30 px-3 py-2 text-[10px] font-bold text-crm-error"
                 >
                   Decline
                 </button>
               </div>
               {convert.requestId === request.id && (
-                <div className="mt-4 grid gap-2 rounded border border-green-500/20 bg-green-500/5 p-4 md:grid-cols-4">
+                <div className="mt-4 grid gap-2 rounded-lg border border-crm-hairline bg-crm-surface-soft p-4 md:grid-cols-4">
                   <select
                     value={convert.technicianLeadId}
                     onChange={(e) =>
@@ -315,7 +316,7 @@ export function ClientRequestsAdmin({
                         technicianLeadId: e.target.value,
                       }))
                     }
-                    className="rounded bg-slate-900 p-2 text-xs text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-xs text-crm-ink"
                   >
                     <option value="">Choose technician</option>
                     {contractors.map((contractor) => (
@@ -330,7 +331,7 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setConvert((v) => ({ ...v, hourlyRate: e.target.value }))
                     }
-                    className="rounded bg-slate-900 p-2 text-xs text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-xs text-crm-ink"
                     placeholder="Hourly rate"
                   />
                   <input
@@ -339,7 +340,7 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setConvert((v) => ({ ...v, travelRate: e.target.value }))
                     }
-                    className="rounded bg-slate-900 p-2 text-xs text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-xs text-crm-ink"
                     placeholder="Travel rate"
                   />
                   <button
@@ -351,11 +352,11 @@ export function ClientRequestsAdmin({
                           : ["ALL"],
                       })
                     }
-                    className="rounded bg-green-500 p-2 text-xs font-bold text-slate-950"
+                    className="rounded-lg bg-crm-primary p-2 text-xs font-bold text-crm-on-primary hover:bg-crm-primary-active"
                   >
                     Create work order
                   </button>
-                  <label className="md:col-span-4 flex gap-2 text-xs text-slate-300">
+                  <label className="md:col-span-4 flex gap-2 text-xs text-crm-body">
                     <input
                       type="checkbox"
                       checked={convert.directContactApproved}
@@ -375,23 +376,23 @@ export function ClientRequestsAdmin({
         </div>
       </section>
       <section>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-          <CalendarClock className="h-4 w-4 text-green-400" /> Scheduling
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-crm-ink">
+          <CalendarClock className="h-4 w-4 text-crm-muted" /> Scheduling
         </h3>
         <div className="grid gap-3 lg:grid-cols-2">
           {data.appointments.map((appointment: any) => (
             <article
               key={appointment.id}
-              className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+              className="rounded-xl border border-crm-hairline bg-crm-canvas p-4"
             >
-              <p className="text-xs font-bold text-white">
+              <p className="text-xs font-bold text-crm-ink">
                 Appointment {appointment.id.slice(-6)}
               </p>
-              <p className="mt-1 text-[10px] capitalize text-slate-500">
+              <p className="mt-1 text-[10px] capitalize text-crm-muted">
                 {appointment.status}
               </p>
               {appointment.confirmedStart && (
-                <p className="mt-2 text-xs text-green-300">
+                <p className="mt-2 text-xs text-crm-success">
                   {new Date(appointment.confirmedStart).toLocaleString()}
                 </p>
               )}
@@ -403,7 +404,7 @@ export function ClientRequestsAdmin({
                     technicianId: appointment.technicianId || "",
                   }))
                 }
-                className="mt-3 text-[10px] font-bold text-green-400"
+                className="mt-3 text-[10px] font-bold text-crm-ink hover:underline"
               >
                 Confirm / change schedule
               </button>
@@ -415,7 +416,7 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setSchedule((v) => ({ ...v, start: e.target.value }))
                     }
-                    className="rounded bg-slate-900 p-2 text-[10px] text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-[10px] text-crm-ink"
                   />
                   <input
                     type="datetime-local"
@@ -423,7 +424,7 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setSchedule((v) => ({ ...v, end: e.target.value }))
                     }
-                    className="rounded bg-slate-900 p-2 text-[10px] text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-[10px] text-crm-ink"
                   />
                   <select
                     value={schedule.technicianId}
@@ -433,7 +434,7 @@ export function ClientRequestsAdmin({
                         technicianId: e.target.value,
                       }))
                     }
-                    className="rounded bg-slate-900 p-2 text-[10px] text-white"
+                    className="rounded border border-crm-hairline bg-crm-canvas p-2 text-[10px] text-crm-ink"
                   >
                     <option value="">Technician</option>
                     {contractors.map((c) => (
@@ -451,7 +452,7 @@ export function ClientRequestsAdmin({
                         technicianId: schedule.technicianId,
                       })
                     }
-                    className="rounded bg-amber-500 p-2 text-[10px] font-bold text-slate-950"
+                    className="rounded-lg bg-crm-warning p-2 text-[10px] font-bold text-white hover:bg-amber-600"
                   >
                     Confirm
                   </button>
@@ -462,24 +463,24 @@ export function ClientRequestsAdmin({
         </div>
       </section>
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-white">
-            <UserPlus className="h-4 w-4 text-green-400" />
+        <section className="rounded-xl border border-crm-hairline bg-crm-canvas p-5">
+          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-crm-ink">
+            <UserPlus className="h-4 w-4 text-crm-muted" />
             Pending memberships
           </h3>
           {pendingUsers.length === 0 ? (
-            <p className="text-xs text-slate-500">No pending memberships.</p>
+            <p className="text-xs text-crm-muted">No pending memberships.</p>
           ) : (
             pendingUsers.map((user: any) => (
               <div
                 key={user.id}
-                className="mb-3 flex items-center justify-between gap-3 rounded bg-slate-900 p-3"
+                className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-crm-hairline bg-crm-surface-soft p-3"
               >
                 <div>
-                  <p className="text-xs font-bold text-white">
+                  <p className="text-xs font-bold text-crm-ink">
                     {user.displayName}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-crm-muted">
                     {user.email} · email {user.emailVerified ? "✓" : "—"} ·
                     phone{" "}
                     {user.phoneVerified
@@ -500,7 +501,7 @@ export function ClientRequestsAdmin({
                       roles: user.requestedRoles,
                     })
                   }
-                  className="rounded bg-green-500 px-3 py-1.5 text-[10px] font-bold text-slate-950 disabled:opacity-30"
+                  className="rounded-lg bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-30"
                 >
                   Approve
                 </button>

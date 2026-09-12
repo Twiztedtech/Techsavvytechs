@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Building2, Plus, Trash2, Users } from 'lucide-react';
 import type { AdminActionResult } from './ClientRequestsAdmin';
+import { CrmButton, CrmCard, CrmInput } from '../crm/ui';
 
 type PersonnelRole = 'primary_contact' | 'owner' | 'requester' | 'sales' | 'project_manager' | 'payroll' | 'accounts_payable' | 'manager' | 'other';
 type Personnel = { id?: string; name: string; email: string; role: PersonnelRole; active?: boolean };
@@ -85,44 +86,44 @@ export function ClientCompanyEditor({ organizations, post }: { organizations: Or
     } else setFeedback({ ok: false, message: 'error' in result ? result.error : 'Could not save the company.' });
   };
 
-  return <section className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-    <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-white"><Building2 className="h-4 w-4 text-green-400"/>Client company & personnel</h3>
+  return <CrmCard>
+    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-crm-ink"><Building2 className="h-4 w-4 text-crm-muted"/>Client company & personnel</h3>
     <div className="grid gap-3">
-      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Company record
-        <select value={company.organizationId} onChange={(event) => chooseCompany(event.target.value)} className="mt-1 w-full rounded border border-slate-800 bg-slate-900 p-2.5 text-xs text-white">
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-crm-muted">Company record
+        <select value={company.organizationId} onChange={(event) => chooseCompany(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-crm-hairline bg-crm-canvas px-3 text-xs text-crm-ink">
           <option value="">Create a new company</option>
           {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
         </select>
       </label>
-      <input value={company.name} onChange={(event) => setCompany((current) => ({ ...current, name: event.target.value }))} placeholder="Company name" className="rounded bg-slate-900 p-2.5 text-xs text-white"/>
-      <input value={company.approvedDomains} onChange={(event) => setCompany((current) => ({ ...current, approvedDomains: event.target.value }))} placeholder="Domains, comma separated" className="rounded bg-slate-900 p-2.5 text-xs text-white"/>
-      <input value={company.referencePrefixes} onChange={(event) => setCompany((current) => ({ ...current, referencePrefixes: event.target.value }))} placeholder="Prefixes, comma separated" className="rounded bg-slate-900 p-2.5 text-xs text-white"/>
+      <CrmInput value={company.name} onChange={(event) => setCompany((current) => ({ ...current, name: event.target.value }))} placeholder="Company name"/>
+      <CrmInput value={company.approvedDomains} onChange={(event) => setCompany((current) => ({ ...current, approvedDomains: event.target.value }))} placeholder="Domains, comma separated"/>
+      <CrmInput value={company.referencePrefixes} onChange={(event) => setCompany((current) => ({ ...current, referencePrefixes: event.target.value }))} placeholder="Prefixes, comma separated"/>
 
-      <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <div className="mt-2 rounded-lg border border-crm-hairline bg-crm-surface-soft p-3">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <div><p className="flex items-center gap-2 text-xs font-bold text-white"><Users className="h-4 w-4 text-green-400"/>Company personnel</p><p className="mt-1 text-[10px] text-slate-500">Add each salesperson, requester, project contact, and payroll contact once.</p></div>
-          <button type="button" onClick={() => setCompany((current) => ({ ...current, personnel: [...current.personnel, blankPerson()] }))} className="flex items-center gap-1 rounded border border-green-500/30 px-2.5 py-1.5 text-[10px] font-bold text-green-300"><Plus className="h-3 w-3"/>Add person</button>
+          <div><p className="flex items-center gap-2 text-xs font-semibold text-crm-ink"><Users className="h-4 w-4 text-crm-muted"/>Company personnel</p><p className="mt-1 text-[11px] text-crm-muted">Add each salesperson, requester, project contact, and payroll contact once.</p></div>
+          <button type="button" onClick={() => setCompany((current) => ({ ...current, personnel: [...current.personnel, blankPerson()] }))} className="flex items-center gap-1 rounded-lg border border-crm-hairline px-2.5 py-1.5 text-[11px] font-semibold text-crm-body hover:bg-crm-canvas"><Plus className="h-3 w-3"/>Add person</button>
         </div>
-        <div className="space-y-2">{company.personnel.map((person, index) => <div key={person.id || index} className="grid gap-2 rounded border border-slate-800 bg-slate-950 p-2 md:grid-cols-[1fr_1.35fr_1fr_auto]">
-          <input value={person.name} onChange={(event) => updatePerson(index, 'name', event.target.value)} placeholder="Name" className="rounded bg-slate-900 p-2 text-xs text-white"/>
-          <input type="email" value={person.email} onChange={(event) => updatePerson(index, 'email', event.target.value)} placeholder="Email" className="rounded bg-slate-900 p-2 text-xs text-white"/>
-          <select value={person.role} onChange={(event) => updatePerson(index, 'role', event.target.value)} className="rounded bg-slate-900 p-2 text-xs text-white">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-          <button type="button" aria-label={`Remove ${person.name || 'person'}`} onClick={() => removePerson(index)} className="rounded border border-red-500/20 p-2 text-red-300"><Trash2 className="h-4 w-4"/></button>
+        <div className="space-y-2">{company.personnel.map((person, index) => <div key={person.id || index} className="grid gap-2 rounded-lg border border-crm-hairline bg-crm-canvas p-2 md:grid-cols-[1fr_1.35fr_1fr_auto]">
+          <input value={person.name} onChange={(event) => updatePerson(index, 'name', event.target.value)} placeholder="Name" className="rounded-lg border border-crm-hairline p-2 text-xs text-crm-ink"/>
+          <input type="email" value={person.email} onChange={(event) => updatePerson(index, 'email', event.target.value)} placeholder="Email" className="rounded-lg border border-crm-hairline p-2 text-xs text-crm-ink"/>
+          <select value={person.role} onChange={(event) => updatePerson(index, 'role', event.target.value)} className="rounded-lg border border-crm-hairline p-2 text-xs text-crm-ink">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <button type="button" aria-label={`Remove ${person.name || 'person'}`} onClick={() => removePerson(index)} className="rounded-lg border border-crm-error/20 p-2 text-crm-error"><Trash2 className="h-4 w-4"/></button>
         </div>)}</div>
       </div>
 
-      <details className="rounded border border-slate-800 bg-slate-900 text-xs text-white">
+      <details className="rounded-lg border border-crm-hairline text-xs text-crm-ink">
         <summary className="cursor-pointer px-3 py-2.5 font-semibold">Default billing recipients ({company.billingRecipientEmails.length} selected)</summary>
-        <div className="space-y-2 border-t border-slate-800 p-3">
-          {personnelEmails.length === 0 ? <p className="text-[10px] text-slate-500">Add personnel with valid email addresses first.</p> : company.personnel.filter((person) => person.email.trim()).map((person) => {
+        <div className="space-y-2 border-t border-crm-hairline p-3">
+          {personnelEmails.length === 0 ? <p className="text-[11px] text-crm-muted">Add personnel with valid email addresses first.</p> : company.personnel.filter((person) => person.email.trim()).map((person) => {
             const email = person.email.trim().toLowerCase();
-            return <label key={email} className="flex items-start gap-2 rounded bg-slate-950 p-2"><input type="checkbox" checked={company.billingRecipientEmails.includes(email)} onChange={() => toggleBillingRecipient(email)} className="mt-0.5 accent-green-500"/><span><strong className="block text-slate-200">{person.name || email}</strong><span className="text-[10px] text-slate-500">{roleLabels[person.role]} · {email}</span></span></label>;
+            return <label key={email} className="flex items-start gap-2 rounded-lg bg-crm-surface-soft p-2"><input type="checkbox" checked={company.billingRecipientEmails.includes(email)} onChange={() => toggleBillingRecipient(email)} className="mt-0.5 accent-crm-primary"/><span><strong className="block text-crm-ink">{person.name || email}</strong><span className="text-[11px] text-crm-muted">{roleLabels[person.role]} · {email}</span></span></label>;
           })}
         </div>
       </details>
-      <p className="text-[10px] text-slate-500">Billing recipients are stored with the company. You can select the requester, salesperson, payroll, or any combination when creating each work order.</p>
-      <button type="button" disabled={saving} onClick={() => void save()} className="mt-1 rounded bg-green-500 p-2.5 text-xs font-bold text-slate-950 disabled:opacity-50">{saving ? 'Saving company…' : company.organizationId ? 'Update company' : 'Save company'}</button>
-      {feedback && <div role="status" className={`rounded border p-3 text-xs ${feedback.ok ? 'border-green-500/30 bg-green-500/10 text-green-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}>{feedback.message}</div>}
+      <p className="text-[11px] text-crm-muted">Billing recipients are stored with the company. You can select the requester, salesperson, payroll, or any combination when creating each work order.</p>
+      <CrmButton disabled={saving} onClick={() => void save()} className="mt-1 w-full">{saving ? 'Saving company…' : company.organizationId ? 'Update company' : 'Save company'}</CrmButton>
+      {feedback && <div role="status" className={`rounded-lg border p-3 text-xs ${feedback.ok ? 'border-crm-success/30 bg-crm-success/10 text-crm-success' : 'border-crm-error/30 bg-crm-error/10 text-crm-error'}`}>{feedback.message}</div>}
     </div>
-  </section>;
+  </CrmCard>;
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { PartyPopper, Wrench } from "lucide-react";
 import { auth } from "../../lib/firebase";
 import type { SupportTicket } from "../contractor/types";
+import { CrmBadge, CrmButton, CrmCard, CrmTable, CrmTableHead } from "../crm/ui";
 
 async function ticketsApi(action: string, options: RequestInit = {}) {
   const token = await auth.currentUser?.getIdToken();
@@ -58,96 +60,64 @@ export function SupportTicketsAdmin() {
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap gap-3">
+    <div className="space-y-4">
+      <CrmCard className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <span>🛠️</span> Support &amp; Sync Tickets Ledger
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-crm-ink">
+            <Wrench className="h-4 w-4 text-crm-muted" /> Support &amp; Sync Tickets Ledger
           </h3>
-          <p className="text-xs text-slate-400">View and resolve support requests submitted by portal contractors.</p>
+          <p className="mt-0.5 text-xs text-crm-muted">View and resolve support requests submitted by portal contractors.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={load}
-            className="text-xs font-mono bg-slate-900 border border-slate-800 hover:border-amber-500 px-3 py-1.5 rounded-lg text-slate-300 transition cursor-pointer"
-          >
-            Refresh
-          </button>
-          <div className="text-xs font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300">
-            Total Tickets: <span className="text-amber-500 font-bold">{tickets.length}</span>
+          <CrmButton variant="secondary" onClick={load} className="h-9 px-3 text-xs">Refresh</CrmButton>
+          <div className="rounded-lg border border-crm-hairline px-3 py-2 text-xs text-crm-body">
+            Total Tickets: <span className="font-bold text-crm-ink">{tickets.length}</span>
           </div>
         </div>
-      </div>
+      </CrmCard>
 
-      {error && (
-        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">{error}</div>
-      )}
+      {error && <CrmCard className="border-crm-error/30 bg-crm-error/5 text-xs text-crm-error">{error}</CrmCard>}
 
       {loading ? (
-        <div className="text-center py-12 text-xs text-slate-400">Loading tickets…</div>
+        <div className="py-12 text-center text-xs text-crm-muted">Loading tickets…</div>
       ) : tickets.length === 0 ? (
-        <div className="text-center py-12 bg-slate-950/20 border border-slate-800/40 rounded-xl space-y-2">
-          <span className="text-2xl">🎉</span>
-          <p className="text-xs text-slate-400 font-medium">All clear! No support tickets have been reported.</p>
-        </div>
+        <CrmCard className="flex flex-col items-center gap-2 py-12 text-center">
+          <PartyPopper className="h-6 w-6 text-crm-muted" />
+          <p className="text-xs font-medium text-crm-muted">All clear! No support tickets have been reported.</p>
+        </CrmCard>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
-              <tr>
-                <th className="p-3 w-40">Ticket ID</th>
-                <th className="p-3 w-40">Submitted At</th>
-                <th className="p-3">User Email</th>
-                <th className="p-3">Issue Category</th>
-                <th className="p-3">Message Details</th>
-                <th className="p-3 w-28 text-center">Status</th>
-                <th className="p-3 text-right">Actions</th>
+        <CrmTable>
+          <CrmTableHead>
+            <th className="p-3 w-40">Ticket ID</th>
+            <th className="p-3 w-40">Submitted At</th>
+            <th className="p-3">User Email</th>
+            <th className="p-3">Issue Category</th>
+            <th className="p-3">Message Details</th>
+            <th className="p-3 w-28 text-center">Status</th>
+            <th className="p-3 text-right">Actions</th>
+          </CrmTableHead>
+          <tbody className="divide-y divide-crm-hairline-soft">
+            {tickets.map((ticket) => (
+              <tr key={ticket.id} className="align-top hover:bg-crm-surface-soft">
+                <td className="p-3 font-mono font-bold text-crm-ink">#{ticket.id.slice(0, 8)}</td>
+                <td className="p-3 font-mono text-[11px] text-crm-muted">{new Date(ticket.createdAt).toLocaleString()}</td>
+                <td className="p-3 font-mono text-crm-body">{ticket.email}</td>
+                <td className="p-3 font-semibold text-crm-ink">{ticket.subject}</td>
+                <td className="p-3 max-w-xs whitespace-pre-wrap text-crm-muted">{ticket.message}</td>
+                <td className="p-3 text-center">
+                  <CrmBadge tone={ticket.status === "Resolved" ? "success" : "warning"}>{ticket.status}</CrmBadge>
+                </td>
+                <td className="p-3 text-right">
+                  {ticket.status === "Open" ? (
+                    <CrmButton variant="secondary" onClick={() => resolve(ticket.id)} className="h-8 px-2.5 text-[11px]">Resolve</CrmButton>
+                  ) : (
+                    <button type="button" onClick={() => remove(ticket.id)} className="text-[11px] font-bold text-crm-error hover:underline">Delete</button>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {tickets.map((ticket) => (
-                <tr key={ticket.id} className="hover:bg-slate-950/40 align-top">
-                  <td className="p-3 font-mono font-bold text-amber-500">#{ticket.id.slice(0, 8)}</td>
-                  <td className="p-3 font-mono text-[11px] text-slate-400">{new Date(ticket.createdAt).toLocaleString()}</td>
-                  <td className="p-3 font-mono text-slate-200">{ticket.email}</td>
-                  <td className="p-3 font-semibold text-slate-100">{ticket.subject}</td>
-                  <td className="p-3 text-slate-400 max-w-xs whitespace-pre-wrap">{ticket.message}</td>
-                  <td className="p-3 text-center">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        ticket.status === "Resolved"
-                          ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                          : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                      }`}
-                    >
-                      {ticket.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    {ticket.status === "Open" ? (
-                      <button
-                        type="button"
-                        onClick={() => resolve(ticket.id)}
-                        className="px-2 py-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white font-bold rounded text-[10px] transition cursor-pointer"
-                      >
-                        Resolve
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => remove(ticket.id)}
-                        className="text-red-400 hover:text-red-300 font-bold hover:underline text-[11px] cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </CrmTable>
       )}
     </div>
   );

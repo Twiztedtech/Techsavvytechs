@@ -23,7 +23,7 @@ const toneStyles: Record<string, string> = {
 
 export type CrmTone = keyof typeof toneStyles;
 
-export function CrmBadge({ tone = "neutral", children }: { tone?: CrmTone; children: ReactNode }) {
+export function CrmBadge({ tone = "neutral", children }: Record<string, any> & { tone?: CrmTone; children: ReactNode }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium ${toneStyles[tone] || toneStyles.neutral}`}>
       {children}
@@ -56,7 +56,7 @@ export function CrmButton({ variant = "primary", className = "", children, ...pr
   );
 }
 
-export function CrmCard({ className = "", children }: { className?: string; children: ReactNode }) {
+export function CrmCard({ className = "", children }: Record<string, any> & { className?: string; children: ReactNode }) {
   return <div className={`rounded-xl border border-crm-hairline bg-crm-canvas p-5 ${className}`}>{children}</div>;
 }
 
@@ -72,7 +72,7 @@ export function CrmPageHeader({ eyebrow, title, action }: { eyebrow?: string; ti
   );
 }
 
-export function CrmKpiTile({ label, value, tone = "neutral", detail }: { label: string; value: ReactNode; tone?: CrmTone; detail?: string }) {
+export function CrmKpiTile({ label, value, tone = "neutral", detail }: Record<string, any> & { label: string; value: ReactNode; tone?: CrmTone; detail?: string }) {
   return (
     <div className="rounded-xl border border-crm-hairline bg-crm-canvas p-5">
       <div className="flex items-center justify-between">
@@ -94,7 +94,7 @@ export function CrmInput({ className = "", ...props }: Record<string, any>) {
   );
 }
 
-export function CrmTable({ children }: { children: ReactNode }) {
+export function CrmTable({ children }: Record<string, any> & { children: ReactNode }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-crm-hairline">
       <table className="w-full text-left text-sm text-crm-body">{children}</table>

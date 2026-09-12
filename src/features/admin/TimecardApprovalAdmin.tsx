@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCw, Plus } from "lucide-react";
 import { auth } from "../../lib/firebase";
 import { getEntryTotals } from "../contractor/timesheets/calculations";
+import { CrmBadge, CrmCard } from "../crm/ui";
 
 type Entry = Record<string, any> & { id: string };
 
@@ -191,16 +193,16 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
 
   return (
     <div className="space-y-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <CrmCard className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <label htmlFor="crm-admin-technician-filter" className="block text-xs font-bold text-slate-200">Technician</label>
-          <p className="mt-0.5 text-[10px] text-slate-500">Choose one technician or view everyone.</p>
+          <label htmlFor="crm-admin-technician-filter" className="block text-xs font-semibold text-crm-ink">Technician</label>
+          <p className="mt-0.5 text-[11px] text-crm-muted">Choose one technician or view everyone.</p>
         </div>
         <select
           id="crm-admin-technician-filter"
           value={technicianFilter}
           onChange={(event) => setTechnicianFilter(event.target.value)}
-          className="min-w-56 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 focus:border-amber-500 focus:outline-none"
+          className="min-w-56 h-10 rounded-lg border border-crm-hairline bg-crm-canvas px-3 text-xs font-semibold text-crm-ink focus:border-crm-ink focus:outline-none"
         >
           <option value="ALL">All technicians ({entries.length} tasks)</option>
           {technicianOptions.map((technician) => (
@@ -209,59 +211,59 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 cursor-pointer whitespace-nowrap">
-          <input type="checkbox" checked={showVoided} onChange={(event) => setShowVoided(event.target.checked)} className="accent-amber-500" />
+        <label className="flex items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body cursor-pointer whitespace-nowrap">
+          <input type="checkbox" checked={showVoided} onChange={(event) => setShowVoided(event.target.checked)} className="accent-crm-primary" />
           Show voided ({voidedCount})
         </label>
-      </div>
+      </CrmCard>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
-        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending Timecards</div>
-          <div className="text-2xl font-bold mt-1 text-amber-500">{filtered.filter((tc) => tc.status !== "approved" && tc.status !== "voided").length}</div>
-        </div>
-        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Fully Approved</div>
-          <div className="text-2xl font-bold mt-1 text-green-400">{filtered.filter((tc) => tc.status === "approved").length}</div>
-        </div>
-        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">QBO Sync Queue</div>
-          <div className="text-2xl font-bold mt-1 text-blue-400">{filtered.filter((tc) => tc.qbStatus === "synced").length}</div>
-        </div>
-        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sync Failures</div>
-          <div className="text-2xl font-bold mt-1 text-red-500">{filtered.filter((tc) => tc.qbStatus === "failed").length}</div>
-        </div>
-        <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Total Owed to Tech</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-400">${totalOwed.toFixed(2)}</div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <CrmCard>
+          <div className="text-[11px] text-crm-muted uppercase font-semibold tracking-wider">Pending Timecards</div>
+          <div className="crm-display-md mt-1 text-crm-warning">{filtered.filter((tc) => tc.status !== "approved" && tc.status !== "voided").length}</div>
+        </CrmCard>
+        <CrmCard>
+          <div className="text-[11px] text-crm-muted uppercase font-semibold tracking-wider">Fully Approved</div>
+          <div className="crm-display-md mt-1 text-crm-success">{filtered.filter((tc) => tc.status === "approved").length}</div>
+        </CrmCard>
+        <CrmCard>
+          <div className="text-[11px] text-crm-muted uppercase font-semibold tracking-wider">QBO Sync Queue</div>
+          <div className="crm-display-md mt-1 text-crm-accent">{filtered.filter((tc) => tc.qbStatus === "synced").length}</div>
+        </CrmCard>
+        <CrmCard>
+          <div className="text-[11px] text-crm-muted uppercase font-semibold tracking-wider">Sync Failures</div>
+          <div className="crm-display-md mt-1 text-crm-error">{filtered.filter((tc) => tc.qbStatus === "failed").length}</div>
+        </CrmCard>
+        <CrmCard>
+          <div className="text-[11px] text-crm-muted uppercase font-semibold tracking-wider">Total Owed to Tech</div>
+          <div className="crm-display-md mt-1 text-crm-ink">${totalOwed.toFixed(2)}</div>
+        </CrmCard>
       </div>
 
       {technicianFilter !== "ALL" && siteBreakdown.length > 0 && (
-        <div className="mb-6 rounded-xl border border-slate-800 bg-slate-950 p-6">
-          <div className="mb-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Totals by job site — {technicianOptions.find((t) => t.uid === technicianFilter)?.name || "technician"}</div>
-          <div className="divide-y divide-slate-800">
+        <CrmCard className="mb-6">
+          <div className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-crm-muted">Totals by job site — {technicianOptions.find((t) => t.uid === technicianFilter)?.name || "technician"}</div>
+          <div className="divide-y divide-crm-hairline-soft">
             {siteBreakdown.map((site) => (
               <div key={site.jobSite} className="flex items-center justify-between py-2.5">
                 <div>
-                  <div className="text-sm font-semibold text-slate-200">{site.jobSite}</div>
-                  <div className="text-[10px] text-slate-500">{site.days} {site.days === 1 ? "day" : "days"}</div>
+                  <div className="text-sm font-semibold text-crm-ink">{site.jobSite}</div>
+                  <div className="text-[11px] text-crm-muted">{site.days} {site.days === 1 ? "day" : "days"}</div>
                 </div>
-                <div className="text-base font-bold text-emerald-400">${site.totalGross.toFixed(2)}</div>
+                <div className="text-base font-bold text-crm-ink">${site.totalGross.toFixed(2)}</div>
               </div>
             ))}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-slate-700 pt-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Total owed — all jobs</div>
-            <div className="text-lg font-bold text-emerald-400">${totalOwed.toFixed(2)}</div>
+          <div className="mt-3 flex items-center justify-between border-t border-crm-hairline pt-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-crm-body">Total owed — all jobs</div>
+            <div className="text-lg font-bold text-crm-ink">${totalOwed.toFixed(2)}</div>
           </div>
-        </div>
+        </CrmCard>
       )}
 
       <div className="space-y-4">
-        {loading && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">Loading timecards…</div>}
-        {!loading && visibleEntries.length === 0 && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">No timecards were found for this technician.</div>}
+        {loading && <div className="rounded-xl border border-dashed border-crm-hairline p-8 text-center text-sm text-crm-muted">Loading timecards…</div>}
+        {!loading && visibleEntries.length === 0 && <div className="rounded-xl border border-dashed border-crm-hairline p-8 text-center text-sm text-crm-muted">No timecards were found for this technician.</div>}
         {visibleEntries.map((entry) => {
           const totals = getEntryTotals(entry);
           const techName = entry.technicianName || contractors.find((c) => c.authUid === entry.technicianUid)?.name || "Unknown Tech";
@@ -269,57 +271,57 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
           const lineItem = (label: string, itemType: string, amountField: string, statusField: string, feedbackField: string, formatted: string) => {
             if (!(entry[amountField] && Number(entry[amountField]) > 0)) return null;
             return (
-              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 space-y-2" key={label}>
+              <div className="bg-crm-surface-soft p-3 rounded-lg border border-crm-hairline space-y-2" key={label}>
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
-                    <span className="font-semibold text-slate-300">{label}:</span>
-                    <span className="text-slate-400 ml-1 font-mono">{formatted}</span>
+                    <span className="font-semibold text-crm-body">{label}:</span>
+                    <span className="text-crm-muted ml-1 font-mono">{formatted}</span>
                   </div>
                   <div className="flex gap-1.5 ml-4">
                     {entry.status === "voided" ? (
-                      <span className="text-[9px] font-bold uppercase text-slate-500">Read only</span>
+                      <span className="text-[10px] font-bold uppercase text-crm-muted">Read only</span>
                     ) : entry[statusField] !== "approved" && entry[statusField] !== "rejected" ? (
                       <>
-                        <button onClick={() => setItemStatus(entry.id, itemType, "approved")} className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold rounded transition cursor-pointer">✓ Approve</button>
-                        <button onClick={() => setItemStatus(entry.id, itemType, "rejected")} className="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 text-[9px] font-bold rounded transition cursor-pointer">✕ Reject</button>
+                        <button onClick={() => setItemStatus(entry.id, itemType, "approved")} className="px-2 py-0.5 bg-crm-success/10 hover:bg-crm-success/20 text-crm-success border border-crm-success/30 text-[10px] font-bold rounded transition cursor-pointer">Approve</button>
+                        <button onClick={() => setItemStatus(entry.id, itemType, "rejected")} className="px-2 py-0.5 bg-crm-error/10 hover:bg-crm-error/20 text-crm-error border border-crm-error/30 text-[10px] font-bold rounded transition cursor-pointer">Reject</button>
                       </>
                     ) : (
-                      <span className={`text-[9px] font-bold uppercase ${entry[statusField] === "approved" ? "text-emerald-400" : "text-rose-400"}`}>{entry[statusField] === "approved" ? "✓ Approved" : "✕ Rejected"}</span>
+                      <span className={`text-[10px] font-bold uppercase ${entry[statusField] === "approved" ? "text-crm-success" : "text-crm-error"}`}>{entry[statusField] === "approved" ? "Approved" : "Rejected"}</span>
                     )}
                   </div>
                 </div>
-                {entry[statusField] === "rejected" && entry[feedbackField] && <div className="text-[10px] text-rose-500 italic">Reason: "{entry[feedbackField]}"</div>}
+                {entry[statusField] === "rejected" && entry[feedbackField] && <div className="text-[11px] text-crm-error italic">Reason: "{entry[feedbackField]}"</div>}
               </div>
             );
           };
           return (
-            <div key={entry.id} className={`p-6 border rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition ${entry.status === "voided" ? "border-slate-700 bg-slate-950/60 opacity-75" : `border-slate-800 ${entry.status === "approved" ? "bg-slate-900/10" : "bg-slate-900/20"}`}`}>
+            <CrmCard key={entry.id} className={`flex flex-col md:flex-row md:items-center justify-between gap-6 ${entry.status === "voided" ? "opacity-60" : ""}`}>
               <div className="space-y-1.5 max-w-md">
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-slate-100">{techName}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">{entry.date}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ${entry.status === "voided" ? "bg-slate-700/40 text-slate-300 border border-slate-600" : entry.status === "approved" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : entry.status === "rejected" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>{entry.status}</span>
+                  <span className="font-bold text-crm-ink">{techName}</span>
+                  <span className="text-[11px] text-crm-muted font-mono">{entry.date}</span>
+                  <CrmBadge tone={entry.status === "voided" ? "neutral" : entry.status === "approved" ? "success" : entry.status === "rejected" ? "error" : "neutral"}>{entry.status}</CrmBadge>
                 </div>
-                <div className="text-sm font-semibold text-slate-200">{entry.jobSite}</div>
-                <div className="text-[10px] text-slate-500 font-mono">{techEmail}</div>
+                <div className="text-sm font-semibold text-crm-ink">{entry.jobSite}</div>
+                <div className="text-[11px] text-crm-muted font-mono">{techEmail}</div>
                 <div className="flex gap-2 items-center mt-1">
-                  <span className="text-[10px] text-slate-500">QBO status:</span>
+                  <span className="text-[11px] text-crm-muted">QBO status:</span>
                   {entry.status === "voided" ? (
-                    <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-semibold rounded">Not eligible — voided</span>
+                    <span className="px-2 py-0.5 bg-crm-surface-card text-crm-muted text-[10px] font-semibold rounded">Not eligible — voided</span>
                   ) : entry.qbStatus === "synced" ? (
-                    <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-semibold rounded">QBO Synced #{entry.qboBillId || entry.qboTimeActivityId}</span>
+                    <span className="px-2 py-0.5 bg-crm-accent/10 text-crm-accent text-[10px] font-semibold rounded">QBO Synced #{entry.qboBillId || entry.qboTimeActivityId}</span>
                   ) : entry.qbStatus === "failed" ? (
                     <span className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-semibold rounded cursor-help" title={entry.qboSyncError}>QBO Sync Failed</span>
-                      <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow">🔄 Retry Sync</button>
+                      <span className="px-2 py-0.5 bg-crm-error/10 text-crm-error text-[10px] font-semibold rounded cursor-help" title={entry.qboSyncError}>QBO Sync Failed</span>
+                      <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-crm-primary hover:bg-crm-primary-active text-crm-on-primary text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer transition"><RefreshCw className="h-3 w-3" /> Retry Sync</button>
                     </span>
                   ) : entry.status === "approved" && isFullyApproved(entry) ? (
                     <span className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[9px] font-semibold rounded">Ready for QBO Sync</span>
-                      <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-indigo-650 hover:bg-indigo-600 text-white text-[9px] font-bold rounded flex items-center gap-1 cursor-pointer transition shadow">Sync to QuickBooks</button>
+                      <span className="px-2 py-0.5 bg-crm-accent/10 text-crm-accent text-[10px] font-semibold rounded">Ready for QBO Sync</span>
+                      <button type="button" onClick={() => retrySync(entry.id)} className="px-2 py-0.5 bg-crm-primary hover:bg-crm-primary-active text-crm-on-primary text-[10px] font-bold rounded cursor-pointer transition">Sync to QuickBooks</button>
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-500 text-[9px] font-semibold rounded">Awaiting full approval</span>
+                    <span className="px-2 py-0.5 bg-crm-surface-card text-crm-muted text-[10px] font-semibold rounded">Awaiting full approval</span>
                   )}
                 </div>
               </div>
@@ -328,12 +330,12 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                 {lineItem("Labor", "labor", "totalHours", "laborStatus", "laborFeedback", `${entry.totalHours} hrs @ $${entry.rate || 75}/hr`)}
                 {Number(entry.totalHours || 0) > 0 && entry.status !== "voided" && !entry.active && (
                   entry.qbStatus === "synced" ? (
-                    <div className="px-1 text-[9px] text-slate-600">Rate locked — already synced to QuickBooks</div>
+                    <div className="px-1 text-[10px] text-crm-muted">Rate locked — already synced to QuickBooks</div>
                   ) : (
                     <div className="px-1 flex items-center justify-between gap-2">
-                      <button type="button" onClick={() => correctRate(entry)} className="text-[9px] font-bold uppercase text-indigo-400 hover:text-indigo-300 underline underline-offset-2">✎ Correct rate</button>
+                      <button type="button" onClick={() => correctRate(entry)} className="text-[10px] font-bold uppercase text-crm-ink hover:underline underline-offset-2">Correct rate</button>
                       {entry.rateCorrection && (
-                        <span className="text-[9px] text-slate-500" title={entry.rateCorrection.reason}>was ${entry.rateCorrection.previousRate}/hr</span>
+                        <span className="text-[10px] text-crm-muted" title={entry.rateCorrection.reason}>was ${entry.rateCorrection.previousRate}/hr</span>
                       )}
                     </div>
                   )
@@ -343,22 +345,22 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                 {entry.bonusCost && Number(entry.bonusCost) > 0 ? (
                   lineItem("Bonus / Misc", "bonus", "bonusCost", "bonusStatus", "bonusFeedback", `$${Number(entry.bonusCost).toFixed(2)}`)
                 ) : (
-                  <div className="bg-slate-950/20 p-2.5 rounded-xl border border-slate-900 border-dashed flex items-center justify-between gap-3">
-                    <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Bonus / Misc</span>
+                  <div className="bg-crm-surface-soft p-2.5 rounded-lg border border-dashed border-crm-hairline flex items-center justify-between gap-3">
+                    <span className="text-[11px] text-crm-muted font-semibold uppercase tracking-wider">Bonus / Misc</span>
                     {entry.status === "voided" ? (
-                      <span className="text-[9px] font-bold uppercase text-slate-600">Read only</span>
+                      <span className="text-[10px] font-bold uppercase text-crm-muted">Read only</span>
                     ) : (
                       <div className="flex gap-1.5 items-center">
-                        <input type="number" placeholder="$0.00" id={`crm-bonus-input-${entry.id}`} className="w-16 bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2 py-0.5 rounded focus:outline-none focus:border-slate-700 font-mono text-right" />
+                        <input type="number" placeholder="$0.00" id={`crm-bonus-input-${entry.id}`} className="w-16 bg-crm-canvas border border-crm-hairline text-crm-ink text-xs px-2 py-0.5 rounded focus:outline-none focus:border-crm-ink font-mono text-right" />
                         <button
                           type="button"
                           onClick={() => {
                             const input = document.getElementById(`crm-bonus-input-${entry.id}`) as HTMLInputElement;
                             addBonus(entry, input?.value || "0");
                           }}
-                          className="px-2 py-0.5 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 text-[9px] font-bold rounded transition cursor-pointer"
+                          className="px-2 py-0.5 bg-crm-surface-card hover:bg-crm-hairline border border-crm-hairline text-crm-body text-[10px] font-bold rounded transition cursor-pointer flex items-center gap-1"
                         >
-                          ➕ Add
+                          <Plus className="h-3 w-3" /> Add
                         </button>
                       </div>
                     )}
@@ -367,16 +369,16 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
               </div>
 
               <div className="text-right min-w-[120px]">
-                <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Total Payable</span>
-                <span className="text-xl font-bold text-slate-100 font-mono">${totals.totalGross.toFixed(2)}</span>
+                <span className="text-[11px] text-crm-muted block uppercase font-bold tracking-wider">Total Payable</span>
+                <span className="text-xl font-bold text-crm-ink font-mono">${totals.totalGross.toFixed(2)}</span>
                 {entry.status !== "voided" && entry.qbStatus === "synced" && (
-                  <button type="button" onClick={() => voidOrReverse(entry, "reverse")} className="mt-3 block w-full rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20">Reverse approval &amp; QuickBooks sync</button>
+                  <button type="button" onClick={() => voidOrReverse(entry, "reverse")} className="mt-3 block w-full rounded-lg border border-crm-warning/40 bg-crm-warning/10 px-2 py-1.5 text-[11px] font-bold text-crm-warning hover:bg-crm-warning/20">Reverse approval &amp; QuickBooks sync</button>
                 )}
                 {entry.status !== "voided" && entry.qbStatus !== "synced" && entry.qbStatus !== "reversed" && (
-                  <button type="button" onClick={() => voidOrReverse(entry, "void")} className="mt-3 block w-full rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/20">{entry.voidStatus === "requested" ? "Approve void request" : "Void submission"}</button>
+                  <button type="button" onClick={() => voidOrReverse(entry, "void")} className="mt-3 block w-full rounded-lg border border-crm-error/30 bg-crm-error/10 px-2 py-1.5 text-[11px] font-bold text-crm-error hover:bg-crm-error/20">{entry.voidStatus === "requested" ? "Approve void request" : "Void submission"}</button>
                 )}
               </div>
-            </div>
+            </CrmCard>
           );
         })}
       </div>
