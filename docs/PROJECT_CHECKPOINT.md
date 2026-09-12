@@ -1,6 +1,70 @@
 # TechSavvy Platform Checkpoint
 
-Last updated: 2026-09-08
+Last updated: 2026-09-12
+
+## Completed (2026-09-10 to 2026-09-12 session)
+
+A multi-day engagement covering: unifying the job/customer data model, bringing CRM to full admin parity with the old ContractorDashboard admin mode, a tab-by-tab correctness audit of every CRM module, technician payroll accuracy fixes, and real financial reporting (Job Profitability, itemized QuickBooks invoicing). Everything below is committed to `main` and deployed.
+
+### Data model unification
+
+- **One shared `saveJob()`/`buildJobRecord()`** (`src/features/jobs/`) now backs every job-creation/edit path. Previously three separate call sites hand-built the job object and silently omitted `hourlyRate`/`signatureRequired` — technicians completing a CRM-created job were paid the $55/hr fallback regardless of the real rate, and the signature-required policy silently never applied. Also fixed a fourth occurrence found later in `convertRequest` (client-request-to-job conversion) the same way.
+- **`customers` is now the single canonical customer identity**, replacing the parallel `client_organizations`/`client_users` split (Phases 1–4 of the merge plan). Migrated via a dry-run-then-apply script, cut the client-portal/booking code over to `customerId`, then decommissioned `client_organizations` entirely.
+
+### CRM / ContractorDashboard admin parity (Phases 5–9)
+
+Brought CRM to full parity with ContractorDashboard's old admin mode, then retired that admin mode — admin logins now land on `/crm` directly:
+
+- **Support Tickets**: previously local-only React state, never persisted — tickets vanished on refresh. Now a real `support_tickets` collection with a real API.
+- **Contractor Roster**: QBO sync, invitations, W-9/onboarding review, and suspend/offboard lifecycle, extracted into its own CRM module.
+- **Timecard Approval**: extracted into its own CRM module with its own data load.
+- **Client Requests**: was fully built but never mounted anywhere — admins had completely lost the ability to review/convert client booking requests until this was fixed.
+- **Job Sites parity restored** in the Jobs module: document upload, multi-technician assignment, void-work-order, and technician-view preview.
+- Removed the dead code this left behind: unreachable mock-data components in `CRM.tsx`, leftover admin-only branches in `ContractorDashboard.tsx`.
+
+### CRM tab-by-tab correctness audit ("do the same" series)
+
+Went through every CRM tab checking for leftover dead code and general correctness bugs, live-testing each with disposable test data. Real bugs found and fixed:
+
+- **Customers & Sites**: added a missing customer-edit capability.
+- **Materials & Stock**: had zero real implementation (silently fell through to a placeholder) — built a real `catalog_items` collection and UI.
+- **Customer Assets**: `generateJobs()` bypassed `buildJobRecord()` entirely via a raw batch write — the 4th occurrence of the pay-rate/signature bug above; added asset editing.
+- **Reminders**: manual and scheduled reminders resolved the customer by an exact name-string match only, ignoring the reliable `customerId` already on the record — a renamed or slightly-mismatched customer name silently dropped reminders. Now prefers `customerId`.
+- **Audit Trail**: `createdAt` was stored as an ISO string by server writes but a Firestore `Timestamp` by client writes — backfilled to one consistent type and added a bounded `orderBy + limit` query (was downloading the entire collection on every load). Caught and hotfixed a self-inflicted production-breaking bug during this work: an unaliased `query` import collided with the component's own search-box state variable of the same name, crashing the whole CRM — fixed within the hour.
+- **Schedule & Dispatch**: the `"ALL"` (open-to-any-technician) assignment sentinel was being treated as a real assignment by the dispatch-queue and two KPI counters, so every job vanished from "needs dispatch" the moment it was created. Also found the "Assign technician" modal could never save a job with the default `["ALL"]` assignment at all — a real, high-impact bug affecting every job in the system.
+- **Support Tickets**: list query lacked `orderBy`, risking an arbitrary (not most-recent) subset once past 200 tickets.
+- **Contractor Roster**: the offboarding flow's frontend and backend computed a technician's assigned jobs slightly differently, so a legacy-shaped job record could be silently skipped during reassignment — an admin could believe every open job was handled when one wasn't.
+- **Timecard Approval**: found the QuickBooks sync button could push a *partially*-approved timecard (e.g. labor approved, supplies still pending) to QuickBooks, because the sync gate trusted a loose status flag instead of checking every line item. Also added a "Total Owed to Tech" KPI, a per-job-site totals breakdown, and a "Show voided" toggle (voided entries had been cluttering every list).
+- **Client Requests**: the 4th occurrence of the `buildJobRecord()`-bypass bug, in `convertRequest`.
+- **Reports / Invoices**: audited, no bugs found — used as a clean-bill-of-health baseline.
+
+### CRM design system documentation
+
+- `.stitch/crm/DESIGN.md`: documents the CRM's actual current visual language as two co-existing, incompatible systems — a light core shell and dark ported-admin modules with a different, non-brand color palette. Serves as the baseline for the CRM redesign + dark-mode plan below.
+
+### Technician payroll accuracy
+
+- **Live clock-in/out had no break tracking at all** — `totalHours` was raw wall-clock elapsed time, so an unrecorded lunch was both paid to the technician and (once billing was wired up) billed to the customer. Now auto-deducts a 30-minute break for shifts over 5 hours.
+- **Duplicate time entries**: the live clock and the manual "Submit Daily Hours" form could each create a separate Firestore record for the same shift, risking double pay/double billing. Enforced one entry per technician per job per day — whichever method is used first wins, the other is rejected — then found and fixed the resulting regression: the fix initially blocked the very common, legitimate case of using the manual form afterward to attach supplies/photos/notes to an already-clocked shift. Now that submission updates the existing entry in place instead of being rejected, preserving the authoritative clock-derived hours.
+
+### Financial reporting
+
+- **Job Profitability panel** added to Reports: revenue vs. direct technician labor/materials cost, by date-range preset, with a per-job breakdown. Deliberately built from CRM data only (not QuickBooks' Reports API) per an explicit decision to limit how much financial data this app surfaces, given its current security posture — the tradeoff is it can only ever show gross margin, never a true net-profit P&L, since overhead (rent, insurance, software) lives only in the real books.
+
+### QuickBooks invoice sync
+
+- Diagnosed and fixed a real production gap: the CRM had exactly **one** invoice in its entire history — the business bills customers directly in QuickBooks, bypassing the CRM's own Invoices tab, so the CRM (and anything built on it, like Job Profitability) was structurally blind to almost all real revenue.
+- Root-caused a separate, pre-existing issue found along the way: `CLIENT_PORTAL_SECRET` was completely missing from Vercel's production environment, which silently broke `decryptSecret()` for **every** secret using that helper — QuickBooks tokens included, and likely others. Generated a new secret, the user added it in Vercel and reconnected QuickBooks.
+- First reconciliation run correctly imported 146 real historical invoices (~$143,684.60) from QuickBooks — but this contradicted the user's explicit security stance (CRM shouldn't hold the QuickBooks financial history). Deleted all 146 backfilled records and added a persisted sync watermark so reconciliation only ever mirrors QuickBooks invoices **created from that point forward** — never a historical backfill again. Live-verified: a second run after the fix imported 0 records.
+
+### Itemized invoicing with real margin
+
+- Added `customerBillRate` as a field on every job, distinct from the existing `hourlyRate` (technician pay) — the CRM previously had no way to model a margin between what a customer is billed and what a technician is paid; the two were the same field. Never silently defaults to the pay rate; the invoice UI shows a visible warning if it's unset.
+- "Generate invoice"'s default line items are now itemized **by calendar date**, anonymized (no technician names), showing headcount and hours per day — e.g. *"2026-08-26 — 3 technicians @ 8.0 hrs each — 24.0 hrs total"* — billed at `customerBillRate`. Replaces manually re-entering each technician's hours into QuickBooks per job.
+
+### Drafted but not yet started
+
+- **CRM visual redesign + dark mode** (Part 3 of the working plan at `C:\Users\twizt\.claude\plans\starry-knitting-puzzle.md`): retire the two-incompatible-design-languages problem `.stitch/crm/DESIGN.md` documents, add a real light/dark toggle scoped to the CRM only. Plan is approved; execution hasn't started.
 
 ## Completed (2026-09-08 session)
 
@@ -63,7 +127,7 @@ Last updated: 2026-09-08
 
 ## Vercel API-function allowance
 
-**Important pre-deployment constraint:** this project currently uses **11 of 12 deployable Vercel API functions** allowed by the active project plan. Only one slot remains; continue consolidating related operations instead of treating that slot as normal expansion capacity.
+**Important pre-deployment constraint:** this project currently uses **12 of 12 deployable Vercel API functions** allowed by the active project plan — confirmed 2026-09-12. There is no remaining headroom at all; adding any new top-level `api/*.js` file will fail deployment. Every new server-side operation from here on must be consolidated into an existing handler via a query/body operation value (the pattern already used throughout `api/admin/quickbooks/status.js`, `api/contact.js`, `api/portal/time-clock.js`, etc.).
 
 Before adding any new API operation:
 
@@ -101,7 +165,7 @@ The maintenance phase must:
 ## Confirm on the next session
 
 1. **`ClientCompanyEditor` (new this session):** log in as a real administrator and exercise it against production Firestore — create a company with personnel, edit an existing one, toggle billing recipients, and confirm the record round-trips through `POST /api/admin/client-portal?action=organization` correctly. Only verified so far against mock data in an isolated, unauthenticated browser harness.
-2. **QuickBooks token encryption (new this session):** after the next natural access-token refresh (or a manual reconnect), confirm `settings/quickbooks` has `encryptedAccessToken`/`encryptedRefreshToken` and the legacy plaintext `accessToken`/`refreshToken` fields are gone.
+2. ~~**QuickBooks token encryption**~~ — **Resolved 2026-09-12.** Turned out `CLIENT_PORTAL_SECRET` was missing from Vercel entirely, which made `decryptSecret()` silently fail for every stored QBO token. Added the secret and reconnected QuickBooks; `settings/quickbooks` now has working `encryptedAccessToken`/`encryptedRefreshToken`, confirmed by a successful reconciliation run. Worth a quick check that no *other* feature using the same `encryptSecret`/`decryptSecret` helper was silently degraded the same way for however long that secret was missing.
 3. Send one branded contractor invitation to a controlled test account, then confirm password setup, first login, assigned work-order access, and the time clock. Suspend that test account while signed in, confirm the session loses API access, reactivate it, and verify sign-in returns.
 4. Submit a contact-form test and confirm it arrives at `support@techsavvytechs.com` from the TechSavvy Resend sender.
 5. Keep Vercel `QBO_ENVIRONMENT=production`, `APP_URL=https://techsavvytechs.com`, and the Resend variables restricted to production.
@@ -112,6 +176,9 @@ The maintenance phase must:
 10. Before relying on automated reminders, use controlled customer records to test each reminder type and confirm delivery, secure document links, preference opt-outs, and duplicate suppression. The schedule endpoint is protected by Vercel `CRON_SECRET`.
 11. Run the first manual QuickBooks reconciliation against controlled invoices and compare CRM totals, balances, status, and Audit Trail entries with QuickBooks before treating reconciliation as the production receivables source of truth.
 12. Confirm repository owners receive the first Vercel anomaly notification test and enable GitHub Actions failure notifications for the **Production health monitor** workflow if they are not already enabled at the account level.
+13. **Set `customerBillRate` on active/upcoming jobs (new 2026-09-12).** The field exists and the itemized-invoice logic is live and verified, but no real job has a bill rate set yet — "Generate invoice" will show a visible $0/hr warning until an admin fills it in per job.
+14. **Watch the next few real QuickBooks invoices sync in automatically (new 2026-09-12).** The going-forward-only watermark (`settings/quickbooks.invoiceSyncWatermarkAt`) was set 2026-09-12T14:50 UTC and verified to import 0 records on the run immediately after — confirm a genuinely new QuickBooks invoice created after that timestamp actually appears in the CRM on the next reconciliation (manual button or the daily cron).
+15. **CRM redesign + dark mode plan is drafted and approved but not started** — see Part 3 of the plan at `C:\Users\twizt\.claude\plans\starry-knitting-puzzle.md`.
 
 ## Next development milestone
 
