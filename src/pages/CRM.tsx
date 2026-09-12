@@ -58,6 +58,7 @@ import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
+import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 
 const TechnicianWorkOrderPreview = lazy(() =>
   import("../features/contractor/workOrders/TechnicianWorkOrderPreview").then(({ TechnicianWorkOrderPreview }) => ({ default: TechnicianWorkOrderPreview })),
@@ -232,10 +233,10 @@ type LiveInvoice = {
   customerDelivery?: { status: string; email: string; sentAt: string };
 };
 type BillingTimeEntry = {
-  active?: boolean; date?: string; clockIn?: string; clockOut?: string;
+  active?: boolean; date?: string; clockIn?: string; clockOut?: string; jobSite?: string;
   id: string; jobId?: string; technicianUid?: string; technicianName?: string; totalHours?: string | number; rate?: number;
   suppliesCost?: string | number; suppliesItems?: Array<{ description?: string; amount?: number; cost?: number }>;
-  travelCost?: string | number; laborStatus?: string; suppliesStatus?: string; travelStatus?: string; status?: string; qboReadyAt?: string;
+  travelCost?: string | number; bonusCost?: string | number; laborStatus?: string; suppliesStatus?: string; travelStatus?: string; status?: string; qboReadyAt?: string;
 };
 type CustomerAsset = {
   id: string;
@@ -1109,6 +1110,10 @@ function ReportsView({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const [plPreset, setPlPreset] = useState<"month" | "lastMonth" | "quarter" | "ytd" | "custom">("month");
+  const [plCustomStart, setPlCustomStart] = useState(() => localDate());
+  const [plCustomEnd, setPlCustomEnd] = useState(() => localDate());
+  const [plSortBy, setPlSortBy] = useState<"profit" | "revenue">("profit");
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   const accepted = quotes.filter((quote) => ['Accepted', 'Converted'].includes(quote.status));
@@ -1159,6 +1164,43 @@ function ReportsView({
   }));
   const maxAging = Math.max(1, ...aging.map((bucket) => bucket.value));
 
+  // Job Profitability -- revenue vs. direct technician labor/materials cost.
+  // Not a true P&L: this app has no visibility into overhead (rent,
+  // insurance, software, fuel, etc.), which lives only in the real books.
+  const plToday = localDate();
+  const plRange = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    if (plPreset === "lastMonth") return { start: fmt(new Date(y, m - 1, 1)), end: fmt(new Date(y, m, 0)) };
+    if (plPreset === "quarter") return { start: fmt(new Date(y, Math.floor(m / 3) * 3, 1)), end: plToday };
+    if (plPreset === "ytd") return { start: `${y}-01-01`, end: plToday };
+    if (plPreset === "custom") return { start: plCustomStart, end: plCustomEnd };
+    return { start: fmt(new Date(y, m, 1)), end: plToday };
+  })();
+  const plInvoices = invoices.filter((invoice) => invoice.issueDate && invoice.issueDate >= plRange.start && invoice.issueDate <= plRange.end);
+  const plEntries = timeEntries.filter((entry) => entry.status !== "voided" && entry.date && entry.date >= plRange.start && entry.date <= plRange.end);
+  const plRevenue = plInvoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+  const plCost = plEntries.reduce((sum, entry) => sum + getEntryTotals(entry).totalGross, 0);
+  const plProfit = plRevenue - plCost;
+  const plMargin = plRevenue ? (plProfit / plRevenue) * 100 : 0;
+  const plByJob = (() => {
+    const byJob = new Map<string, { jobId: string; name: string; revenue: number; cost: number }>();
+    const ensure = (jobId: string, fallbackName: string) => {
+      const key = jobId || `unlinked:${fallbackName}`;
+      const existing = byJob.get(key) || { jobId: key, name: jobs.find((j) => j.id === jobId)?.name || fallbackName || "Unlinked work", revenue: 0, cost: 0 };
+      byJob.set(key, existing);
+      return existing;
+    };
+    plInvoices.forEach((invoice) => { ensure(invoice.jobId || "", invoice.workOrderNumber || invoice.customer || "Unlinked invoice").revenue += Number(invoice.total || 0); });
+    plEntries.forEach((entry) => { ensure(entry.jobId || "", entry.jobSite || "Unlinked time entry").cost += getEntryTotals(entry).totalGross; });
+    return Array.from(byJob.values())
+      .map((row) => ({ ...row, profit: row.revenue - row.cost }))
+      .sort((a, b) => (plSortBy === "revenue" ? b.revenue - a.revenue : a.profit - b.profit));
+  })();
+
   const exportCsv = () => {
     const rows = [
       ["TechSavvy live operations report", new Date().toISOString()],
@@ -1199,6 +1241,61 @@ function ReportsView({
         <ReportKpi label="Quote conversion" value={`${quoteConversion.toFixed(1)}%`} detail={`${accepted.length} accepted of ${decidedQuotes.length} decided`} tone="sky" />
         <ReportKpi label="Receivables" value={money(receivables)} detail={`${money(overdueBalance)} overdue`} tone={overdueBalance ? "red" : "green"} />
         <ReportKpi label="Maintenance due" value={String(dueMaintenance.length)} detail={`Next 30 days · ${maintenanceAssets.length} plans`} tone={dueMaintenance.length ? "violet" : "green"} />
+      </section>
+      <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
+          <div>
+            <h3 className="text-sm font-bold">Job profitability</h3>
+            <p className="mt-1 text-[9px] text-slate-400">Revenue vs. direct technician labor &amp; materials cost only — excludes overhead (rent, insurance, software, fuel). Not a substitute for the real books.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["month", "lastMonth", "quarter", "ytd", "custom"] as const).map((preset) => (
+              <button key={preset} onClick={() => setPlPreset(preset)} className={`rounded px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide ${plPreset === preset ? "bg-tech-green text-brand-black" : "border border-slate-200 text-slate-500"}`}>
+                {preset === "month" ? "This month" : preset === "lastMonth" ? "Last month" : preset === "quarter" ? "This quarter" : preset === "ytd" ? "YTD" : "Custom"}
+              </button>
+            ))}
+            {plPreset === "custom" && (
+              <>
+                <input type="date" value={plCustomStart} onChange={(e) => setPlCustomStart(e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+                <input type="date" value={plCustomEnd} onChange={(e) => setPlCustomEnd(e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+              </>
+            )}
+          </div>
+        </header>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <ReportKpi label="Revenue" value={money(plRevenue)} detail={`${plInvoices.length} invoice${plInvoices.length === 1 ? "" : "s"}`} tone="sky" />
+          <ReportKpi label="Direct cost" value={money(plCost)} detail={`${plEntries.length} timecard${plEntries.length === 1 ? "" : "s"}`} tone="orange" />
+          <ReportKpi label="Gross profit" value={money(plProfit)} detail={`${plRange.start} – ${plRange.end}`} tone={plProfit >= 0 ? "green" : "red"} />
+          <ReportKpi label="Gross margin" value={`${plMargin.toFixed(1)}%`} detail="Profit ÷ revenue" tone={plMargin >= 30 ? "green" : plMargin >= 0 ? "orange" : "red"} />
+        </div>
+        <div className="mt-5 flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">By job</p>
+          <div className="flex gap-2">
+            <button onClick={() => setPlSortBy("profit")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "profit" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-500"}`}>Lowest profit first</button>
+            <button onClick={() => setPlSortBy("revenue")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "revenue" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-500"}`}>Highest revenue first</button>
+          </div>
+        </div>
+        {plByJob.length ? (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left">
+              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+                <tr><th className="px-3 py-2">Job</th><th className="px-3 py-2 text-right">Revenue</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-right">Profit</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {plByJob.map((row) => (
+                  <tr key={row.jobId}>
+                    <td className="px-3 py-3 text-[10px] font-bold">{row.name}</td>
+                    <td className="px-3 py-3 text-right text-[10px]">{money(row.revenue)}</td>
+                    <td className="px-3 py-3 text-right text-[10px]">{money(row.cost)}</td>
+                    <td className={`px-3 py-3 text-right text-[10px] font-bold ${row.profit < 0 ? "text-red-600" : "text-green-700"}`}>{money(row.profit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <ReportEmpty text="No invoiced revenue or logged hours in this date range." />
+        )}
       </section>
       <div className="grid gap-5 xl:grid-cols-2">
         <ReportPanel title="Job pipeline" subtitle={`${jobs.length} total work orders`}>
