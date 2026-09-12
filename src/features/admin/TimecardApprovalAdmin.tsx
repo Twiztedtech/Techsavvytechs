@@ -34,6 +34,7 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [technicianFilter, setTechnicianFilter] = useState("ALL");
+  const [showVoided, setShowVoided] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -74,6 +75,8 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
 
   const filtered = technicianFilter === "ALL" ? entries : entries.filter((entry) => entry.technicianUid === technicianFilter);
   const nonVoided = filtered.filter((tc) => tc.status !== "voided");
+  const voidedCount = filtered.length - nonVoided.length;
+  const visibleEntries = showVoided ? filtered : nonVoided;
   const totalOwed = nonVoided.reduce((sum, tc) => sum + getEntryTotals(tc).totalGross, 0);
 
   // Per-job-site breakdown for whichever technician is currently selected --
@@ -188,6 +191,10 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 cursor-pointer whitespace-nowrap">
+          <input type="checkbox" checked={showVoided} onChange={(event) => setShowVoided(event.target.checked)} className="accent-amber-500" />
+          Show voided ({voidedCount})
+        </label>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
@@ -236,8 +243,8 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
 
       <div className="space-y-4">
         {loading && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">Loading timecards…</div>}
-        {!loading && filtered.length === 0 && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">No timecards were found for this technician.</div>}
-        {filtered.map((entry) => {
+        {!loading && visibleEntries.length === 0 && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">No timecards were found for this technician.</div>}
+        {visibleEntries.map((entry) => {
           const totals = getEntryTotals(entry);
           const techName = entry.technicianName || contractors.find((c) => c.authUid === entry.technicianUid)?.name || "Unknown Tech";
           const techEmail = entry.technicianEmail || contractors.find((c) => c.authUid === entry.technicianUid)?.email || "No Email";
