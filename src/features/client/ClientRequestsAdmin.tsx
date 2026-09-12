@@ -111,19 +111,19 @@ export function ClientRequestsAdmin({
   return (
     <div className="space-y-6">
       {notice && (
-        <div className="rounded border border-crm-warning/30 bg-crm-warning/10 p-3 text-xs text-amber-800">
+        <div className="rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-3 text-xs text-crm-warning-soft-text">
           {notice}
         </div>
       )}
       {data.failedNotifications.length > 0 && (
-        <div className="flex gap-3 rounded-xl border border-crm-error/30 bg-crm-error/10 p-4 text-sm text-red-800">
+        <div className="flex gap-3 rounded-xl border border-crm-error/30 bg-crm-error-soft-bg p-4 text-sm text-crm-error-soft-text">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <div>
             <strong>
               {data.failedNotifications.length} notification deliveries need
               attention.
             </strong>
-            <p className="mt-1 text-xs text-red-700/80">
+            <p className="mt-1 text-xs text-crm-error-soft-text/80">
               Review provider configuration or delivery errors before relying on
               alerts.
             </p>
@@ -452,7 +452,7 @@ export function ClientRequestsAdmin({
                         technicianId: schedule.technicianId,
                       })
                     }
-                    className="rounded-lg bg-crm-warning p-2 text-[10px] font-bold text-white hover:bg-amber-600"
+                    className="rounded-lg bg-crm-warning p-2 text-[10px] font-bold text-white hover:brightness-90"
                   >
                     Confirm
                   </button>

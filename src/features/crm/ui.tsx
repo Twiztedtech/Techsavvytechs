@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { Moon, Sun, X } from "lucide-react";
+import type { CrmThemeName } from "./theme";
 
 /**
  * Shared CRM UI primitives — the single design system for /crm and every
@@ -15,10 +16,10 @@ const toneStyles: Record<string, string> = {
   warning: "bg-crm-warning/10 text-crm-warning",
   error: "bg-crm-error/10 text-crm-error",
   accent: "bg-crm-accent/10 text-crm-accent",
-  orange: "bg-crm-badge-orange/15 text-orange-700",
-  pink: "bg-crm-badge-pink/15 text-pink-700",
-  violet: "bg-crm-badge-violet/15 text-violet-700",
-  emerald: "bg-crm-badge-emerald/15 text-emerald-700",
+  orange: "bg-crm-badge-orange/15 text-crm-badge-orange",
+  pink: "bg-crm-badge-pink/15 text-crm-badge-pink",
+  violet: "bg-crm-badge-violet/15 text-crm-badge-violet",
+  emerald: "bg-crm-badge-emerald/15 text-crm-badge-emerald",
 };
 
 export type CrmTone = keyof typeof toneStyles;
@@ -34,7 +35,7 @@ export function CrmBadge({ tone = "neutral", children }: Record<string, any> & {
 const buttonVariants = {
   primary: "bg-crm-primary text-crm-on-primary hover:bg-crm-primary-active disabled:bg-crm-primary-disabled disabled:text-crm-muted",
   secondary: "bg-crm-canvas text-crm-ink border border-crm-hairline hover:bg-crm-surface-soft disabled:opacity-50",
-  destructive: "bg-crm-error text-white hover:bg-red-600 disabled:opacity-50",
+  destructive: "bg-crm-error text-white hover:brightness-90 disabled:opacity-50",
   text: "bg-transparent text-crm-ink hover:underline underline-offset-2 disabled:opacity-50",
 };
 
@@ -107,6 +108,20 @@ export function CrmTableHead({ children }: { children: ReactNode }) {
     <thead className="border-b border-crm-hairline bg-crm-surface-soft text-[11px] font-semibold uppercase tracking-wide text-crm-muted">
       <tr>{children}</tr>
     </thead>
+  );
+}
+
+export function CrmThemeToggle({ theme, onToggle }: { theme: CrmThemeName; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      className="grid h-8 w-8 place-items-center rounded-lg text-crm-muted hover:bg-crm-surface-soft hover:text-crm-ink"
+    >
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
   );
 }
 

@@ -59,6 +59,8 @@ import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
+import { CrmThemeToggle } from "../features/crm/ui";
+import { useCrmTheme } from "../features/crm/theme";
 
 const TechnicianWorkOrderPreview = lazy(() =>
   import("../features/contractor/workOrders/TechnicianWorkOrderPreview").then(({ TechnicianWorkOrderPreview }) => ({ default: TechnicianWorkOrderPreview })),
@@ -103,14 +105,14 @@ const modules: {
   { id: "requests", label: "Client Requests", icon: Inbox },
 ];
 const tones: Record<string, string> = {
-  sky: "border-sky-400/20 bg-sky-400/10 text-sky-600",
-  orange: "border-orange-400/20 bg-orange-400/10 text-orange-600",
-  green: "border-green-500/20 bg-green-500/10 text-green-700",
-  violet: "border-violet-400/20 bg-violet-400/10 text-violet-600",
-  red: "border-red-400/20 bg-red-400/10 text-red-600",
-  blue: "border-sky-400/30 bg-sky-400/20 text-sky-800",
-  purple: "border-violet-400/30 bg-violet-400/20 text-violet-800",
-  slate: "border-slate-400/20 bg-slate-500/15 text-crm-body",
+  sky: "border-crm-accent/20 bg-crm-accent/10 text-crm-accent",
+  orange: "border-crm-warning/20 bg-crm-warning/10 text-crm-warning",
+  green: "border-crm-success/20 bg-crm-success/10 text-crm-success",
+  violet: "border-crm-badge-violet/20 bg-crm-badge-violet/10 text-crm-badge-violet",
+  red: "border-crm-error/20 bg-crm-error/10 text-crm-error",
+  blue: "border-crm-accent/30 bg-crm-accent/20 text-crm-accent",
+  purple: "border-crm-badge-violet/30 bg-crm-badge-violet/20 text-crm-badge-violet",
+  slate: "border-crm-hairline bg-crm-surface-card text-crm-muted",
 };
 
 type CatalogItem = {
@@ -312,6 +314,7 @@ async function recordAudit(action: string, entityType: string, entityId: string,
 }
 
 export default function CRM() {
+  const { theme: crmTheme, toggle: toggleCrmTheme } = useCrmTheme();
   const [module, setModule] = useState<Module>("dashboard");
   const [mobileNav, setMobileNav] = useState(false);
   const [query, setQuery] = useState("");
@@ -535,7 +538,7 @@ export default function CRM() {
       />
     );
   return (
-    <div className="min-h-screen bg-crm-surface-soft text-crm-body">
+    <div className={`min-h-screen bg-crm-surface-soft text-crm-body ${crmTheme === "dark" ? "dark" : ""}`}>
       <header className="sticky top-0 z-40 flex h-16 items-center border-b border-crm-hairline bg-crm-canvas px-3 text-crm-ink lg:px-5">
         <button
           onClick={() => setMobileNav(!mobileNav)}
@@ -578,6 +581,7 @@ export default function CRM() {
           <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
             <Settings className="h-4 w-4" />
           </a>
+          <CrmThemeToggle theme={crmTheme} onToggle={toggleCrmTheme} />
           <button
             onClick={() => void signOut(auth)}
             className="grid h-8 w-8 place-items-center rounded-full bg-crm-primary text-[10px] font-bold text-crm-on-primary"
@@ -681,7 +685,7 @@ export default function CRM() {
                 </button>
               ))}
             </section>
-            {unlinkedJobs.length > 0 && <div role="status" className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">Customer link needs review: {unlinkedJobs.map((job) => <button key={job.id} onClick={() => setSelectedJob(job)} className="ml-2 underline">{job.name || job.id}</button>)}. No customer was guessed.</div>}
+            {unlinkedJobs.length > 0 && <div role="status" className="mb-4 rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-3 text-xs text-crm-warning-soft-text">Customer link needs review: {unlinkedJobs.map((job) => <button key={job.id} onClick={() => setSelectedJob(job)} className="ml-2 underline">{job.name || job.id}</button>)}. No customer was guessed.</div>}
             {module === "schedule" ? (
               <>
                 <LiveSchedulingQueue
@@ -925,7 +929,7 @@ function CustomersView({
                   const expired = Boolean(expiresAt && expiresAt < new Date().toISOString());
                   const revoked = c.portalDelivery?.status === "revoked";
                   const active = c.portalDelivery?.status === "sent" && !expired;
-                  return <div className="mt-3 flex items-center justify-between rounded bg-crm-surface-soft px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-green-700" : revoked ? "text-red-600" : "text-crm-muted"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-crm-muted">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
+                  return <div className="mt-3 flex items-center justify-between rounded bg-crm-surface-soft px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-crm-success" : revoked ? "text-crm-error" : "text-crm-muted"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-crm-muted">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
                 })()}
                 <div className="mt-4 grid grid-cols-3 border-y border-crm-hairline-soft py-3 text-center">
                   <div>
@@ -956,7 +960,7 @@ function CustomersView({
                 </button>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
-                  <button onClick={() => void managePortal(c, "revoke")} disabled={managing === `revoke-${c.id}` || c.portalDelivery?.status !== "sent"} className="rounded border border-red-200 px-2 py-2 text-[8px] font-bold uppercase text-red-600 disabled:opacity-30">{managing === `revoke-${c.id}` ? "Revoking…" : "Revoke access"}</button>
+                  <button onClick={() => void managePortal(c, "revoke")} disabled={managing === `revoke-${c.id}` || c.portalDelivery?.status !== "sent"} className="rounded border border-crm-error/30 px-2 py-2 text-[8px] font-bold uppercase text-crm-error disabled:opacity-30">{managing === `revoke-${c.id}` ? "Revoking…" : "Revoke access"}</button>
                 </div>
               </article>
             );
@@ -1067,7 +1071,7 @@ function CustomerEditModal({
                 <select value={person.role} onChange={(e) => updatePerson(index, "role", e.target.value)} className="rounded border border-crm-hairline px-2 py-1.5 text-xs">
                   {Object.entries(customerPersonnelRoleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-                <button type="button" onClick={() => removePerson(index)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Remove</button>
+                <button type="button" onClick={() => removePerson(index)} className="rounded border border-crm-error/30 px-2 py-1.5 text-[9px] font-bold text-crm-error">Remove</button>
               </div>
             ))}
             {!personnel.length && <p className="py-2 text-center text-[10px] text-crm-muted">No one added yet.</p>}
@@ -1077,7 +1081,7 @@ function CustomerEditModal({
           <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">
             Cancel
           </button>
-          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40">
             {saving ? "Saving…" : "Save customer"}
           </button>
         </div>
@@ -1120,9 +1124,9 @@ function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries }
   const recent = [...deliveries].sort((a, b) => String(b.sentAt || b.createdAt || "").localeCompare(String(a.sentAt || a.createdAt || ""))).slice(0, 12);
   return <div className="space-y-5">
     <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded bg-crm-surface-card text-crm-ink"><Clock3 className="h-5 w-5"/></span><div><h2 className="text-sm font-bold">Automated customer reminders</h2><p className="mt-1 text-[10px] text-crm-muted">Daily at 8:00 AM Pacific · appointments, quotes, overdue invoices and recurring maintenance</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{["appointment", "quote", "invoice", "maintenance"].map((type) => <div key={type} className="rounded bg-crm-surface-soft p-3"><p className="text-[8px] font-bold uppercase text-crm-muted">{type}</p><p className="mt-1 crm-display-sm">{items.filter((item) => item.type === type).length}</p><p className="text-[8px] text-crm-muted">currently actionable</p></div>)}</div></section>
-    <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-crm-muted">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-crm-hairline-soft overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-muted">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-crm-muted">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[9px] font-bold text-white disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
-    <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-crm-muted">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-crm-hairline-soft">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-green-100 text-green-700" : "bg-crm-surface-card text-crm-muted"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>
-    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Recent reminder delivery</h3></header>{recent.length ? <div className="divide-y divide-crm-hairline-soft">{recent.map((delivery) => <div key={delivery.id} className="grid gap-2 p-4 sm:grid-cols-[120px_1fr_120px] sm:items-center"><span className="text-[8px] font-bold uppercase text-crm-muted">{delivery.type}{delivery.manual ? " · manual" : ""}</span><div><p className="text-[10px] font-semibold">{delivery.email}</p>{delivery.error && <p className="mt-1 text-[8px] text-red-600">{delivery.error}</p>}</div><span className={`text-[9px] font-bold uppercase sm:text-right ${delivery.status === "sent" ? "text-green-700" : delivery.status === "failed" ? "text-red-600" : "text-orange-600"}`}>{delivery.status}</span></div>)}</div> : <ReportEmpty text="No reminders have been delivered yet."/>}</section>
+    <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-crm-muted">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-crm-hairline-soft overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-muted">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-crm-muted">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[9px] font-bold text-crm-on-primary disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
+    <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-crm-muted">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-crm-hairline-soft">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-crm-success-soft-bg text-crm-success-soft-text" : "bg-crm-surface-card text-crm-muted"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Recent reminder delivery</h3></header>{recent.length ? <div className="divide-y divide-crm-hairline-soft">{recent.map((delivery) => <div key={delivery.id} className="grid gap-2 p-4 sm:grid-cols-[120px_1fr_120px] sm:items-center"><span className="text-[8px] font-bold uppercase text-crm-muted">{delivery.type}{delivery.manual ? " · manual" : ""}</span><div><p className="text-[10px] font-semibold">{delivery.email}</p>{delivery.error && <p className="mt-1 text-[8px] text-crm-error">{delivery.error}</p>}</div><span className={`text-[9px] font-bold uppercase sm:text-right ${delivery.status === "sent" ? "text-crm-success" : delivery.status === "failed" ? "text-crm-error" : "text-crm-warning"}`}>{delivery.status}</span></div>)}</div> : <ReportEmpty text="No reminders have been delivered yet."/>}</section>
   </div>;
 }
 
@@ -1159,7 +1163,7 @@ function AuditTrailView({ logs }: { logs: AuditLog[] }) {
           <div><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-ink">{log.entityType}</span><span className="text-[9px] font-semibold uppercase text-crm-muted">{log.action.replace(/-/g, " ")}</span></div><p className="mt-2 text-[11px] font-semibold">{log.summary}</p>{log.entityId && <p className="mt-1 font-mono text-[8px] text-crm-muted">{log.entityId}</p>}</div>
           <div className="sm:text-right"><p className="truncate text-[10px] font-semibold">{log.actorLabel || log.actorEmail || "System"}</p><p className="mt-1 text-[8px] uppercase text-crm-muted">{log.source || "CRM"}</p></div>
         </article>;
-      })}</div> : <div className="grid min-h-56 place-items-center p-6 text-center"><div><ClipboardCheck className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-xs font-semibold">No matching audit activity</p><p className="mt-1 text-[10px] text-crm-muted">New administrator actions will appear here automatically.</p></div></div>}
+      })}</div> : <div className="grid min-h-56 place-items-center p-6 text-center"><div><ClipboardCheck className="mx-auto h-8 w-8 text-crm-muted-soft"/><p className="mt-3 text-xs font-semibold">No matching audit activity</p><p className="mt-1 text-[10px] text-crm-muted">New administrator actions will appear here automatically.</p></div></div>}
     </section>
   );
 }
@@ -1304,7 +1308,7 @@ function ReportsView({
           <h2 className="mt-2 text-base font-bold">Operational performance</h2>
           <p className="mt-1 text-[10px] text-crm-muted">Updated automatically from CRM jobs, quotes, invoices, technicians and assets. Includes test records; margins use saved job costing.</p>
         </div>
-        <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
+        <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-crm-on-primary"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
       </section>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <ReportKpi label="Active jobs" value={String(activeJobs.length)} detail={`${unassigned} unassigned`} tone={unassigned ? "orange" : "green"} />
@@ -1342,8 +1346,8 @@ function ReportsView({
         <div className="mt-5 flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-wide text-crm-muted">By job</p>
           <div className="flex gap-2">
-            <button onClick={() => setPlSortBy("profit")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "profit" ? "bg-slate-900 text-white" : "border border-crm-hairline text-crm-muted"}`}>Lowest profit first</button>
-            <button onClick={() => setPlSortBy("revenue")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "revenue" ? "bg-slate-900 text-white" : "border border-crm-hairline text-crm-muted"}`}>Highest revenue first</button>
+            <button onClick={() => setPlSortBy("profit")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "profit" ? "bg-crm-primary text-crm-on-primary" : "border border-crm-hairline text-crm-muted"}`}>Lowest profit first</button>
+            <button onClick={() => setPlSortBy("revenue")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "revenue" ? "bg-crm-primary text-crm-on-primary" : "border border-crm-hairline text-crm-muted"}`}>Highest revenue first</button>
           </div>
         </div>
         {plByJob.length ? (
@@ -1358,7 +1362,7 @@ function ReportsView({
                     <td className="px-3 py-3 text-[10px] font-bold">{row.name}</td>
                     <td className="px-3 py-3 text-right text-[10px]">{money(row.revenue)}</td>
                     <td className="px-3 py-3 text-right text-[10px]">{money(row.cost)}</td>
-                    <td className={`px-3 py-3 text-right text-[10px] font-bold ${row.profit < 0 ? "text-red-600" : "text-green-700"}`}>{money(row.profit)}</td>
+                    <td className={`px-3 py-3 text-right text-[10px] font-bold ${row.profit < 0 ? "text-crm-error" : "text-crm-success"}`}>{money(row.profit)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1379,13 +1383,13 @@ function ReportsView({
           {jobs.map((job) => { const summary = laborSummary(timeEntries.filter((entry) => entry.jobId === job.id)); return <div key={job.id} className="border-b border-crm-hairline-soft py-3 text-xs"><strong>{job.name || job.id}</strong><p>{summary.approved.toFixed(2)} approved hours · {summary.pending.toFixed(2)} pending hours</p></div>; })}
         </ReportPanel>
         <ReportPanel title="Technician workload" subtitle="Active assigned work and estimated hours">
-          {workloads.length ? <div className="divide-y divide-crm-hairline-soft">{workloads.slice(0, 8).map((tech) => <div key={tech.id} className="flex items-center justify-between py-3"><div><p className="text-[11px] font-bold">{tech.name}</p><p className="text-[9px] text-crm-muted">{tech.hours ? `${tech.hours.toFixed(1)} estimated hours` : "Hours not estimated"}</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${tech.jobs >= 5 ? "bg-red-100 text-red-700" : tech.jobs ? "bg-green-100 text-green-800" : "bg-crm-surface-card text-crm-muted"}`}>{tech.jobs} jobs</span></div>)}</div> : <ReportEmpty text="No technician records are available." />}
+          {workloads.length ? <div className="divide-y divide-crm-hairline-soft">{workloads.slice(0, 8).map((tech) => <div key={tech.id} className="flex items-center justify-between py-3"><div><p className="text-[11px] font-bold">{tech.name}</p><p className="text-[9px] text-crm-muted">{tech.hours ? `${tech.hours.toFixed(1)} estimated hours` : "Hours not estimated"}</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${tech.jobs >= 5 ? "bg-crm-error-soft-bg text-crm-error-soft-text" : tech.jobs ? "bg-crm-success-soft-bg text-crm-success-soft-text" : "bg-crm-surface-card text-crm-muted"}`}>{tech.jobs} jobs</span></div>)}</div> : <ReportEmpty text="No technician records are available." />}
         </ReportPanel>
         <ReportPanel title="Maintenance forecast" subtitle="Recurring customer service due within 30 days">
           {dueMaintenance.length ? <div className="divide-y divide-crm-hairline-soft">{dueMaintenance.slice(0, 8).map((asset) => <div key={asset.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-[11px] font-bold">{asset.name}</p><p className="text-[9px] text-crm-muted">{asset.customerName} · {asset.site}</p></div><span className="whitespace-nowrap text-[9px] font-bold text-crm-ink">{asset.maintenance?.nextServiceDate}</span></div>)}</div> : <ReportEmpty text="No recurring maintenance is due in the next 30 days." />}
         </ReportPanel>
       </div>
-      {overdueInvoices.length > 0 && <ReportPanel title="Receivables requiring attention" subtitle={`${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`}><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left"><thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-crm-hairline-soft">{overdueInvoices.map((invoice) => <tr key={invoice.id}><td className="px-3 py-3 text-[10px] font-bold">{invoice.invoiceNumber || invoice.id}</td><td className="px-3 py-3 text-[10px]">{invoice.customer}</td><td className="px-3 py-3 text-[10px] text-red-600">{invoice.dueDate}</td><td className="px-3 py-3 text-right text-[10px] font-bold">{money(invoice.balance)}</td></tr>)}</tbody></table></div></ReportPanel>}
+      {overdueInvoices.length > 0 && <ReportPanel title="Receivables requiring attention" subtitle={`${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`}><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left"><thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-crm-hairline-soft">{overdueInvoices.map((invoice) => <tr key={invoice.id}><td className="px-3 py-3 text-[10px] font-bold">{invoice.invoiceNumber || invoice.id}</td><td className="px-3 py-3 text-[10px]">{invoice.customer}</td><td className="px-3 py-3 text-[10px] text-crm-error">{invoice.dueDate}</td><td className="px-3 py-3 text-right text-[10px] font-bold">{money(invoice.balance)}</td></tr>)}</tbody></table></div></ReportPanel>}
     </div>
   );
 }
@@ -1397,7 +1401,7 @@ function ReportPanel({ title, subtitle, children }: { title: string; subtitle: s
   return <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><header className="mb-5 border-b border-crm-hairline-soft pb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-[9px] text-crm-muted">{subtitle}</p></header>{children}</section>;
 }
 function ReportBar({ label, width, display, danger = false }: { key?: string; label: string; value: number; width: number; display: string; danger?: boolean }) {
-  return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-crm-body">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-crm-surface-card"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-crm-primary"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
+  return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-crm-body">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-crm-surface-card"><div className={`h-full rounded-full ${danger ? "bg-crm-error" : "bg-crm-primary"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
 }
 function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-crm-hairline bg-crm-surface-soft p-5 text-center text-[10px] text-crm-muted">{text}</div>; }
 
@@ -1438,7 +1442,7 @@ function CatalogView({
               placeholder="Search catalog…"
               className="rounded border border-crm-hairline px-3 py-2 text-xs outline-none focus:border-crm-ink"
             />
-            <button onClick={() => setEditingItem("new")} className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white">
+            <button onClick={() => setEditingItem("new")} className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-crm-on-primary">
               <Plus className="mr-1 inline h-3 w-3" /> Add item
             </button>
           </div>
@@ -1450,7 +1454,7 @@ function CatalogView({
           </div>
           <div className="rounded border border-crm-hairline bg-crm-surface-soft p-4">
             <p className="text-[9px] font-bold uppercase text-crm-muted">Low stock</p>
-            <p className={`mt-1 crm-display-sm ${lowStock.length ? "text-orange-600" : ""}`}>{lowStock.length}</p>
+            <p className={`mt-1 crm-display-sm ${lowStock.length ? "text-crm-warning" : ""}`}>{lowStock.length}</p>
           </div>
           <div className="rounded border border-crm-hairline bg-crm-surface-soft p-4">
             <p className="text-[9px] font-bold uppercase text-crm-muted">Stock value</p>
@@ -1478,14 +1482,14 @@ function CatalogView({
                       <td className="px-4 py-3 text-[10px]">{money(item.unitPrice)}</td>
                       <td className="px-4 py-3 text-[10px] font-semibold">{item.quantityOnHand ?? 0}</td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-[9px] ${low ? "bg-orange-50 text-orange-700" : "bg-green-50 text-green-700"}`}>
+                        <span className={`rounded-full px-2 py-1 text-[9px] ${low ? "bg-crm-warning-soft-bg text-crm-warning-soft-text" : "bg-crm-success-soft-bg text-crm-success-soft-text"}`}>
                           {low ? "Low stock" : "In stock"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <button onClick={() => setEditingItem(item)} className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold">Edit</button>
-                          <button onClick={() => void remove(item)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Delete</button>
+                          <button onClick={() => void remove(item)} className="rounded border border-crm-error/30 px-2 py-1.5 text-[9px] font-bold text-crm-error">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -1497,7 +1501,7 @@ function CatalogView({
         ) : (
           <div className="grid min-h-48 place-items-center p-6 text-center">
             <div>
-              <Boxes className="mx-auto h-8 w-8 text-slate-300" />
+              <Boxes className="mx-auto h-8 w-8 text-crm-muted-soft" />
               <p className="mt-3 text-xs font-semibold">{items.length ? "No items match your search" : "No catalog items yet"}</p>
               <p className="mt-1 text-[10px] text-crm-muted">Add parts and materials to track pricing and on-hand quantity.</p>
             </div>
@@ -1571,7 +1575,7 @@ function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">Cancel</button>
-          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40">
             {saving ? "Saving…" : "Save item"}
           </button>
         </div>
@@ -1582,7 +1586,7 @@ function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose
 
 function MaterialAllocations({ jobs, onOpen }: { jobs: LiveJob[]; onOpen: (job: LiveJob) => void }) {
   const allocations = jobs.flatMap((job) => (job.equipment || []).map((item, index) => ({ job, item, index })));
-  return <section className="rounded border bg-crm-canvas p-5"><h2 className="font-bold">Job materials & equipment</h2><p className="my-3 text-xs text-crm-muted">Live allocations from work orders. These are job requirements, not warehouse stock counts.</p>{allocations.length ? allocations.map(({ job, item, index }) => <div key={`${job.id}-${index}`} className="flex justify-between gap-3 border-b py-3 text-xs"><div><strong>{item.description}</strong><p>Qty {item.quantity || '—'} · {item.providedBy === 'client' || item.fulfillmentSource === 'customer_shipped' ? 'Client provided' : item.providedBy === 'techsavvy' || item.fulfillmentSource === 'techsavvy_supplied' ? 'TechSavvy provided' : 'Provider not specified'}</p></div><button onClick={() => onOpen(job)} className="text-green-700 underline">{job.name || job.id}</button></div>) : <p>No materials allocated to jobs.</p>}</section>;
+  return <section className="rounded border bg-crm-canvas p-5"><h2 className="font-bold">Job materials & equipment</h2><p className="my-3 text-xs text-crm-muted">Live allocations from work orders. These are job requirements, not warehouse stock counts.</p>{allocations.length ? allocations.map(({ job, item, index }) => <div key={`${job.id}-${index}`} className="flex justify-between gap-3 border-b py-3 text-xs"><div><strong>{item.description}</strong><p>Qty {item.quantity || '—'} · {item.providedBy === 'client' || item.fulfillmentSource === 'customer_shipped' ? 'Client provided' : item.providedBy === 'techsavvy' || item.fulfillmentSource === 'techsavvy_supplied' ? 'TechSavvy provided' : 'Provider not specified'}</p></div><button onClick={() => onOpen(job)} className="text-crm-success underline">{job.name || job.id}</button></div>) : <p>No materials allocated to jobs.</p>}</section>;
 }
 
 
@@ -1668,7 +1672,7 @@ function QuotesView({
         </div>
         <button
           onClick={onCreate}
-          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
+          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-crm-on-primary"
         >
           <Plus className="mr-1 inline h-3 w-3" /> New quote
         </button>
@@ -1714,7 +1718,7 @@ function QuotesView({
                     </p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-orange-50 px-2 py-1 text-[9px] text-orange-700">
+                    <span className="rounded-full bg-crm-warning-soft-bg px-2 py-1 text-[9px] text-crm-warning">
                       {q.status}
                     </span>
                   </td>
@@ -1844,10 +1848,10 @@ function QuoteDetailModal({
             <span
               className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${
                 quote.status === "Accepted" || quote.status === "Converted"
-                  ? "bg-green-100 text-green-800"
+                  ? "bg-crm-success-soft-bg text-crm-success-soft-text"
                   : quote.status === "Rejected"
-                    ? "bg-red-100 text-red-700"
-                    : "bg-orange-100 text-orange-700"
+                    ? "bg-crm-error-soft-bg text-crm-error-soft-text"
+                    : "bg-crm-warning-soft-bg text-crm-warning-soft-text"
               }`}
             >
               {quote.status}
@@ -2072,7 +2076,7 @@ function LineItemsModal({
                 type="button"
                 disabled={items.length === 1}
                 onClick={() => setItems(items.filter((_, i) => i !== index))}
-                className="text-red-500 disabled:opacity-20"
+                className="text-crm-error disabled:opacity-20"
               >
                 ×
               </button>
@@ -2093,7 +2097,7 @@ function LineItemsModal({
           </button>
           <button
             disabled={saving || !items.some((i) => i.description.trim())}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save items"}
           </button>
@@ -2182,7 +2186,7 @@ function StipulationsModal({
                 type="button"
                 disabled={lines.length === 1}
                 onClick={() => setLines(lines.filter((_, i) => i !== index))}
-                className="text-red-500 disabled:opacity-20"
+                className="text-crm-error disabled:opacity-20"
               >
                 ×
               </button>
@@ -2199,7 +2203,7 @@ function StipulationsModal({
           </button>
           <button
             disabled={saving}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save terms"}
           </button>
@@ -2226,7 +2230,7 @@ function LiveSchedulingQueue({
             Jobs awaiting a technician or schedule
           </p>
         </div>
-        <span className="rounded-full bg-orange-50 px-2 py-1 text-[9px] font-bold text-orange-700">
+        <span className="rounded-full bg-crm-warning-soft-bg px-2 py-1 text-[9px] font-bold text-crm-warning">
           {queue.length} unassigned
         </span>
       </div>
@@ -2324,7 +2328,7 @@ function LiveScheduleBoard({
                 className="grid min-h-20 grid-cols-[190px_1fr] border-b border-crm-hairline-soft"
               >
                 <div className="flex items-center gap-3 border-r border-crm-hairline px-4">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-crm-ink text-[9px] font-bold text-white">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-crm-ink text-[9px] font-bold text-crm-canvas">
                     {(tech.name || tech.companyName || "T")
                       .split(" ")
                       .map((x) => x[0])
@@ -2354,7 +2358,7 @@ function LiveScheduleBoard({
                         key={job.id}
                         onClick={() => onSchedule(job)}
                         style={{ left: `${left}%`, width: `${width}%`, top: index * 70 + 4, height: 62 }}
-                        className="absolute top-2 bottom-2 overflow-hidden rounded border border-green-500/30 bg-green-100 px-2 text-left text-[9px] font-semibold text-green-800"
+                        className="absolute top-2 bottom-2 overflow-hidden rounded border border-crm-success/30 bg-crm-success-soft-bg px-2 text-left text-[9px] font-semibold text-crm-success-soft-text"
                       >
                         <span className="block truncate">
                           {job.workOrderNumber || job.id}
@@ -2481,7 +2485,7 @@ function LiveJobsView({
                       </button>
                       <button
                         onClick={() => onSchedule(job)}
-                        className="rounded bg-crm-primary hover:bg-crm-primary-active px-2 py-1.5 text-[9px] font-bold text-white"
+                        className="rounded bg-crm-primary hover:bg-crm-primary-active px-2 py-1.5 text-[9px] font-bold text-crm-on-primary"
                       >
                         Schedule
                       </button>
@@ -2786,7 +2790,7 @@ function JobDetailModal({
           <div className="sm:col-span-2">
             <label className="text-[9px] font-bold uppercase text-crm-muted">Assign technicians</label>
             <div className="mt-1.5 max-h-40 divide-y divide-crm-hairline-soft overflow-y-auto rounded border border-crm-hairline">
-              <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-600 cursor-pointer hover:bg-crm-surface-soft">
+              <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-crm-warning cursor-pointer hover:bg-crm-surface-soft">
                 <input
                   type="checkbox"
                   checked={assignedTechIds.includes("ALL")}
@@ -2813,7 +2817,7 @@ function JobDetailModal({
               ))}
             </div>
             {!assignedTechIds.includes("ALL") && assignedTechIds.length === 0 && (
-              <p className="mt-1 text-[10px] text-red-500">Select at least one technician or choose anyone.</p>
+              <p className="mt-1 text-[10px] text-crm-error">Select at least one technician or choose anyone.</p>
             )}
           </div>
           <Field
@@ -2835,7 +2839,7 @@ function JobDetailModal({
             />
             Signature required before completion
           </label>
-          <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-green-700 underline" href="/crm">Review timecards</a></div>
+          <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-crm-success underline" href="/crm">Review timecards</a></div>
           <label className="sm:col-span-2 text-[9px] font-bold uppercase text-crm-muted">
             Job and site notes
             <textarea
@@ -2911,7 +2915,7 @@ function JobDetailModal({
                 onClick={() =>
                   setMaterials(materials.filter((_, i) => i !== index))
                 }
-                className="text-red-500"
+                className="text-crm-error"
               >
                 ×
               </button>
@@ -2946,7 +2950,7 @@ function JobDetailModal({
               <button
                 type="button"
                 onClick={() => setTasks(tasks.filter((_, i) => i !== index))}
-                className="text-red-500"
+                className="text-crm-error"
               >
                 ×
               </button>
@@ -2981,7 +2985,7 @@ function JobDetailModal({
               <button
                 type="button"
                 onClick={() => setQaChecklist(qaChecklist.filter((_, i) => i !== index))}
-                className="text-red-500"
+                className="text-crm-error"
               >
                 ×
               </button>
@@ -3025,8 +3029,8 @@ function JobDetailModal({
             <b
               className={
                 margin >= 30
-                  ? "text-sm text-green-700"
-                  : "text-sm text-orange-600"
+                  ? "text-sm text-crm-success"
+                  : "text-sm text-crm-warning"
               }
             >
               {margin}%
@@ -3039,7 +3043,7 @@ function JobDetailModal({
               type="button"
               disabled={voiding}
               onClick={voidWorkOrder}
-              className="rounded border border-rose-300 px-4 py-2 text-xs font-bold text-rose-600 disabled:opacity-40"
+              className="rounded border border-crm-error/30 px-4 py-2 text-xs font-bold text-crm-error disabled:opacity-40"
             >
               {voiding ? "Voiding…" : "Void work order"}
             </button>
@@ -3056,7 +3060,7 @@ function JobDetailModal({
             </button>
             <button
               disabled={saving}
-              className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+              className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
             >
               {saving ? "Saving…" : "Save job"}
             </button>
@@ -3252,8 +3256,8 @@ function InvoicesView({
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-        <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness} className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-[9px] font-bold text-violet-700 disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
-        <label className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] font-bold text-amber-800"><input type="checkbox" checked={earlyBilling} onChange={(event)=>setEarlyBilling(event.target.checked)} className="accent-amber-500"/>Early billing override</label>
+        <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness} className="rounded border border-crm-badge-violet/30 bg-crm-violet-soft-bg px-3 py-2 text-[9px] font-bold text-crm-badge-violet disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
+        <label className="flex items-center gap-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg px-3 py-2 text-[9px] font-bold text-crm-warning-soft-text"><input type="checkbox" checked={earlyBilling} onChange={(event)=>setEarlyBilling(event.target.checked)} className="accent-amber-500"/>Early billing override</label>
         <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[10px] font-bold text-crm-ink disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
         <select
           defaultValue=""
@@ -3262,7 +3266,7 @@ function InvoicesView({
             if (job) onCreate(job);
             e.currentTarget.value = "";
           }}
-          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
+          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-crm-on-primary"
         >
           <option value="" disabled>
             {candidates.length ? "Create invoice from billing-ready job" : earlyBilling ? "No uninvoiced jobs available" : "No billing-ready jobs"}
@@ -3320,7 +3324,7 @@ function InvoicesView({
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-1 text-[9px] ${invoice.status === "Paid" ? "bg-green-50 text-green-700" : invoice.status === "Partially Paid" ? "bg-sky-50 text-sky-700" : invoice.status === "Overdue" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}
+                      className={`rounded-full px-2 py-1 text-[9px] ${invoice.status === "Paid" ? "bg-crm-success-soft-bg text-crm-success-soft-text" : invoice.status === "Partially Paid" ? "bg-crm-accent-soft-bg text-crm-accent-soft-text" : invoice.status === "Overdue" ? "bg-crm-error-soft-bg text-crm-error-soft-text" : "bg-crm-warning-soft-bg text-crm-warning-soft-text"}`}
                     >
                       {invoice.status}
                     </span>
@@ -3328,7 +3332,7 @@ function InvoicesView({
                   <td className="px-4 py-3 text-[10px] font-semibold">
                     {money(invoice.total)}
                   </td>
-                  <td className="px-4 py-3 text-[10px] text-green-700">
+                  <td className="px-4 py-3 text-[10px] text-crm-success">
                     {money(invoice.amountPaid)}
                   </td>
                   <td className="px-4 py-3 text-[10px] font-bold">
@@ -3339,7 +3343,7 @@ function InvoicesView({
                       <button
                         disabled={delivering === invoice.id}
                         onClick={() => void emailInvoice(invoice)}
-                        className="rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-[9px] font-bold text-sky-700 disabled:opacity-50"
+                        className="rounded border border-crm-accent/30 bg-crm-accent-soft-bg px-2 py-1.5 text-[9px] font-bold text-crm-accent disabled:opacity-50"
                       >
                         {delivering === invoice.id
                           ? "Sending…"
@@ -3357,7 +3361,7 @@ function InvoicesView({
                           invoice.qboSync?.error ||
                           "Export to QuickBooks Online"
                         }
-                        className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[9px] font-bold text-emerald-700 disabled:opacity-50"
+                        className="rounded border border-crm-success/30 bg-crm-success-soft-bg px-2 py-1.5 text-[9px] font-bold text-crm-success disabled:opacity-50"
                       >
                         {invoice.qboSync?.status === "synced"
                           ? "QB synced"
@@ -3388,7 +3392,7 @@ function InvoicesView({
       ) : (
         <div className="grid min-h-64 place-items-center p-6 text-center">
           <div>
-            <ReceiptText className="mx-auto h-8 w-8 text-slate-300" />
+            <ReceiptText className="mx-auto h-8 w-8 text-crm-muted-soft" />
             <p className="mt-3 text-xs font-semibold">No invoices yet</p>
             <p className="mt-1 text-[10px] text-crm-muted">
               Choose a completed job above to generate the first invoice.
@@ -3537,8 +3541,8 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
             <p className="text-xs text-crm-muted">
               {job.vendorName} · {job.name}
             </p>
-            {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">Early billing override · current job status: {job.status || 'New'}</p>}
-            {!job.customerBillRate && <p className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-[10px] font-bold text-red-700">No customer bill rate set on this job — labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
+            {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-2 text-[10px] font-bold text-crm-warning-soft-text">Early billing override · current job status: {job.status || 'New'}</p>}
+            {!job.customerBillRate && <p className="mt-2 rounded border border-crm-error/30 bg-crm-error-soft-bg p-2 text-[10px] font-bold text-crm-error">No customer bill rate set on this job — labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -3669,7 +3673,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
               <button
                 type="button"
                 onClick={() => setItems(items.filter((_, i) => i !== index))}
-                className="text-red-500"
+                className="text-crm-error"
               >
                 ×
               </button>
@@ -3714,7 +3718,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
           </button>
           <button
             disabled={saving || total <= 0}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
           >
             {saving ? "Creating…" : "Create invoice"}
           </button>
@@ -4005,7 +4009,7 @@ function QuoteModal({
                 type="button"
                 disabled={items.length === 1}
                 onClick={() => setItems(items.filter((_, i) => i !== index))}
-                className="text-red-500 disabled:opacity-20"
+                className="text-crm-error disabled:opacity-20"
               >
                 ×
               </button>
@@ -4041,7 +4045,7 @@ function QuoteModal({
               <button
                 type="button"
                 onClick={() => setStipulations(stipulations.filter((_, i) => i !== index))}
-                className="text-red-500"
+                className="text-crm-error"
               >
                 ×
               </button>
@@ -4067,7 +4071,7 @@ function QuoteModal({
           </button>
           <button
             disabled={saving || !items.some((i) => i.description.trim())}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save quote"}
           </button>
@@ -4277,7 +4281,7 @@ function AssetsView({
             <button
               disabled={!readyToGenerate.length || generating}
               onClick={() => void generateJobs()}
-              className="rounded border border-orange-200 bg-orange-50 px-3 py-2 text-[10px] font-bold text-orange-700 disabled:opacity-40"
+              className="rounded border border-crm-warning/30 bg-crm-warning-soft-bg px-3 py-2 text-[10px] font-bold text-crm-warning disabled:opacity-40"
             >
               {generating
                 ? "Generating…"
@@ -4285,7 +4289,7 @@ function AssetsView({
             </button>
             <button
               onClick={onCreate}
-              className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
+              className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-crm-on-primary"
             >
               <Plus className="mr-1 inline h-3 w-3" /> Add asset
             </button>
@@ -4371,8 +4375,8 @@ function AssetsView({
                           <span
                             className={
                               asset.warrantyExpiration >= today
-                                ? "text-green-700"
-                                : "text-red-600"
+                                ? "text-crm-success"
+                                : "text-crm-error"
                             }
                           >
                             {asset.warrantyExpiration >= today
@@ -4383,7 +4387,7 @@ function AssetsView({
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded-full px-2 py-1 text-[9px] ${isDue ? "bg-orange-50 text-orange-700" : "bg-green-50 text-green-700"}`}
+                          className={`rounded-full px-2 py-1 text-[9px] ${isDue ? "bg-crm-warning-soft-bg text-crm-warning-soft-text" : "bg-crm-success-soft-bg text-crm-success-soft-text"}`}
                         >
                           {asset.maintenance?.enabled
                             ? isDue
@@ -4400,7 +4404,7 @@ function AssetsView({
                       <td className="px-4 py-3 text-[10px]">
                         {asset.serviceHistory?.length || 0} service event
                         {asset.serviceHistory?.length === 1 ? "" : "s"}
-                        {!!asset.serviceHistory?.length && <details><summary className="cursor-pointer text-green-700">View history</summary>{asset.serviceHistory.map((event, index) => <div key={index} className="mt-2"><p>{event.date}: {event.notes}</p>{event.jobId && jobs.find((job) => job.id === event.jobId) ? <button className="underline" onClick={() => onOpenJob(jobs.find((job) => job.id === event.jobId)!)}>{event.workOrderNumber || 'Open work order'}</button> : <span>{event.workOrderNumber || 'No linked work order'}</span>}</div>)}</details>}
+                        {!!asset.serviceHistory?.length && <details><summary className="cursor-pointer text-crm-success">View history</summary>{asset.serviceHistory.map((event, index) => <div key={index} className="mt-2"><p>{event.date}: {event.notes}</p>{event.jobId && jobs.find((job) => job.id === event.jobId) ? <button className="underline" onClick={() => onOpenJob(jobs.find((job) => job.id === event.jobId)!)}>{event.workOrderNumber || 'Open work order'}</button> : <span>{event.workOrderNumber || 'No linked work order'}</span>}</div>)}</details>}
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -4415,7 +4419,7 @@ function AssetsView({
                         >
                           Record service
                         </button>
-                        {asset.jobId && (() => { const linkedJob = jobs.find((job) => job.id === asset.jobId); return linkedJob ? <button onClick={() => onOpenJob(linkedJob)} className="ml-2 text-xs text-green-700 underline">Open job {linkedJob.workOrderNumber || linkedJob.id}</button> : <span className="text-xs text-red-700">Linked job unavailable</span>; })()}
+                        {asset.jobId && (() => { const linkedJob = jobs.find((job) => job.id === asset.jobId); return linkedJob ? <button onClick={() => onOpenJob(linkedJob)} className="ml-2 text-xs text-crm-success underline">Open job {linkedJob.workOrderNumber || linkedJob.id}</button> : <span className="text-xs text-crm-error">Linked job unavailable</span>; })()}
                       </td>
                     </tr>
                   );
@@ -4426,7 +4430,7 @@ function AssetsView({
         ) : (
           <div className="grid min-h-64 place-items-center p-6 text-center">
             <div>
-              <Wrench className="mx-auto h-8 w-8 text-slate-300" />
+              <Wrench className="mx-auto h-8 w-8 text-crm-muted-soft" />
               <p className="mt-3 text-xs font-semibold">
                 No customer assets yet
               </p>
@@ -4436,7 +4440,7 @@ function AssetsView({
               </p>
               <button
                 onClick={onCreate}
-                className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold text-white"
+                className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold text-crm-on-primary"
               >
                 Add first asset
               </button>
@@ -4477,7 +4481,7 @@ function AssetMetric({
         {label}
       </p>
       <p
-        className={`mt-1 crm-display-sm ${warning ? "text-orange-600" : "text-crm-ink"}`}
+        className={`mt-1 crm-display-sm ${warning ? "text-crm-warning" : "text-crm-ink"}`}
       >
         {value}
       </p>
@@ -4676,8 +4680,8 @@ function AssetModal({
             type="date"
           />
         </div>
-        <div className="mt-6 rounded border border-green-200 bg-green-50 p-4">
-          <label className="flex items-center gap-2 text-xs font-bold text-green-900">
+        <div className="mt-6 rounded border border-crm-success/30 bg-crm-success-soft-bg p-4">
+          <label className="flex items-center gap-2 text-xs font-bold text-crm-success-soft-text">
             <input
               type="checkbox"
               checked={form.maintenanceEnabled}
@@ -4739,7 +4743,7 @@ function AssetModal({
           </button>
           <button
             disabled={saving}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save asset"}
           </button>
@@ -4915,7 +4919,7 @@ function AccessGate({
               />
             </label>
             {error && (
-              <p className="rounded bg-red-500/10 p-3 text-xs text-red-300">
+              <p className="rounded bg-crm-error-soft-bg p-3 text-xs text-crm-error-soft-text">
                 {error}
               </p>
             )}
@@ -5102,7 +5106,7 @@ function CreateRecordModal({
           )}
         </div>
         {error && (
-          <p className="mt-3 rounded bg-red-50 p-3 text-xs text-red-600">
+          <p className="mt-3 rounded bg-crm-error-soft-bg p-3 text-xs text-crm-error-soft-text">
             {error}
           </p>
         )}
@@ -5116,7 +5120,7 @@ function CreateRecordModal({
           </button>
           <button
             disabled={saving}
-            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save record"}
           </button>
@@ -5163,12 +5167,12 @@ function EmptyState({
   return (
     <div className="grid min-h-64 place-items-center p-6 text-center">
       <div>
-        <Building2 className="mx-auto h-8 w-8 text-slate-300" />
+        <Building2 className="mx-auto h-8 w-8 text-crm-muted-soft" />
         <p className="mt-3 text-xs font-semibold">{label}</p>
         <p className="mt-1 text-[10px] text-crm-muted">{detail}</p>
         <button
           onClick={onCreate}
-          className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold uppercase text-white"
+          className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold uppercase text-crm-on-primary"
         >
           <Plus className="mr-1 inline h-3 w-3" /> Create customer
         </button>

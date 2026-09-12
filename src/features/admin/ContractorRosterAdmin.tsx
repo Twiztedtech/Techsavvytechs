@@ -224,7 +224,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                   alert("QuickBooks connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-crm-success hover:bg-emerald-600 text-white font-bold rounded-lg text-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-crm-success hover:brightness-90 text-white font-bold rounded-lg text-xs transition cursor-pointer"
             >
               <Link2 className="h-3.5 w-3.5" /> Connect to QuickBooks
             </button>
@@ -243,7 +243,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                 setIsSyncing(false);
               }
             }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-crm-warning hover:bg-amber-600 text-white font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-crm-warning hover:brightness-90 text-white font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} /> {isSyncing ? "Syncing QBO..." : "Run Sync Script"}
           </button>
@@ -373,7 +373,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                             setCheckingInvitationId(null);
                           }
                         }}
-                        className="text-[10px] font-bold text-crm-accent underline underline-offset-2 hover:text-blue-600 disabled:opacity-50"
+                        className="text-[10px] font-bold text-crm-accent underline underline-offset-2 hover:brightness-90 disabled:opacity-50"
                       >
                         {checkingInvitationId === cont.id ? "Checking delivery…" : `Delivery: ${String(cont.invitationDelivery.status || "accepted").replace("_", " ")}`}
                       </button>
@@ -543,7 +543,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                 type="button"
                 disabled={isSavingLifecycle || (lifecycleStatus !== "Active" && (!lifecycleReason.trim() || (openJobsForContractor.length > 0 && !lifecycleReassignToId)))}
                 onClick={() => void saveLifecycleStatus()}
-                className={`rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${lifecycleStatus === "Active" ? "bg-crm-success hover:bg-emerald-600" : lifecycleStatus === "Suspended" ? "bg-crm-warning hover:bg-amber-600" : "bg-crm-error hover:bg-red-600"}`}
+                className={`rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${lifecycleStatus === "Active" ? "bg-crm-success hover:brightness-90" : lifecycleStatus === "Suspended" ? "bg-crm-warning hover:brightness-90" : "bg-crm-error hover:brightness-90"}`}
               >
                 {isSavingLifecycle ? "Saving…" : `Confirm ${lifecycleStatus.toLowerCase()}`}
               </button>

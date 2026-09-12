@@ -531,6 +531,16 @@ Avatar photos use `{rounded.full}` (perfect circles) at 36px or 40px. Product UI
 6. The dark footer is the only dark surface on most pages. Don't add other dark cards casually.
 7. When in doubt about emphasis: bigger Cal Sans before bolder Cal Sans.
 
+## Implementation Notes — TechSavvy CRM Dark Mode
+
+This spec above documents Cal.com's own (light-only) marketing system. The TechSavvy CRM (`/crm`) implementation adds a user-toggleable dark mode on top of it, which Cal.com itself doesn't have — documented here since it lives outside the source spec.
+
+- **Toggle**: `CrmThemeToggle` (`src/features/crm/ui.tsx`), a sun/moon icon button in the CRM header. State lives in `useCrmTheme()` (`src/features/crm/theme.ts`), persisted to `localStorage` under `techsavvy-crm-theme`, defaulting to light.
+- **Scope**: the resulting `.dark` class is applied only to the CRM's own root wrapper div in `CRM.tsx` — never `<html>`/`<body>` — so it can never affect the marketing site, contractor portal, or client portal, which each keep their own hardcoded styling regardless of this toggle's state.
+- **Mechanism**: every CRM color (`crm-primary`, `crm-canvas`, `crm-ink`, `crm-hairline`, the status/badge colors, and the soft-banner pairs like `crm-success-soft-bg`/`crm-success-soft-text`) is a CSS custom property declared in `src/index.css`'s `@theme` block (light values) with a full override set under a `.dark` selector (dark values). Component code never uses a `dark:` prefix — every existing `bg-crm-canvas`/`text-crm-ink`/etc. utility repaints automatically once `.dark` is present on an ancestor.
+- **Primary inverts, it doesn't recolor**: `crm-primary` is near-black with white text in light mode and flips to near-white with near-black text in dark mode — the same monochrome-CTA logic Cal.com uses, just inverted, not a new accent color.
+- **Dark surfaces reuse the TechSavvy brand's own dark tokens** (`brand-black` `#0B0F0C`, `brand-slate` `#151916`-adjacent tones) rather than a generic dark theme, so the CRM's dark mode still reads as TechSavvy.
+
 ## Known Gaps
 
 - The dembrandt frequency analyzer captured `Buttons: 0 variants` — Cal.com renders most CTAs as styled `<a>` link elements rather than `<button>` tags, which dembrandt's button selector doesn't capture. Button styles are documented from screenshot ground-truth + standard Cal Sans / Inter baselines.

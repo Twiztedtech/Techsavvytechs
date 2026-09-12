@@ -15,7 +15,18 @@
 
   /* CRM design system (Cal.com-inspired) — used only inside src/pages/CRM.tsx
      and src/features/admin/*, never the marketing site, which keeps its own
-     tokens above. See .stitch/crm/DESIGN.md for the full spec. */
+     tokens above. See .stitch/crm/DESIGN.md for the full spec.
+
+     These are the light-mode values, declared directly (not via an extra
+     var() indirection — a double-hop through a second custom property does
+     NOT get re-resolved per-descendant; it is only ever computed once,
+     where @theme first declares it, so a later .dark override further down
+     the tree has no effect on it). The `.dark` block below re-declares these
+     exact --color-crm-* names with dark values; since Tailwind's generated
+     utilities (bg-crm-canvas, text-crm-ink, etc.) already read via
+     `var(--color-crm-canvas)`, any element under `.dark` picks up the
+     override automatically, with zero `dark:` prefixes anywhere in
+     component code. */
   --color-crm-primary: #111111;
   --color-crm-primary-active: #242424;
   --color-crm-primary-disabled: #E5E7EB;
@@ -39,6 +50,61 @@
   --color-crm-badge-pink: #EC4899;
   --color-crm-badge-violet: #8B5CF6;
   --color-crm-badge-emerald: #34D399;
+
+  /* Soft status-banner pairs (pastel bg + darker text in light mode, muted
+     tint + light text in dark mode) — for the alert/banner pattern used
+     across CRM.tsx instead of one-off bg-X-50/text-X-700 literals. */
+  --color-crm-success-soft-bg: #F0FDF4;
+  --color-crm-success-soft-text: #166534;
+  --color-crm-warning-soft-bg: #FFFBEB;
+  --color-crm-warning-soft-text: #92400E;
+  --color-crm-error-soft-bg: #FEF2F2;
+  --color-crm-error-soft-text: #B91C1C;
+  --color-crm-accent-soft-bg: #EFF6FF;
+  --color-crm-accent-soft-text: #1D4ED8;
+  --color-crm-violet-soft-bg: #F5F3FF;
+  --color-crm-violet-soft-text: #6D28D9;
+}
+
+/* CRM dark mode — scoped to a `.dark` class the CRM applies to its own root
+   wrapper only (never <html>/<body>), so the marketing site, contractor
+   portal, and client portal are never affected regardless of this value.
+   Re-declares the same --color-crm-* custom properties @theme defines above
+   (not a separate indirection layer — see the comment on the @theme block). */
+.dark {
+  --color-crm-primary: #F5F6F5;
+  --color-crm-primary-active: #E4E6E3;
+  --color-crm-primary-disabled: #3A403B;
+  --color-crm-ink: #F5F6F5;
+  --color-crm-body: #C7CBC8;
+  --color-crm-muted: #8B928D;
+  --color-crm-muted-soft: #6B726D;
+  --color-crm-hairline: rgba(255, 255, 255, 0.12);
+  --color-crm-hairline-soft: rgba(255, 255, 255, 0.06);
+  --color-crm-canvas: #0B0F0C;
+  --color-crm-surface-soft: #101410;
+  --color-crm-surface-card: #151916;
+  --color-crm-surface-strong: #232B24;
+  --color-crm-on-primary: #0B0F0C;
+  --color-crm-accent: #60A5FA;
+  --color-crm-success: #34D399;
+  --color-crm-warning: #FBBF24;
+  --color-crm-error: #F87171;
+  --color-crm-badge-orange: #FDBA74;
+  --color-crm-badge-pink: #F9A8D4;
+  --color-crm-badge-violet: #C4B5FD;
+  --color-crm-badge-emerald: #6EE7B7;
+
+  --color-crm-success-soft-bg: rgba(16, 185, 129, 0.15);
+  --color-crm-success-soft-text: #6EE7B7;
+  --color-crm-warning-soft-bg: rgba(245, 158, 11, 0.15);
+  --color-crm-warning-soft-text: #FCD34D;
+  --color-crm-error-soft-bg: rgba(239, 68, 68, 0.15);
+  --color-crm-error-soft-text: #FCA5A5;
+  --color-crm-accent-soft-bg: rgba(59, 130, 246, 0.15);
+  --color-crm-accent-soft-text: #93C5FD;
+  --color-crm-violet-soft-bg: rgba(139, 92, 246, 0.15);
+  --color-crm-violet-soft-text: #C4B5FD;
 }
 
 @layer base {
