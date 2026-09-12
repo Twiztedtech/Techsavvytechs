@@ -1043,6 +1043,17 @@ export default async function handler(req, res) {
       }
 
       const docRef = adminDb.collection('time_entries').doc(timecardId);
+
+      const preSnap = await docRef.get();
+      if (!preSnap.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const preTechUid = preSnap.data().technicianUid;
+      if (preTechUid) {
+        const contractorSnap = await adminDb.collection('contractors').where('authUid', '==', preTechUid).limit(1).get();
+        if (!contractorSnap.empty && contractorSnap.docs[0].data().employmentType === 'w2_employee') {
+          return res.status(409).json({ error: 'This technician is a W-2 employee. W-2 pay runs through payroll, not QuickBooks Bills, so this entry cannot be synced to QuickBooks.' });
+        }
+      }
+
       // A transaction closes the check-then-act window: two concurrent retries
       // (or a double-click) must not both pass the status check and both create
       // a QuickBooks bill. The loser sees qbStatus 'syncing' and is rejected.

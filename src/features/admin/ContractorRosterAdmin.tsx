@@ -40,6 +40,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
   const [newEmail, setNewEmail] = useState("");
   const [newRate, setNewRate] = useState("75");
   const [newSpecialty, setNewSpecialty] = useState("");
+  const [newEmploymentType, setNewEmploymentType] = useState<"1099_contractor" | "w2_employee">("1099_contractor");
   const [isSaving, setIsSaving] = useState(false);
 
   const [invitingId, setInvitingId] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
         email: newEmail.trim().toLowerCase(),
         rate: Number(newRate) || 75,
         specialty: newSpecialty.trim(),
+        employmentType: newEmploymentType,
         status: "pending",
         accessStatus: "Pending",
         active: false,
@@ -105,6 +107,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
       setNewEmail("");
       setNewRate("75");
       setNewSpecialty("");
+      setNewEmploymentType("1099_contractor");
       setIsAddOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not add this contractor.");
@@ -253,6 +256,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
             <tr>
               <th className="p-3">Contractor Name</th>
               <th className="p-3">Email Address</th>
+              <th className="p-3">Type</th>
               <th className="p-3">Default Rate</th>
               <th className="p-3">QBO Vendor ID</th>
               <th className="p-3 text-right">Status</th>
@@ -265,6 +269,11 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
               <tr key={cont.id} className="hover:bg-slate-950/40">
                 <td className="p-3 font-semibold text-slate-100">{cont.name}</td>
                 <td className="p-3 font-mono">{cont.email}</td>
+                <td className="p-3">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${cont.employmentType === "w2_employee" ? "bg-violet-500/10 text-violet-300 border-violet-500/20" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                    {cont.employmentType === "w2_employee" ? "W-2 Employee" : "1099 Contractor"}
+                  </span>
+                </td>
                 <td className="p-3 font-mono">${cont.rate || 75}/hr</td>
                 <td className="p-3 font-mono text-amber-500 font-bold">{cont.qboVendorId ? `#${cont.qboVendorId}` : "Not Linked"}</td>
                 <td className="p-3 text-right">
@@ -404,6 +413,13 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                   <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Tech Specialty</label>
                   <input type="text" placeholder="e.g. Network, DevOps" value={newSpecialty} onChange={(e) => setNewSpecialty(e.target.value)} className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Employment Type</label>
+                <select value={newEmploymentType} onChange={(e) => setNewEmploymentType(e.target.value as "1099_contractor" | "w2_employee")} className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                  <option value="1099_contractor">1099 Contractor (paid via QuickBooks Bills)</option>
+                  <option value="w2_employee">W-2 Employee (payroll — never synced to QuickBooks Bills)</option>
+                </select>
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsAddOpen(false)} className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer">Cancel</button>
