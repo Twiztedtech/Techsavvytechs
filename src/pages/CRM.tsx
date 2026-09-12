@@ -535,35 +535,35 @@ export default function CRM() {
       />
     );
   return (
-    <div className="min-h-screen bg-[#f3f5f4] text-slate-900">
-      <header className="sticky top-0 z-40 flex h-14 items-center border-b border-white/10 bg-[#101812] px-3 text-white shadow-lg lg:px-5">
+    <div className="min-h-screen bg-crm-surface-soft text-crm-body">
+      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-crm-hairline bg-crm-canvas px-3 text-crm-ink lg:px-5">
         <button
           onClick={() => setMobileNav(!mobileNav)}
-          className="mr-2 rounded p-2 text-slate-400 lg:hidden"
+          className="mr-2 rounded-lg p-2 text-crm-muted lg:hidden"
           aria-label="Toggle CRM navigation"
         >
           {mobileNav ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
-        <div className="flex items-center gap-3 border-r border-white/10 pr-4">
-          <span className="grid h-8 w-8 place-items-center rounded bg-tech-green text-brand-black">
+        <div className="flex items-center gap-3 border-r border-crm-hairline pr-4">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-crm-primary text-crm-on-primary">
             <Gauge className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-display text-xs uppercase tracking-wider">
+            <p className="text-xs font-semibold uppercase tracking-wider text-crm-ink">
               TechSavvy
             </p>
-            <p className="text-[9px] uppercase tracking-[.22em] text-tech-green">
+            <p className="text-[10px] uppercase tracking-[.18em] text-crm-muted">
               Field Operations
             </p>
           </div>
         </div>
         <div className="hidden flex-1 items-center px-5 md:flex">
-          <label className="flex w-full max-w-xl items-center gap-2 rounded border border-white/10 bg-white/[0.04] px-3 py-2">
-            <Search className="h-4 w-4 text-slate-500" />
+          <label className="flex w-full max-w-xl items-center gap-2 rounded-lg border border-crm-hairline bg-crm-surface-soft px-3 py-2">
+            <Search className="h-4 w-4 text-crm-muted" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-600"
+              className="w-full bg-transparent text-sm text-crm-ink outline-none placeholder:text-crm-muted-soft"
               placeholder="Search jobs…"
             />
           </label>
@@ -571,32 +571,32 @@ export default function CRM() {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setCreateType("job")}
-            className="hidden items-center gap-2 rounded border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-300 sm:flex"
+            className="hidden items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:flex"
           >
             <Plus className="h-3.5 w-3.5" /> Quick create
           </button>
-          <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" className="rounded p-2 text-slate-400">
+          <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
             <Settings className="h-4 w-4" />
           </a>
           <button
             onClick={() => void signOut(auth)}
-            className="grid h-8 w-8 place-items-center rounded-full bg-safety-orange text-[10px] font-bold text-brand-black"
+            className="grid h-8 w-8 place-items-center rounded-full bg-crm-primary text-[10px] font-bold text-crm-on-primary"
             title="Sign out"
           >
             TT
           </button>
         </div>
       </header>
-      <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <div className="flex min-h-[calc(100vh-4rem)]">
         <aside
-          className={`${mobileNav ? "fixed inset-y-14 left-0 z-30 flex" : "hidden"} w-64 flex-col border-r border-slate-200 bg-white shadow-xl lg:static lg:flex lg:shadow-none`}
+          className={`${mobileNav ? "fixed inset-y-16 left-0 z-30 flex" : "hidden"} w-64 flex-col border-r border-crm-hairline bg-crm-canvas shadow-xl lg:static lg:flex lg:shadow-none`}
         >
-          <div className="border-b border-slate-100 p-3">
+          <div className="border-b border-crm-hairline-soft p-3">
             <button
               onClick={() =>
                 setCreateType(module === "customers" ? "customer" : "job")
               }
-              className="flex w-full items-center justify-between rounded bg-tech-green px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-brand-black"
+              className="flex w-full items-center justify-between rounded-lg bg-crm-primary px-3 py-2.5 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
             >
               <span className="flex items-center gap-2">
                 <Plus className="h-4 w-4" /> Create new
@@ -611,47 +611,47 @@ export default function CRM() {
               <button
                 key={id}
                 onClick={() => go(id)}
-                className={`flex w-full items-center gap-3 rounded px-3 py-2.5 text-left text-xs font-medium ${module === id ? "bg-[#e8f7ed] text-tech-green-deep" : "text-slate-600 hover:bg-slate-50"}`}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium ${module === id ? "bg-crm-surface-card text-crm-ink" : "text-crm-muted hover:bg-crm-surface-soft"}`}
               >
                 <Icon className="h-4 w-4" />
                 <span className="flex-1">{label}</span>
                 {count ? (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] text-slate-500">
+                  <span className="rounded-full bg-crm-surface-strong px-2 py-0.5 text-[10px] text-crm-muted">
                     {count}
                   </span>
                 ) : null}
               </button>
             ); })}
           </nav>
-          <div className="border-t border-slate-100 p-4">
-            <div className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="h-2 w-2 rounded-full bg-tech-green" /> Live
+          <div className="border-t border-crm-hairline-soft p-4">
+            <div className="flex items-center gap-2 text-[11px] text-crm-muted">
+              <span className="h-2 w-2 rounded-full bg-crm-success" /> Live
               operations sync
             </div>
           </div>
         </aside>
         <main className="min-w-0 flex-1 overflow-hidden">
-          <div className="border-b border-slate-200 bg-white px-4 py-4 lg:px-6">
+          <div className="border-b border-crm-hairline bg-crm-canvas px-4 py-4 lg:px-6">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-slate-400">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-crm-muted">
                   <span>Field Operations</span>
                   <ChevronRight className="h-3 w-3" />
-                  <span className="text-tech-green-deep">{currentLabel}</span>
+                  <span className="text-crm-ink">{currentLabel}</span>
                 </div>
-                <h1 className="mt-1 font-display text-xl uppercase tracking-tight">
+                <h1 className="crm-display-sm mt-1 text-crm-ink">
                   {currentLabel}
                 </h1>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => go('reports')} className="flex items-center gap-2 rounded border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">
+                <button onClick={() => go('reports')} className="flex items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft">
                   <Archive className="h-3.5 w-3.5" /> Export
                 </button>
                 <button
                   onClick={() =>
                     setCreateType(module === "customers" ? "customer" : "job")
                   }
-                  className="flex items-center gap-2 rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white"
+                  className="flex items-center gap-2 rounded-lg bg-crm-primary px-3 py-2 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add{" "}
                   {module === "customers" ? "customer" : "job"}

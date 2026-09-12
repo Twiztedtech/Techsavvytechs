@@ -1,301 +1,542 @@
 ---
-name: TechSavvy CRM
+version: alpha
+name: Cal.com-design-analysis
+description: A clean, calendar-software-first interface anchored on white canvas with black primary CTAs and custom Cal Sans display typography. The system reads as friendly modern SaaS — generous whitespace, soft-rounded cards (~12px), product UI fragments shown directly inside cards, and a dark navy footer that visually closes long-scroll pages. Brand voltage comes from the Cal Sans display headline (a custom geometric face) and from product UI artifacts shown in-card rather than from accent colors.
+
 colors:
-  crm-canvas: "#F3F5F4"
-  crm-header: "#101812"
-  crm-accent-tint: "#E8F7ED"
-  tech-green: "#22C55E"
-  tech-green-deep: "#15803D"
-  safety-orange: "#FF8C00"
-  dark-panel-canvas: "#020617"
-  dark-panel-surface: "#0F172A"
+  primary: "#111111"
+  primary-active: "#242424"
+  primary-disabled: "#e5e7eb"
+  ink: "#111111"
+  body: "#374151"
+  muted: "#6b7280"
+  muted-soft: "#898989"
+  hairline: "#e5e7eb"
+  hairline-soft: "#f3f4f6"
+  canvas: "#ffffff"
+  surface-soft: "#f8f9fa"
+  surface-card: "#f5f5f5"
+  surface-strong: "#e5e7eb"
+  surface-dark: "#101010"
+  surface-dark-elevated: "#1a1a1a"
+  on-primary: "#ffffff"
+  on-dark: "#ffffff"
+  on-dark-soft: "#a1a1aa"
+  brand-accent: "#3b82f6"
+  success: "#10b981"
+  warning: "#f59e0b"
+  error: "#ef4444"
+  badge-orange: "#fb923c"
+  badge-pink: "#ec4899"
+  badge-violet: "#8b5cf6"
+  badge-emerald: "#34d399"
+
+typography:
+  display-xl:
+    fontFamily: "Cal Sans, Inter, sans-serif"
+    fontSize: 64px
+    fontWeight: 600
+    lineHeight: 1.05
+    letterSpacing: -2px
+  display-lg:
+    fontFamily: "Cal Sans, Inter, sans-serif"
+    fontSize: 48px
+    fontWeight: 600
+    lineHeight: 1.1
+    letterSpacing: -1.5px
+  display-md:
+    fontFamily: "Cal Sans, Inter, sans-serif"
+    fontSize: 36px
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: -1px
+  display-sm:
+    fontFamily: "Cal Sans, Inter, sans-serif"
+    fontSize: 28px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.5px
+  title-lg:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 22px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: -0.3px
+  title-md:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: 0
+  title-sm:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: 0
+  body-md:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0
+  body-sm:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0
+  caption:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: 0
+  code:
+    fontFamily: "JetBrains Mono, ui-monospace, monospace"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0
+  button:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 14px
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: 0
+  nav-link:
+    fontFamily: "Inter, sans-serif"
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: 0
+
+rounded:
+  xs: 4px
+  sm: 6px
+  md: 8px
+  lg: 12px
+  xl: 16px
+  pill: 9999px
+  full: 9999px
+
+spacing:
+  xxs: 4px
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  xxl: 48px
+  section: 96px
+
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 12px 20px
+    height: 40px
+  button-primary-active:
+    backgroundColor: "{colors.primary-active}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.md}"
+  button-primary-disabled:
+    backgroundColor: "{colors.primary-disabled}"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.md}"
+  button-secondary:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 12px 20px
+    height: 40px
+  button-icon-circular:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.full}"
+    size: 36px
+  button-text-link:
+    backgroundColor: transparent
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+  text-link:
+    backgroundColor: transparent
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+  top-nav:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.nav-link}"
+    height: 64px
+  nav-pill-group:
+    backgroundColor: "{colors.surface-soft}"
+    textColor: "{colors.ink}"
+    typography: "{typography.nav-link}"
+    rounded: "{rounded.pill}"
+    padding: 6px
+  hero-band:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.display-xl}"
+    padding: 96px
+  hero-app-mockup-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.xl}"
+  feature-card:
+    backgroundColor: "{colors.surface-card}"
+    textColor: "{colors.ink}"
+    typography: "{typography.title-md}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  feature-icon-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.title-sm}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  product-mockup-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  testimonial-card:
+    backgroundColor: "{colors.surface-card}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  pricing-tier-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.title-lg}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  pricing-tier-card-featured:
+    backgroundColor: "{colors.surface-dark}"
+    textColor: "{colors.on-dark}"
+    typography: "{typography.title-lg}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  text-input:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.md}"
+    padding: 10px 14px
+    height: 40px
+  text-input-focused:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.md}"
+  category-tab:
+    backgroundColor: transparent
+    textColor: "{colors.muted}"
+    typography: "{typography.nav-link}"
+    padding: 8px 14px
+    rounded: "{rounded.md}"
+  category-tab-active:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.nav-link}"
+    rounded: "{rounded.md}"
+  avatar-circle:
+    backgroundColor: "{colors.surface-card}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.full}"
+    size: 36px
+  badge-pill:
+    backgroundColor: "{colors.surface-card}"
+    textColor: "{colors.ink}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 4px 12px
+  rating-stars:
+    backgroundColor: transparent
+    textColor: "{colors.badge-orange}"
+    typography: "{typography.caption}"
+  cta-band-light:
+    backgroundColor: "{colors.surface-card}"
+    textColor: "{colors.ink}"
+    typography: "{typography.display-sm}"
+    rounded: "{rounded.lg}"
+    padding: 48px
+  footer:
+    backgroundColor: "{colors.surface-dark}"
+    textColor: "{colors.on-dark-soft}"
+    typography: "{typography.body-sm}"
+    padding: 64px
 ---
 
-# Design System: TechSavvy CRM
-**Project ID:** techsavvytechs.com /crm — internal admin workspace
-**Relationship to the marketing-site system:** this is a companion doc, not a
-duplicate. The CRM shares the parent brand's core tokens (tech-green, safety
-orange, Montserrat/Inter/JetBrains Mono) documented in `../DESIGN.md`, but its
-actual UI is a distinct, denser, admin-tool visual language that doc doesn't
-cover in depth. Read this file for anything CRM-specific; fall back to the
-parent doc only for brand-level facts (logo construction, marketing-page
-layout, email branding) that don't apply inside the app shell.
+## Overview
 
-## 1. Visual Theme & Atmosphere — two co-existing languages
+Cal.com's marketing surface is a clean, friendly modern-SaaS interface — white canvas (`{colors.canvas}` — #ffffff) with black primary CTAs (`{colors.primary}` — #111111), custom **Cal Sans** display typography, and `{colors.surface-card}` (#f5f5f5) light-gray cards holding product UI fragments. The system reads as confidently engineered without trying to impress — every band has clear hierarchy, generous whitespace, and a single primary action.
 
-The CRM is **not visually uniform today**, and that split is real, current
-behavior worth designing around rather than a rendering bug:
+Type voice splits cleanly into two roles: **Cal Sans** (the brand's custom geometric display face — used for h1, h2, h3, and hero headlines) and **Inter** (used for everything else — body, buttons, nav, captions). Cal Sans uses weight 600 with negative letter-spacing (-0.5px to -2px depending on size) — it feels modern, slightly condensed, distinctly Cal.com.
 
-**A. Core CRM shell** (`src/pages/CRM.tsx` — Customers, Quotes, Jobs,
-Invoices, Materials & Stock, Customer Assets, Reports, Reminders, Audit
-Trail, Schedule & Dispatch): a **light, dense, data-table workspace**. Near-
-white canvas (`#F3F5F4`), white cards with hairline `border-slate-200`,
-barely-rounded corners (`rounded`, not `rounded-xl`), and tech-green used
-sparingly as an accent rather than a dominant surface color — this is the
-brand's marketing-site palette turned down to "admin tool" volume. The one
-dark surface left in this half is the top header bar (`#101812`).
+Component voltage comes from **product UI fragments shown directly inside cards** — calendar widgets, scheduling forms, automation diagrams, integration tiles. Cal.com doesn't paint marketing illustrations of the product; it shows the actual product chrome at small scale embedded in the marketing flow.
 
-**B. Ported admin-parity modules** (`src/features/admin/*.tsx` —
-Contractor Roster, Timecard Approval, Support Tickets — plus
-`src/features/client/ClientRequestsAdmin.tsx`): **dark glass-panel cards**
-(`bg-slate-950`/`bg-slate-900`, `border-slate-800`), noticeably larger
-corner radii (`rounded-xl`, `rounded-2xl`), and a semantic status palette
-(amber/emerald/rose/indigo) that **does not use tech-green or safety-orange
-at all**. These modules were extracted from the old ContractorDashboard admin
-mode and mounted into the CRM shell as-is — they carry that surface's dark
-"ops console" look rather than the CRM's own light theme.
+The footer flips to `{colors.surface-dark}` (#101010) — a deep near-black that visually closes every long-scroll page. The footer is the only dark surface in the system; everything above stays white-with-light-gray-cards.
 
-If you are asked to design a new CRM screen and no other instruction is
-given, **build it in language A** (light shell) — it's the majority of the
-app and the one that matches the parent brand doc's "CRM modals flip to a
-light surface" note. Only use language B's dark-panel look if you are
-extending one of the four modules already built that way, for visual
-continuity within that module.
+**Key Characteristics:**
+- White canvas with black primary CTA (`{colors.primary}` — #111111). Buttons are `{rounded.md}` (8px) with confident weight-600 labels. Standard friendly-SaaS button.
+- Custom `Cal Sans` display typeface for headlines (substituted with Inter weight 600 here). Negative letter-spacing on display sizes — geometric, precise, slightly condensed.
+- Light-gray card surfaces (`{colors.surface-card}` — #f5f5f5) for feature cards, testimonials, and pricing tiers (non-featured). The featured pricing tier flips to `{colors.surface-dark}` (the only dark card on light pages).
+- Product UI fragments embedded directly in cards — Cal.com shows real schedule pickers, calendar widgets, integration grids inside its marketing cards. Brand voltage from real product chrome at small scale.
+- Nav-pill-group (`{component.nav-pill-group}`) — a small pill-radius wrapper around grouped nav segments (e.g., the sub-nav switcher between product views). The pill wrapper is one of the system's signature interactive components.
+- Avatars are circular (`{rounded.full}`), 36px diameter, used in testimonial rows and team-listing surfaces.
+- Footer is dark navy (`{colors.surface-dark}` — #101010) with light text (`{colors.on-dark-soft}` — #a1a1aa). The dark footer closes every page even though the body above is white.
+- Spacing rhythm is `{spacing.section}` (96px) between major bands — tight enough to feel modern-SaaS but generous enough to breathe.
+- Border radius is hierarchical: `{rounded.md}` (8px) for buttons + inputs, `{rounded.lg}` (12px) for content cards, `{rounded.xl}` (16px) for the hero app-mockup container, `{rounded.pill}` for nav-pill-group + badges, `{rounded.full}` for avatars + icon buttons.
 
-## 2. Color Palette & Roles
+## Colors
 
-### Core CRM shell (language A)
-- **Canvas** `#F3F5F4` — page background behind all cards (`bg-[#f3f5f4]`).
-- **Header band** `#101812` — sticky top bar; near-black, slightly warmer
-  than the marketing site's pure `#0B0F0C`.
-- **Card surface** — plain white (`bg-white`) with `border-slate-200` and
-  `shadow-sm`. No blur/glass effect here, unlike the marketing site.
-- **Sidebar active state** `#E8F7ED` bg + `tech-green-deep` (`#15803D`)
-  text — the CRM's signature "selected nav item" and "eyebrow chip" tint,
-  reused for audit-log entity-type badges and the Reminders icon chip.
-- **Tech Green** `#22C55E` — primary buttons (`bg-tech-green
-  text-brand-black`, e.g. "Create new"), the live-sync status dot, sidebar
-  wordmark accent. Notably *not* the dominant color of the workspace — most
-  surfaces are neutral slate/white, with green reserved for calls to action
-  and confirmation states.
-- **Tech Green Deep** `#15803D` — the far more common of the two greens in
-  this half of the CRM: active nav text, breadcrumb current-page color,
-  work-order/reference-number mono text, link-style buttons.
-- **Safety Orange** — the CRM's sign-out avatar chip only
-  (`bg-safety-orange` "TT" button). Otherwise absent; semantic warning color
-  is `orange-600`/`amber`-family Tailwind defaults instead (see semantic
-  palette below), not the brand's safety-orange token.
-- **Primary CTA dark variant** `#17251b` — a near-black forest green used
-  on ~20 buttons throughout (Export/Download snapshot, Add item, Add asset,
-  etc.) as `bg-[#17251b] text-white`. This is a *third* green in active use
-  alongside tech-green and tech-green-deep — treat it as the CRM's
-  "secondary-primary" button fill, one step down from the bright
-  tech-green CTA.
+### Brand & Accent
+- **Primary** (`{colors.primary}` — #111111): The dominant action color. All primary CTAs, h1/h2 display type. Press state shifts to `{colors.primary-active}` (#242424).
+- **Brand Accent** (`{colors.brand-accent}` — #3b82f6): Used sparely on inline links and on a small badge / "Customer story" highlight. Cal.com is a near-monochrome brand — the blue appears rarely.
+- **Badge Pastels** — A small pastel set for category badges and avatar fills: `{colors.badge-orange}` (#fb923c), `{colors.badge-pink}` (#ec4899), `{colors.badge-violet}` (#8b5cf6), `{colors.badge-emerald}` (#34d399). These appear on tag pills and small accent moments inside product UI fragments — never on hero CTAs.
 
-### Semantic / status palette (core CRM shell)
-Defined once as a shared `tones` map and reused for every KPI tile, badge,
-and status pill in language A:
-| Tone | Classes |
-|---|---|
-| sky | `border-sky-400/20 bg-sky-400/10 text-sky-600` |
-| orange | `border-orange-400/20 bg-orange-400/10 text-orange-600` |
-| green | `border-green-500/20 bg-green-500/10 text-green-700` |
-| violet | `border-violet-400/20 bg-violet-400/10 text-violet-600` |
-| red | `border-red-400/20 bg-red-400/10 text-red-600` |
-| blue | `border-sky-400/30 bg-sky-400/20 text-sky-800` |
-| purple | `border-violet-400/30 bg-violet-400/20 text-violet-800` |
-| slate | `border-slate-400/20 bg-slate-500/15 text-slate-700` |
+### Surface
+- **Canvas** (`{colors.canvas}` — #ffffff): The default page floor.
+- **Surface Soft** (`{colors.surface-soft}` — #f8f9fa): Nav-pill-group background, very-soft section dividers.
+- **Surface Card** (`{colors.surface-card}` — #f5f5f5): Feature cards, testimonial cards, badge pills, default avatar fills.
+- **Surface Strong** (`{colors.surface-strong}` — #e5e7eb): Hairline border alternative; disabled button background.
+- **Surface Dark** (`{colors.surface-dark}` — #101010): The footer background — the only dark surface on every page. Also used for the featured pricing tier card.
+- **Surface Dark Elevated** (`{colors.surface-dark-elevated}` — #1a1a1a): Used for nested cards inside the dark footer or featured pricing card.
+- **Hairline** (`{colors.hairline}` — #e5e7eb): The 1px border tone on light surfaces. Used on input borders, table dividers, content card outlines (sometimes).
+- **Hairline Soft** (`{colors.hairline-soft}` — #f3f4f6): A barely-visible divider used between sections that share the white canvas.
 
-Status-pill convention for tables/cards (customers, quotes, jobs, invoices,
-assets, catalog): `rounded-full px-2(.5) py-1 text-[9px] font-bold`, tinted
-with a matching `bg-{color}-50/100 text-{color}-700` pair chosen ad hoc per
-status word (e.g. "Low stock" → orange, "In stock" → green, "Resolved" →
-green, "Open" → amber) — there is no single central status-color map the
-way KPI tones have one; each view picks its own two- or three-state ternary.
-Standardize new statuses against the nearest existing one in the same view
-before inventing a new color.
+### Text
+- **Ink** (`{colors.ink}` — #111111): All headlines and primary text.
+- **Body** (`{colors.body}` — #374151): Default running-text color.
+- **Muted** (`{colors.muted}` — #6b7280): Secondary text — sub-headings, breadcrumbs, footer body.
+- **Muted Soft** (`{colors.muted-soft}` — #898989): Tertiary text — captions, fine-print, copyright lines.
+- **On Primary / On Dark** (`{colors.on-primary}` / `{colors.on-dark}` — #ffffff): Text on primary buttons and dark footer.
+- **On Dark Soft** (`{colors.on-dark-soft}` — #a1a1aa): Footer body text — slightly muted white for the link rows.
 
-### Ported admin-parity modules (language B)
-- **Canvas / card surface**: `bg-slate-950` (darkest), `bg-slate-900`
-  (nested/input surface), `border-slate-800` hairlines. No tech-green
-  anywhere in these four files.
-- **Status/action accents**: amber (pending/warning/sync-retry), emerald
-  (approve/success), rose (reject/void/offboard/delete), indigo (primary
-  action buttons like "Add Contractor", "Sync to QuickBooks", "Retry
-  Sync"), sky (informational, e.g. "Ready for QBO Sync").
-- **Icons**: split even within this group — `ClientRequestsAdmin.tsx` uses
-  lucide-react (`AlertTriangle`, `CalendarClock`, `RefreshCw`, `UserPlus`),
-  while `ContractorRosterAdmin.tsx` and `SupportTicketsAdmin.tsx` use raw
-  emoji (`🔗 ➕ 📅 🔌 🛠️ 🎉`) inline as text. If extending these modules,
-  match whichever icon convention the specific file already uses rather
-  than mixing both in one component.
+### Semantic
+- **Success** (`{colors.success}` — #10b981): Confirmation states, success badges in product UI.
+- **Warning** (`{colors.warning}` — #f59e0b): Warning callouts.
+- **Error** (`{colors.error}` — #ef4444): Validation errors.
 
-## 3. Typography
+## Typography
 
-Same three-family system as the parent brand (`font-display` = Montserrat,
-`font-sans` = Inter, `font-mono` = JetBrains Mono), but the CRM's own usage
-skews much smaller and denser than the marketing site's poster-scale type.
+### Font Family
+The system runs **Cal Sans** for display + brand wordmark and **Inter** for everything else. Cal Sans is Cal.com's custom geometric display typeface — slightly condensed, weight 600, negative letter-spacing. Inter handles body, buttons, navigation, captions, and tabular code blocks. The fallback stack walks `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` for both families.
 
-### Core CRM shell (language A)
-- **Micro-type is the dominant register.** Body/label text runs
-  `text-[8px]`–`text-[11px]` almost everywhere — table cells, form labels,
-  badges, KPI subtext. `text-[9px]` and `text-[10px]` alone account for the
-  large majority of all text-size declarations in `CRM.tsx`. This is a
-  deliberate density choice for an operator tool, not an accessibility
-  afterthought — labels compensate with `uppercase` + `font-bold` +
-  `tracking-wide` rather than larger size.
-- `font-display` is reserved for **numbers and short titles**, not
-  paragraphs: KPI tile values (`font-display text-xl`/`text-2xl`), modal
-  headings (`font-display text-lg uppercase`), dollar totals
-  (`font-display text-xl`/`text-xxl`). Always uppercase when used as a
-  heading, never for body copy.
-- `font-mono` marks **anything that is an identifier**: work-order/quote/
-  invoice numbers, audit-log entity IDs, the top-nav "Field Operations"
-  eyebrow, audit-trail entity-type chips. Typically paired with
-  `tech-green-deep` color and sits at `text-[8px]`–`text-[10px]`.
-- Table headers: `bg-slate-50 text-[9px] uppercase text-slate-400` — this
-  exact class combination is repeated verbatim across every data table in
-  the app (Customers, Quotes, Jobs, Invoices, Catalog, Reports' overdue
-  table). Treat it as the CRM's canonical `<thead>` style; don't invent a
-  variant.
-- Labels on light-surface form fields: `text-[9px] font-bold uppercase
-  text-slate-500` (matches the parent doc's note on CRM modal labels).
+The split is functional:
+- Cal Sans (display, 600 weight, -0.5 to -2px tracking) — h1, h2, h3
+- Inter (body + UI, 400-600 weight, 0 letter-spacing) — paragraphs, labels, buttons, nav
 
-### Ported admin-parity modules (language B)
-- Denser still in places (`text-[9px]`/`text-[10px]` action buttons,
-  `text-[10px]` uppercase section eyebrows: "PENDING TIMECARDS", "REGISTERED
-  ASSETS"-style stat labels), but headings run slightly larger and use
-  plain `font-bold text-sm`/`text-base` rather than `font-display` — these
-  modules do not consistently pull in the Montserrat display face the way
-  the core shell does. If unifying the two languages later, this is one of
-  the concrete gaps to close.
+### Hierarchy
 
-## 4. Layout & Shell Structure
+| Token | Size | Weight | Line Height | Letter Spacing | Use |
+|---|---|---|---|---|---|
+| `{typography.display-xl}` | 64px | 600 | 1.05 | -2px | Homepage h1 ("The better way to schedule your meetings") — Cal Sans |
+| `{typography.display-lg}` | 48px | 600 | 1.1 | -1.5px | Section heads ("Your all-purpose scheduling app") — Cal Sans |
+| `{typography.display-md}` | 36px | 600 | 1.15 | -1px | Sub-section heads, card titles — Cal Sans |
+| `{typography.display-sm}` | 28px | 600 | 1.2 | -0.5px | CTA-band heads, pricing tier prices — Cal Sans |
+| `{typography.title-lg}` | 22px | 600 | 1.3 | -0.3px | Pricing plan names — Inter |
+| `{typography.title-md}` | 18px | 600 | 1.4 | 0 | Feature card titles, intro paragraphs |
+| `{typography.title-sm}` | 16px | 600 | 1.4 | 0 | Small card titles, list labels |
+| `{typography.body-md}` | 16px | 400 | 1.5 | 0 | Default running-text |
+| `{typography.body-sm}` | 14px | 400 | 1.5 | 0 | Footer body, fine-print |
+| `{typography.caption}` | 13px | 500 | 1.4 | 0 | Badge labels, captions |
+| `{typography.code}` | 14px | 400 | 1.5 | 0 | Code snippets, API examples — JetBrains Mono |
+| `{typography.button}` | 14px | 600 | 1.0 | 0 | Standard button labels |
+| `{typography.nav-link}` | 14px | 500 | 1.4 | 0 | Top-nav menu items |
 
-### App frame (applies everywhere in `/crm`)
-- **Header**: sticky, `h-14`, `bg-[#101812]`, `border-b border-white/10`.
-  Left: mobile nav toggle → logo mark (`bg-tech-green` square housing a
-  `Gauge` icon) → "TechSavvy" wordmark (`font-display text-xs uppercase`)
-  over a `tech-green` "Field Operations" eyebrow (`text-[9px]
-  tracking-[.22em]`). Center: a global job search box (desktop only,
-  `bg-white/[0.04]` translucent field). Right: Quick-create button, link
-  back to the contractor admin dashboard, sign-out avatar chip
-  (`bg-safety-orange`, initials "TT").
-- **Sidebar**: `w-64`, white, `border-r border-slate-200`. Top: a full-width
-  tech-green "Create new" button. Below: the module nav list — each item
-  `rounded px-3 py-2.5 text-xs font-medium`, active state
-  `bg-[#e8f7ed] text-tech-green-deep`, inactive `text-slate-600
-  hover:bg-slate-50`, with an optional trailing count pill
-  (`rounded-full bg-slate-100 px-2 py-0.5 text-[9px] text-slate-500`) for
-  Jobs/Quotes/Invoices. Bottom: a small "Live operations sync" status line
-  with a pulsing tech-green dot.
-- **Content header** (per-module, inside `<main>`): breadcrumb
-  (`Field Operations › {current module}`, current segment in
-  `tech-green-deep`) above an `font-display text-xl uppercase` page title,
-  with Export/Add-record buttons at the right.
-- **Mobile**: sidebar becomes a `fixed inset-y-14 left-0` overlay panel
-  toggled by the header's menu button; no separate mobile nav pattern
-  beyond that.
+### Principles
+Cal Sans is the brand voice — every display headline uses it. Inter handles the supporting type. The boundary is strict: never put body copy in Cal Sans, never put a display headline in Inter. Cal Sans without negative letter-spacing reads as off-brand — the -0.5 to -2px tracking is part of the voice.
 
-### Cards & panels (language A)
-- `rounded border border-slate-200 bg-white shadow-sm` — the near-universal
-  card shell for every section, table wrapper, and KPI tile. Corners are
-  intentionally subtle (`rounded`, ~4px), matching the parent brand's "never
-  pill-shaped, barely rounded" button rule extended to cards here.
-- KPI tile anatomy: label (`text-[9-10px] uppercase text-slate-400`) +
-  small tone-colored icon chip, top row; big `font-display` value, bottom
-  row; optional muted subtext/comparison figure.
+Display weight stays at 600 across all sizes — never 700, never 500. The middle weight is what makes Cal Sans feel modern and confident without becoming bombastic.
 
-### Cards & panels (language B)
-- `rounded-xl` or `rounded-2xl border border-slate-800 bg-slate-950` (or
-  `bg-slate-900` for a nested/lighter tier) — noticeably more rounded and
-  darker than language A's cards. Stat tiles in this language use plain
-  `text-2xl font-bold` values with no `font-display` face and a colored
-  (amber/emerald/blue/red) number rather than a neutral one with a colored
-  icon chip.
+### Note on Font Substitutes
+If Cal Sans is unavailable, **Inter** at weight 600 with -0.04em letter-spacing is a usable approximation. The geometric character of Cal Sans differs from Inter's humanist forms, but the substitution preserves the weight + tracking signature. **Manrope** at weight 700 is another close alternative.
 
-### Modals
-- **Language A**: centered, `fixed inset-0 z-50 grid place-items-center
-  bg-black/60`, panel is `rounded bg-white p-6 shadow-2xl` — a plain white
-  card matching the parent doc's note that CRM modals flip the marketing
-  site's dark-glass language to a light surface entirely.
-- **Language B**: centered, `fixed inset-0 z-50 ... bg-slate-950/80
-  backdrop-blur-sm`, panel is `rounded-2xl border-slate-800
-  bg-slate-900/90 ... backdrop-blur-md p-6 shadow-2xl` — i.e. it keeps the
-  marketing site's dark-glass/backdrop-blur treatment that language A
-  drops. This is the clearest single tell for which "half" of the CRM a
-  screen belongs to.
+## Layout
 
-## 5. Components
+### Spacing System
+- **Base unit:** 4px.
+- **Tokens:** `{spacing.xxs}` 4px · `{spacing.xs}` 8px · `{spacing.sm}` 12px · `{spacing.md}` 16px · `{spacing.lg}` 24px · `{spacing.xl}` 32px · `{spacing.xxl}` 48px · `{spacing.section}` 96px.
+- **Section padding:** `{spacing.section}` (96px) — the universal vertical rhythm between editorial bands.
+- **Card internal padding:** `{spacing.xl}` (32px) for feature cards and pricing tier cards; `{spacing.lg}` (24px) for testimonial and product-mockup cards.
+- **Gutters:** `{spacing.lg}` (24px) between cards in 3-up grids; `{spacing.md}` (16px) inside footer columns.
+
+### Grid & Container
+- **Max content width:** ~1200px centered on marketing pages.
+- **Editorial body:** Single 12-column grid; hero band often uses 7/5 split (h1 left, app mockup card right).
+- **Feature card grids:** 3-up at desktop, 2-up at tablet, 1-up at mobile.
+- **Pricing grid:** 4-up at desktop, 2-up at tablet, 1-up at mobile.
+- **Footer:** 4-column link list at desktop, wrapping to 2-up at tablet, 1-up at mobile.
+
+### Whitespace Philosophy
+Cal.com uses generous but not excessive whitespace — section padding sits at 96px (modern-SaaS standard), and card internal padding stays at 32px. The rhythm is calibrated for fast scanning: every band has a single h1 + h2 + supporting cards, never densely packed lists. The result reads as confident-not-shouting.
+
+## Elevation & Depth
+
+| Level | Treatment | Use |
+|---|---|---|
+| Flat | No shadow, no border | Body sections, top nav, hero bands |
+| Soft hairline | 1px `{colors.hairline}` border | Inputs, table dividers, occasionally on cards |
+| Card surface | `{colors.surface-card}` background — no shadow | Feature cards, testimonials |
+| Subtle drop shadow | Faint shadow at low alpha | Pricing tier cards, hover-elevated states (the system uses `0 1px 2px rgba(0,0,0,0.05)` and `0 4px 12px rgba(0,0,0,0.08)`) |
+| Featured tier | `{colors.surface-dark}` background, no shadow needed | The featured pricing tier inverts to dark surface — color contrast does the elevation work |
+
+The elevation philosophy is **soft and modern** — small drop shadows on elevated cards, color-block contrast for emphasis. No heavy shadows, no neumorphism, no glassmorphism.
+
+### Decorative Depth
+- Calendar widgets and product UI fragments embedded inside marketing cards carry their own internal shadows from the product UI itself — these are not system tokens, they're product chrome shown as content.
+- Avatar circles in testimonial sections sometimes carry pastel fill colors (`{colors.badge-orange}`, `{colors.badge-pink}`, etc.) — adds a small chromatic flourish without breaking the monochrome brand voice.
+
+## Shapes
+
+### Border Radius Scale
+
+| Token | Value | Use |
+|---|---|---|
+| `{rounded.xs}` | 4px | Almost no use — reserved for badge accents |
+| `{rounded.sm}` | 6px | Small inline buttons, dropdown items |
+| `{rounded.md}` | 8px | Standard CTA buttons, text inputs, category tabs |
+| `{rounded.lg}` | 12px | Content cards (feature cards, testimonial cards, pricing tier cards) |
+| `{rounded.xl}` | 16px | Hero app-mockup card (a slightly larger radius for the marquee component) |
+| `{rounded.pill}` | 9999px | Nav-pill-group, badge pills |
+| `{rounded.full}` | 9999px / 50% | Avatars, icon buttons |
+
+### Photography Geometry
+Avatar photos use `{rounded.full}` (perfect circles) at 36px or 40px. Product UI fragments inside marketing cards retain their native chrome (which often has its own internal radii — e.g., calendar grid cells, button rows). Hero illustration zones use 16:9 or 4:3 ratios with `{rounded.xl}` corners.
+
+## Components
+
+### Top Navigation
+
+**`top-nav`** — White nav bar pinned to the top of every page. 64px tall, `{colors.canvas}` background. Carries the Cal.com wordmark + logo at left (the lowercase "Cal.com" with the brand circle), primary horizontal menu (Product, Solutions, Resources, Pricing, Enterprise) center, right-side cluster with "Sign in" text-link, "Sign up free" `{component.button-primary}`, and a sometimes-visible language selector. Menu items in `{typography.nav-link}` (Inter 14px / 500).
+
+**`nav-pill-group`** — A small pill-radius wrapper around 2-3 sub-nav segments (e.g., the product-mode switcher between "Personal" / "Teams" / "Enterprise"). Background `{colors.surface-soft}` with internal padding 6px, rounded `{rounded.pill}`. Active segment renders as a white-canvas pill with a subtle drop shadow inside the wrapper. The pill-in-pill treatment is one of Cal.com's signature interactive components.
 
 ### Buttons
-- Primary (language A): `bg-tech-green text-brand-black`, or the darker
-  `bg-[#17251b] text-white` variant for secondary-primary actions
-  (exports, "Add X" buttons scattered through data views) — both
-  `font-bold`, small `text-[10-11px]`, `uppercase tracking-wider` when used
-  as a top-level action, sentence-case when it's a compact table-row action.
-- Secondary (language A): `rounded border border-slate-200
-  px-3 py-2 text-[10px] font-semibold text-slate-600` — plain outline,
-  no fill.
-- Destructive (language A): red text on a light/no fill
-  (`border-red-200 text-red-600`), never a solid red button.
-- Language B buttons trade the tech-green/dark-green system for
-  color-coded outline pills: `border-{color}-500/30 text-{color}-300
-  hover:bg-{color}-500 hover:text-slate-950`, where color maps to the same
-  amber/emerald/rose/indigo/sky roles as the badges above.
 
-### Tables
-- Canonical shape (language A): `overflow-x-auto` wrapper →
-  `<table className="w-full min-w-[Npx] text-left">` → `<thead
-  className="bg-slate-50 text-[9px] uppercase text-slate-400">` →
-  `<tbody className="divide-y divide-slate-100">`, row hover
-  `hover:bg-slate-50`. Cell padding is `px-3 py-2/3` or `px-4 py-3`
-  depending on density; numeric/currency columns right-align.
-- Language B tables (Contractor Roster) use the same `<thead
-  bg-slate-950 text-slate-400 uppercase text-[10px] font-bold
-  border-b border-slate-800>` shape, just recolored dark and with a
-  heavier header weight.
+**`button-primary`** — The signature primary CTA. Background `{colors.primary}` (#111111), text `{colors.on-primary}`, type `{typography.button}` (Inter 14px / 600), padding 12px × 20px, height 40px, rounded `{rounded.md}` (8px). Active state `button-primary-active` shifts to `{colors.primary-active}` (#242424).
 
-### Icons
-- Language A: lucide-react exclusively, `h-3.5 w-3.5`–`h-5 w-5`, always
-  paired with a small colored chip/circle background for emphasis (KPI
-  icons, sidebar module icons).
-- Language B: mixed lucide-react / raw emoji depending on file (see §2).
+**`button-secondary`** — White button with hairline outline. Background `{colors.canvas}`, text `{colors.ink}`, 1px hairline border, same padding + height + radius as primary.
 
-## 6. Notes for Future Stitch Generation / New CRM Screens
+**`button-icon-circular`** — 36 × 36px circular icon button. Background `{colors.canvas}`, hairline border, ink-color icon. Used for share, "view more", carousel arrows.
 
-### Default to language A unless told otherwise
-Prompting for a brand-new CRM screen with no further context should
-produce: light `#F3F5F4` canvas, white `rounded border-slate-200
-shadow-sm` cards, `text-[9-10px]` uppercase micro-labels, `font-display`
-reserved for numbers/titles, tech-green-deep for active/link states,
-tech-green (bright) reserved for the one primary CTA per view, and status
-pills drawn from the shared `tones` semantic palette rather than inventing
-new hex values.
+**`button-text-link`** — Inline text button, no background. Used for "Sign in" in the top nav and inline CTA links inside cards.
 
-### Known drift to flag, not silently "fix"
-- The amber/emerald/rose/indigo palette in Contractor Roster, Timecard
-  Approval, Support Tickets, and Client Requests never touches tech-green
-  or safety-orange — these four screens are visually a different product
-  today. Don't casually restyle one in isolation; if unifying them with
-  language A, treat it as a deliberate design pass across all four
-  together, not a per-ticket fix.
-- Emoji-as-icon (`🛠️ 🔗 📅 ➕ 🔌 🎉`) in `ContractorRosterAdmin.tsx` and
-  `SupportTicketsAdmin.tsx` is inconsistent with lucide-react everywhere
-  else in the CRM, including the other two dark-theme files. Prefer
-  lucide-react for any new icon in these files rather than adding more
-  emoji.
-- Three distinct "brand greens" are in concurrent use in language A alone
-  (`tech-green` #22C55E, `tech-green-deep` #15803D, and the unnamed
-  `#17251b` button fill). This works today because each has a fairly
-  consistent role (bright CTA / active-state text / secondary-primary
-  button), but a new component should pick from these three roles
-  deliberately rather than introducing a fourth green.
-- No dedicated destructive/error token, same gap the parent doc already
-  flags for the marketing site — the CRM borrows plain Tailwind
-  `red-500`/`red-600`/`rose-*` ad hoc.
+**`text-link`** — Inline body links in `{colors.ink}` (the brand keeps inline links monochrome). Underlined on hover (not documented per the no-hover policy, but mentioned for context).
 
-### Component prompts
-- "A light admin data table: white card, `rounded border-slate-200
-  shadow-sm`, `bg-slate-50` header row with `text-[9px] uppercase
-  text-slate-400` column labels, hairline row dividers, a tech-green-deep
-  mono reference number in the first column, a status pill on the right
-  using a semantic tint (green/amber/red/slate) matched to the row's
-  state."
-- "A CRM KPI tile row: four white cards in a grid, each with a small
-  tone-tinted icon chip top-right, an uppercase `text-[9px]` label, a big
-  `font-display` value, and a muted one-line comparison figure beneath."
-- "A CRM light-theme modal: centered on a `bg-black/60` overlay, plain
-  white `rounded` card, `font-display text-lg uppercase` title, form
-  fields with `text-[9px] font-bold uppercase text-slate-500` labels, a
-  tech-green primary button and a plain-outline cancel button."
+### Cards & Containers
+
+**`hero-band`** — White-canvas hero with a 7-5 grid: h1 + sub-headline + button row on the left, `{component.hero-app-mockup-card}` on the right. Vertical padding `{spacing.section}` (96px).
+
+**`hero-app-mockup-card`** — A larger product-UI mockup card showing the actual Cal.com booking widget with calendar grid, time slots, and a primary "Confirm" button inside. Background `{colors.canvas}`, 1px hairline border, rounded `{rounded.xl}` (16px), subtle drop shadow. Used as the hero's right-side artifact.
+
+**`feature-card`** — Used in 3-up feature grids ("With us, appointment scheduling is easy"). Background `{colors.surface-card}` (#f5f5f5), rounded `{rounded.lg}` (12px), internal padding `{spacing.xl}` (32px). Carries a small icon at top, an `{typography.title-md}` headline, and a body description in `{typography.body-md}`.
+
+**`feature-icon-card`** — A simpler card variant used in 4-up feature grids on lower-density bands. Background `{colors.canvas}` with hairline border, rounded `{rounded.lg}`, padding `{spacing.lg}` (24px). Carries a small icon, `{typography.title-sm}` title, short description.
+
+**`product-mockup-card`** — A card showing actual Cal.com product UI fragments (workflow editor, calendar grid, integration grid, automation flow). Background `{colors.canvas}`, rounded `{rounded.lg}`, padding `{spacing.lg}` (24px). The product UI inside has its own internal chrome — these cards display the product, they don't decorate around it.
+
+**`testimonial-card`** — Used in customer-quote grids. Background `{colors.surface-card}`, rounded `{rounded.lg}`, padding `{spacing.lg}` (24px). Top row carries a `{component.avatar-circle}` + name + role; below sits the testimonial quote in `{typography.body-md}`.
+
+**`pricing-tier-card`** — Standard tier card. Background `{colors.canvas}`, rounded `{rounded.lg}`, padding `{spacing.xl}` (32px). Carries the plan name in `{typography.title-lg}`, price in `{typography.display-sm}`, feature checklist in `{typography.body-md}`, and a `{component.button-primary}` at the bottom.
+
+**`pricing-tier-card-featured`** — The featured tier (typically "Teams"). Background flips to `{colors.surface-dark}` (#101010), text inverts to `{colors.on-dark}`. The dark surface IS the featured-tier signal — no accent border, no badge, no scale shift.
+
+### Inputs & Forms
+
+**`text-input`** — Standard text input. Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body-md}`, rounded `{rounded.md}` (8px), padding 10px × 14px, height 40px. 1px hairline border in `{colors.hairline}`.
+
+**`text-input-focused`** — Focus state. Border thickens or shifts to `{colors.ink}` for emphasis.
+
+### Tags / Badges
+
+**`badge-pill`** — Small pill label used for category tags ("Product", "Article", "New") and pastel-fill avatar substitutes. Background `{colors.surface-card}` or one of the badge pastels (`{colors.badge-orange}`, `{colors.badge-pink}`, etc.), text `{colors.ink}`, type `{typography.caption}` (13px / 500), rounded `{rounded.pill}`, padding 4px × 12px.
+
+**`avatar-circle`** — 36px diameter, rounded `{rounded.full}`. Either holds a photo or a pastel fill with initials in `{typography.caption}`.
+
+**`rating-stars`** — Inline star rating in `{colors.badge-orange}` (#fb923c). Used near testimonial avatars to display a 5-star satisfaction score.
+
+### Tab / Filter
+
+**`category-tab`** + **`category-tab-active`** — Used inside the nav-pill-group. Inactive: transparent background, `{colors.muted}` text. Active: `{colors.canvas}` background, `{colors.ink}` text, subtle drop shadow inside the pill-group wrapper. Padding 8px × 14px, rounded `{rounded.md}`.
+
+### CTA / Footer
+
+**`cta-band-light`** — A pre-footer "Smarter, simpler scheduling" CTA card. Background `{colors.surface-card}`, rounded `{rounded.lg}`, padding `{spacing.xxl}` (48px). Carries an h2 in `{typography.display-sm}`, a sub-line, and a `{component.button-primary}` centered.
+
+**`footer`** — Dark navy footer that closes every page. Background `{colors.surface-dark}` (#101010), text `{colors.on-dark-soft}`. 4-column link list at desktop covering Product / Solutions / Company / Resources. Vertical padding 64px. The Cal.com wordmark sits at the top-left in `{colors.on-dark}`. The footer is the only dark surface on every page — the deliberate inversion visually closes the page.
+
+## Do's and Don'ts
+
+### Do
+- Reserve `{colors.primary}` (#111111) for primary CTAs and h1/h2 type. Cal.com's button is near-black, not blue.
+- Use Cal Sans for every display headline. Pair with Inter body. Never blur the boundary.
+- Apply negative letter-spacing on display sizes (-0.5 to -2px). Cal Sans without it reads as off-brand.
+- Use `{component.feature-card}` (light gray) and `{component.product-mockup-card}` (white with chrome) deliberately — the gray cards signal "abstract feature claim", white cards signal "look at the actual product".
+- Embed real product UI fragments inside marketing cards. Don't paint marketing illustrations of the product when you can show the product itself.
+- Keep avatar circles at 36px, perfect circles, sometimes with pastel fills. Avatars are the only place where badge pastels appear.
+- Use `{component.nav-pill-group}` for grouped sub-nav segments. The pill-in-pill treatment is signature.
+- End every page with the dark footer. The light-to-dark transition is part of the editorial rhythm.
+
+### Don't
+- Don't use accent colors (`{colors.brand-accent}`, badge pastels) on primary CTAs. The system is monochrome at the action layer.
+- Don't bold display weight beyond 600. Cal Sans at 700 reads as bombastic.
+- Don't use rounded radius beyond `{rounded.xl}` (16px) on cards. Larger radii read as consumer-app, not professional booking software.
+- Don't put dark surface cards anywhere except the footer and the featured pricing tier. The dark surface is a deliberate, scarce signal.
+- Don't repeat the same surface mode in two consecutive bands. Cal.com's pacing alternates white → light-gray → white → product-mockup-card → white → dark-footer.
+- Don't add hover state styling beyond what the system already encodes — primary darkens on press; nothing else changes.
+
+## Responsive Behavior
+
+### Breakpoints
+
+| Name | Width | Key Changes |
+|---|---|---|
+| Mobile | < 768px | Hamburger nav; hero h1 64→32px; hero-app-mockup-card stacks below content; feature grids 1-up; pricing 1-up; footer 4 cols → 1 |
+| Tablet | 768–1024px | Top nav stays horizontal but tightens; nav-pill-group wraps; feature cards 2-up; pricing 2-up |
+| Desktop | 1024–1440px | Full top-nav with all menu items; 3-up feature cards; 4-up pricing tiers |
+| Wide | > 1440px | Same as desktop with more outer breathing room; max content width caps at 1200px |
+
+### Touch Targets
+- `{component.button-primary}` at minimum 40 × 40px.
+- `{component.button-icon-circular}` at exactly 36 × 36 — slightly under WCAG's 44 × 44 but the centered icon and full-circle silhouette compensate.
+- `{component.text-input}` height is 40px.
+- `{component.category-tab}` rendered inside nav-pill-group has 8 × 14 padding; effective tap area meets 44px+ with the surrounding pill.
+
+### Collapsing Strategy
+- Top nav collapses to hamburger at < 768px; menu opens as a full-screen sheet.
+- Hero band's 7-5 grid collapses to single-column on mobile — h1 + sub-head + buttons first, then the app-mockup card below.
+- Feature grids reduce columns rather than scaling cards down.
+- Pricing tier cards collapse 4 → 2 → 1; featured-tier dark surface stays visually distinct at every breakpoint.
+- Nav-pill-group wraps to multi-row on tablet if the segments don't fit horizontally.
+- Avatar + testimonial card layouts stay grid-aligned at every breakpoint.
+
+### Image Behavior
+- Product UI fragments inside cards retain native aspect ratios; the cards themselves resize.
+- Avatar photos crop to circles at every breakpoint.
+- Hero app-mockup card scales proportionally on mobile — the calendar grid stays legible.
+
+## Iteration Guide
+
+1. Focus on ONE component at a time. Reference its YAML key directly (`{component.feature-card}`, `{component.pricing-tier-card-featured}`).
+2. Variants of an existing component (`-active`, `-disabled`, `-focused`) live as separate entries in `components:`.
+3. Use `{token.refs}` everywhere — never inline hex.
+4. Never document hover. Default and Active/Pressed states only.
+5. Display headlines stay Cal Sans 600 with negative letter-spacing. Body stays Inter 400. The trinity does not blur.
+6. The dark footer is the only dark surface on most pages. Don't add other dark cards casually.
+7. When in doubt about emphasis: bigger Cal Sans before bolder Cal Sans.
+
+## Known Gaps
+
+- The dembrandt frequency analyzer captured `Buttons: 0 variants` — Cal.com renders most CTAs as styled `<a>` link elements rather than `<button>` tags, which dembrandt's button selector doesn't capture. Button styles are documented from screenshot ground-truth + standard Cal Sans / Inter baselines.
+- Cal Sans is licensed to Cal.com and not available as a public web font; substitutes are documented in the typography section.
+- The badge pastel set (orange / pink / violet / emerald) is documented from observed avatar fill colors; exact hex values may shift seasonally.
+- Animation and transition timings (calendar slot picker, schedule confirmation, integration grid hover-reveal) are not in scope.
+- Form validation states beyond `{component.text-input-focused}` are not extracted — error / success states would need a sign-up or booking flow to confirm.
+- The actual booking widget surface (cal.com/{username}) is the product, not a marketing surface; its spec is out of scope.
+- Avatar photos in testimonial sections sometimes carry pastel circular fills with initials instead of photographs; both treatments coexist on the same page.
