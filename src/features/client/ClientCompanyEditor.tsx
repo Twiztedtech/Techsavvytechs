@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Building2, Plus, Trash2, Users } from 'lucide-react';
 import type { AdminActionResult } from './ClientRequestsAdmin';
 
-type PersonnelRole = 'requester' | 'sales' | 'project_manager' | 'payroll' | 'accounts_payable' | 'manager' | 'other';
+type PersonnelRole = 'primary_contact' | 'owner' | 'requester' | 'sales' | 'project_manager' | 'payroll' | 'accounts_payable' | 'manager' | 'other';
 type Personnel = { id?: string; name: string; email: string; role: PersonnelRole; active?: boolean };
 type Organization = {
   id: string;
@@ -19,7 +19,7 @@ const blankPerson = (): Personnel => ({ name: '', email: '', role: 'sales', acti
 const blankCompany = () => ({ organizationId: '', name: '', approvedDomains: '', referencePrefixes: '', personnel: [blankPerson()], billingRecipientEmails: [] as string[], defaultContactPolicy: 'techsavvy_only' });
 
 const roleLabels: Record<PersonnelRole, string> = {
-  requester: 'Requester', sales: 'Sales', project_manager: 'Project manager', payroll: 'Payroll', accounts_payable: 'Accounts payable', manager: 'Manager', other: 'Other',
+  primary_contact: 'Primary contact', owner: 'Owner', requester: 'Requester', sales: 'Sales', project_manager: 'Project manager', payroll: 'Payroll', accounts_payable: 'Accounts payable', manager: 'Manager', other: 'Other',
 };
 
 export function ClientCompanyEditor({ organizations, post }: { organizations: Organization[]; post: (action: string, body: unknown) => Promise<AdminActionResult> }) {

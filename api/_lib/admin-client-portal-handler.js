@@ -85,6 +85,8 @@ async function saveOrganization(req, res, admin) {
     ? req.body.referencePrefixes.map((v) => clean(v, 40)).filter(Boolean)
     : current.data()?.referencePrefixes || [];
   const personnelRoles = [
+    "primary_contact",
+    "owner",
     "requester",
     "sales",
     "project_manager",
