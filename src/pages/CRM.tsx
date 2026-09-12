@@ -110,7 +110,7 @@ const tones: Record<string, string> = {
   red: "border-red-400/20 bg-red-400/10 text-red-600",
   blue: "border-sky-400/30 bg-sky-400/20 text-sky-800",
   purple: "border-violet-400/30 bg-violet-400/20 text-violet-800",
-  slate: "border-slate-400/20 bg-slate-500/15 text-slate-700",
+  slate: "border-slate-400/20 bg-slate-500/15 text-crm-body",
 };
 
 type CatalogItem = {
@@ -664,10 +664,10 @@ export default function CRM() {
               {liveLifecycle.map(({ label, value, icon: Icon, tone, sub }) => (
                 <button
                   key={label}
-                  className="rounded border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md"
+                  className="rounded border border-crm-hairline bg-crm-canvas p-4 text-left shadow-sm hover:shadow-md"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-crm-muted">
                       {label}
                     </span>
                     <span className={`rounded border p-1.5 ${tones[tone as keyof typeof tones]}`}>
@@ -675,8 +675,8 @@ export default function CRM() {
                     </span>
                   </div>
                   <div className="mt-3 flex items-end justify-between">
-                    <span className="font-display text-2xl">{value}</span>
-                    <span className="text-[10px] text-slate-400">{sub}</span>
+                    <span className="crm-display-md">{value}</span>
+                    <span className="text-[10px] text-crm-muted">{sub}</span>
                   </div>
                 </button>
               ))}
@@ -881,17 +881,17 @@ function CustomersView({
     }
   };
   return (
-    <section className="rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+    <section className="rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline-soft p-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-sm font-bold">Customer card files</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Live contacts, sites, assets and transaction history
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => void syncFromQuickBooks()} disabled={syncingCustomers} className="rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[9px] font-bold uppercase text-tech-green-deep disabled:opacity-40">{syncingCustomers ? "Syncing…" : "Sync from QuickBooks"}</button>
-          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-400">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-slate-200 px-2 py-1.5 text-[10px] font-semibold normal-case text-slate-700"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
+          <button onClick={() => void syncFromQuickBooks()} disabled={syncingCustomers} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[9px] font-bold uppercase text-crm-ink disabled:opacity-40">{syncingCustomers ? "Syncing…" : "Sync from QuickBooks"}</button>
+          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-crm-muted">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-crm-hairline px-2 py-1.5 text-[10px] font-semibold normal-case text-crm-body"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
         </div>
       </header>
       {records.length ? (
@@ -903,21 +903,21 @@ function CustomersView({
             return (
               <article
                 key={c.id}
-                className="rounded border border-slate-200 p-4 hover:border-tech-green/40"
+                className="rounded border border-crm-hairline p-4 hover:border-crm-hairline"
               >
                 <div className="flex items-start justify-between">
-                  <span className="grid h-9 w-9 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep">
+                  <span className="grid h-9 w-9 place-items-center rounded bg-crm-surface-card text-crm-ink">
                     <Building2 className="h-4 w-4" />
                   </span>
                   <button
                     onClick={() => setEditingCustomer(c)}
-                    className="text-[9px] font-bold uppercase text-slate-400 hover:text-tech-green-deep"
+                    className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-ink"
                   >
                     Edit
                   </button>
                 </div>
                 <h3 className="mt-4 text-xs font-bold">{c.name}</h3>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-crm-muted">
                   Primary: {c.personnel?.find((p) => p.role === "primary_contact" && p.active !== false)?.name || c.contact || "Not set"}
                 </p>
                 {(() => {
@@ -925,37 +925,37 @@ function CustomersView({
                   const expired = Boolean(expiresAt && expiresAt < new Date().toISOString());
                   const revoked = c.portalDelivery?.status === "revoked";
                   const active = c.portalDelivery?.status === "sent" && !expired;
-                  return <div className="mt-3 flex items-center justify-between rounded bg-slate-50 px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-green-700" : revoked ? "text-red-600" : "text-slate-400"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-slate-400">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
+                  return <div className="mt-3 flex items-center justify-between rounded bg-crm-surface-soft px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-green-700" : revoked ? "text-red-600" : "text-crm-muted"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-crm-muted">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
                 })()}
-                <div className="mt-4 grid grid-cols-3 border-y border-slate-100 py-3 text-center">
+                <div className="mt-4 grid grid-cols-3 border-y border-crm-hairline-soft py-3 text-center">
                   <div>
                     <b className="block text-xs">{c.sites?.length || 0}</b>
-                    <span className="text-[8px] text-slate-400">SITES</span>
+                    <span className="text-[8px] text-crm-muted">SITES</span>
                   </div>
                   <div>
                     <b className="block text-xs">{openJobs}</b>
-                    <span className="text-[8px] text-slate-400">JOBS</span>
+                    <span className="text-[8px] text-crm-muted">JOBS</span>
                   </div>
                   <div>
                     <b className="block text-xs">{assets.filter((asset) => customerFor(asset, records)?.id === c.id).length}</b>
-                    <span className="text-[8px] text-slate-400">ASSETS</span>
+                    <span className="text-[8px] text-crm-muted">ASSETS</span>
                   </div>
                 </div>
                 <div className="mt-3 flex justify-between text-[9px]">
-                  <span className="text-slate-400">Lifetime value</span>
-                  <b className="text-tech-green-deep">
+                  <span className="text-crm-muted">Lifetime value</span>
+                  <b className="text-crm-ink">
                     ${(c.lifetimeValue || 0).toLocaleString()}
                   </b>
                 </div>
                 <button
                   onClick={() => void invite(c)}
                   disabled={inviting === c.id || !c.email}
-                  className="mt-3 w-full rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-tech-green-deep disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-3 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-crm-ink disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {inviting === c.id ? "Sending…" : c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
                 </button>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-slate-200 px-2 py-2 text-[8px] font-bold uppercase text-slate-600 disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
+                  <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
                   <button onClick={() => void managePortal(c, "revoke")} disabled={managing === `revoke-${c.id}` || c.portalDelivery?.status !== "sent"} className="rounded border border-red-200 px-2 py-2 text-[8px] font-bold uppercase text-red-600 disabled:opacity-30">{managing === `revoke-${c.id}` ? "Revoking…" : "Revoke access"}</button>
                 </div>
               </article>
@@ -1038,10 +1038,10 @@ function CustomerEditModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={save}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded border border-crm-hairline bg-crm-canvas p-6 text-crm-ink shadow-2xl"
       >
         <div className="flex items-start justify-between">
-          <h2 className="font-display text-lg uppercase">Edit customer</h2>
+          <h2 className="crm-display-sm">Edit customer</h2>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
@@ -1053,31 +1053,31 @@ function CustomerEditModal({
           <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
           <Field label="Lifetime value" value={form.lifetimeValue} onChange={(v) => setForm({ ...form, lifetimeValue: v })} type="number" />
         </div>
-        <div className="mt-5 rounded border border-slate-200 bg-slate-50 p-3">
+        <div className="mt-5 rounded border border-crm-hairline bg-crm-surface-soft p-3">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">People at this company</p>
-            <button type="button" onClick={() => setPersonnel((current) => [...current, { name: "", email: "", role: "other", active: true }])} className="rounded border border-tech-green/30 px-2 py-1 text-[9px] font-bold text-tech-green-deep">+ Add person</button>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-crm-muted">People at this company</p>
+            <button type="button" onClick={() => setPersonnel((current) => [...current, { name: "", email: "", role: "other", active: true }])} className="rounded border border-crm-hairline px-2 py-1 text-[9px] font-bold text-crm-ink">+ Add person</button>
           </div>
-          <p className="mb-2 text-[9px] text-slate-400">The company stays on file even if the people here change — reassign roles instead of recreating the customer.</p>
+          <p className="mb-2 text-[9px] text-crm-muted">The company stays on file even if the people here change — reassign roles instead of recreating the customer.</p>
           <div className="space-y-2">
             {personnel.map((person, index) => (
-              <div key={person.id || index} className="grid gap-2 rounded border border-slate-200 bg-white p-2 md:grid-cols-[1fr_1.3fr_1fr_auto]">
-                <input value={person.name} onChange={(e) => updatePerson(index, "name", e.target.value)} placeholder="Name" className="rounded border border-slate-200 px-2 py-1.5 text-xs" />
-                <input type="email" value={person.email} onChange={(e) => updatePerson(index, "email", e.target.value)} placeholder="Email" className="rounded border border-slate-200 px-2 py-1.5 text-xs" />
-                <select value={person.role} onChange={(e) => updatePerson(index, "role", e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-xs">
+              <div key={person.id || index} className="grid gap-2 rounded border border-crm-hairline bg-crm-canvas p-2 md:grid-cols-[1fr_1.3fr_1fr_auto]">
+                <input value={person.name} onChange={(e) => updatePerson(index, "name", e.target.value)} placeholder="Name" className="rounded border border-crm-hairline px-2 py-1.5 text-xs" />
+                <input type="email" value={person.email} onChange={(e) => updatePerson(index, "email", e.target.value)} placeholder="Email" className="rounded border border-crm-hairline px-2 py-1.5 text-xs" />
+                <select value={person.role} onChange={(e) => updatePerson(index, "role", e.target.value)} className="rounded border border-crm-hairline px-2 py-1.5 text-xs">
                   {Object.entries(customerPersonnelRoleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 <button type="button" onClick={() => removePerson(index)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Remove</button>
               </div>
             ))}
-            {!personnel.length && <p className="py-2 text-center text-[10px] text-slate-400">No one added yet.</p>}
+            {!personnel.length && <p className="py-2 text-center text-[10px] text-crm-muted">No one added yet.</p>}
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">
             Cancel
           </button>
-          <button disabled={saving} className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
             {saving ? "Saving…" : "Save customer"}
           </button>
         </div>
@@ -1119,10 +1119,10 @@ function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries }
   };
   const recent = [...deliveries].sort((a, b) => String(b.sentAt || b.createdAt || "").localeCompare(String(a.sentAt || a.createdAt || ""))).slice(0, 12);
   return <div className="space-y-5">
-    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded bg-[#e8f7ed] text-tech-green-deep"><Clock3 className="h-5 w-5"/></span><div><h2 className="text-sm font-bold">Automated customer reminders</h2><p className="mt-1 text-[10px] text-slate-400">Daily at 8:00 AM Pacific · appointments, quotes, overdue invoices and recurring maintenance</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{["appointment", "quote", "invoice", "maintenance"].map((type) => <div key={type} className="rounded bg-slate-50 p-3"><p className="text-[8px] font-bold uppercase text-slate-400">{type}</p><p className="mt-1 font-display text-xl">{items.filter((item) => item.type === type).length}</p><p className="text-[8px] text-slate-400">currently actionable</p></div>)}</div></section>
-    <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-slate-400">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-slate-100 overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase text-slate-500">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-slate-400">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-[#17251b] px-3 py-2 text-[9px] font-bold text-white disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
-    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-slate-400">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-slate-100">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"><header className="border-b border-slate-100 p-4"><h3 className="text-sm font-bold">Recent reminder delivery</h3></header>{recent.length ? <div className="divide-y divide-slate-100">{recent.map((delivery) => <div key={delivery.id} className="grid gap-2 p-4 sm:grid-cols-[120px_1fr_120px] sm:items-center"><span className="text-[8px] font-bold uppercase text-slate-400">{delivery.type}{delivery.manual ? " · manual" : ""}</span><div><p className="text-[10px] font-semibold">{delivery.email}</p>{delivery.error && <p className="mt-1 text-[8px] text-red-600">{delivery.error}</p>}</div><span className={`text-[9px] font-bold uppercase sm:text-right ${delivery.status === "sent" ? "text-green-700" : delivery.status === "failed" ? "text-red-600" : "text-orange-600"}`}>{delivery.status}</span></div>)}</div> : <ReportEmpty text="No reminders have been delivered yet."/>}</section>
+    <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded bg-crm-surface-card text-crm-ink"><Clock3 className="h-5 w-5"/></span><div><h2 className="text-sm font-bold">Automated customer reminders</h2><p className="mt-1 text-[10px] text-crm-muted">Daily at 8:00 AM Pacific · appointments, quotes, overdue invoices and recurring maintenance</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{["appointment", "quote", "invoice", "maintenance"].map((type) => <div key={type} className="rounded bg-crm-surface-soft p-3"><p className="text-[8px] font-bold uppercase text-crm-muted">{type}</p><p className="mt-1 crm-display-sm">{items.filter((item) => item.type === type).length}</p><p className="text-[8px] text-crm-muted">currently actionable</p></div>)}</div></section>
+    <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-crm-muted">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-crm-hairline-soft overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-muted">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-crm-muted">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[9px] font-bold text-white disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
+    <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-crm-muted">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-crm-hairline-soft">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-green-100 text-green-700" : "bg-crm-surface-card text-crm-muted"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Recent reminder delivery</h3></header>{recent.length ? <div className="divide-y divide-crm-hairline-soft">{recent.map((delivery) => <div key={delivery.id} className="grid gap-2 p-4 sm:grid-cols-[120px_1fr_120px] sm:items-center"><span className="text-[8px] font-bold uppercase text-crm-muted">{delivery.type}{delivery.manual ? " · manual" : ""}</span><div><p className="text-[10px] font-semibold">{delivery.email}</p>{delivery.error && <p className="mt-1 text-[8px] text-red-600">{delivery.error}</p>}</div><span className={`text-[9px] font-bold uppercase sm:text-right ${delivery.status === "sent" ? "text-green-700" : delivery.status === "failed" ? "text-red-600" : "text-orange-600"}`}>{delivery.status}</span></div>)}</div> : <ReportEmpty text="No reminders have been delivered yet."/>}</section>
   </div>;
 }
 
@@ -1140,26 +1140,26 @@ function AuditTrailView({ logs }: { logs: AuditLog[] }) {
     .sort((a, b) => timestamp(b.createdAt).getTime() - timestamp(a.createdAt).getTime());
   const categories = Array.from(new Set(logs.map((log) => log.entityType).filter(Boolean))).sort();
   return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 lg:flex-row lg:items-center">
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex flex-col justify-between gap-4 border-b border-crm-hairline-soft p-5 lg:flex-row lg:items-center">
         <div>
-          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-tech-green-deep"><ShieldCheck className="h-3.5 w-3.5" /> Immutable history</div>
+          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-crm-ink"><ShieldCheck className="h-3.5 w-3.5" /> Immutable history</div>
           <h2 className="mt-2 text-base font-bold">Administrator audit trail</h2>
-          <p className="mt-1 text-[10px] text-slate-400">Creation, changes, approvals, scheduling, billing, customer delivery and QuickBooks activity.</p>
+          <p className="mt-1 text-[10px] text-crm-muted">Creation, changes, approvals, scheduling, billing, customer delivery and QuickBooks activity.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search activity…" className="rounded border border-slate-200 px-3 py-2 text-xs outline-none focus:border-tech-green" />
-          <select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded border border-slate-200 px-3 py-2 text-xs"><option value="all">All records</option>{categories.map((category) => <option key={category} value={category}>{category.replace(/-/g, " ")}</option>)}</select>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search activity…" className="rounded border border-crm-hairline px-3 py-2 text-xs outline-none focus:border-crm-ink" />
+          <select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded border border-crm-hairline px-3 py-2 text-xs"><option value="all">All records</option>{categories.map((category) => <option key={category} value={category}>{category.replace(/-/g, " ")}</option>)}</select>
         </div>
       </header>
-      {visible.length ? <div className="divide-y divide-slate-100">{visible.slice(0, 250).map((log) => {
+      {visible.length ? <div className="divide-y divide-crm-hairline-soft">{visible.slice(0, 250).map((log) => {
         const date = timestamp(log.createdAt);
         return <article key={log.id} className="grid gap-3 p-4 sm:grid-cols-[150px_1fr_180px] sm:items-center">
-          <div><p className="text-[10px] font-semibold text-slate-600">{date.getTime() ? date.toLocaleDateString() : "Pending"}</p><p className="text-[9px] text-slate-400">{date.getTime() ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Saving…"}</p></div>
-          <div><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-[#e8f7ed] px-2 py-1 text-[8px] font-bold uppercase text-tech-green-deep">{log.entityType}</span><span className="text-[9px] font-semibold uppercase text-slate-400">{log.action.replace(/-/g, " ")}</span></div><p className="mt-2 text-[11px] font-semibold">{log.summary}</p>{log.entityId && <p className="mt-1 font-mono text-[8px] text-slate-400">{log.entityId}</p>}</div>
-          <div className="sm:text-right"><p className="truncate text-[10px] font-semibold">{log.actorLabel || log.actorEmail || "System"}</p><p className="mt-1 text-[8px] uppercase text-slate-400">{log.source || "CRM"}</p></div>
+          <div><p className="text-[10px] font-semibold text-crm-body">{date.getTime() ? date.toLocaleDateString() : "Pending"}</p><p className="text-[9px] text-crm-muted">{date.getTime() ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Saving…"}</p></div>
+          <div><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-ink">{log.entityType}</span><span className="text-[9px] font-semibold uppercase text-crm-muted">{log.action.replace(/-/g, " ")}</span></div><p className="mt-2 text-[11px] font-semibold">{log.summary}</p>{log.entityId && <p className="mt-1 font-mono text-[8px] text-crm-muted">{log.entityId}</p>}</div>
+          <div className="sm:text-right"><p className="truncate text-[10px] font-semibold">{log.actorLabel || log.actorEmail || "System"}</p><p className="mt-1 text-[8px] uppercase text-crm-muted">{log.source || "CRM"}</p></div>
         </article>;
-      })}</div> : <div className="grid min-h-56 place-items-center p-6 text-center"><div><ClipboardCheck className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-xs font-semibold">No matching audit activity</p><p className="mt-1 text-[10px] text-slate-400">New administrator actions will appear here automatically.</p></div></div>}
+      })}</div> : <div className="grid min-h-56 place-items-center p-6 text-center"><div><ClipboardCheck className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-xs font-semibold">No matching audit activity</p><p className="mt-1 text-[10px] text-crm-muted">New administrator actions will appear here automatically.</p></div></div>}
     </section>
   );
 }
@@ -1298,13 +1298,13 @@ function ReportsView({
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col justify-between gap-3 rounded border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+      <section className="flex flex-col justify-between gap-3 rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm sm:flex-row sm:items-center">
         <div>
-          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-tech-green-deep"><Activity className="h-3.5 w-3.5" /> Live Firestore data</div>
+          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-crm-ink"><Activity className="h-3.5 w-3.5" /> Live Firestore data</div>
           <h2 className="mt-2 text-base font-bold">Operational performance</h2>
-          <p className="mt-1 text-[10px] text-slate-400">Updated automatically from CRM jobs, quotes, invoices, technicians and assets. Includes test records; margins use saved job costing.</p>
+          <p className="mt-1 text-[10px] text-crm-muted">Updated automatically from CRM jobs, quotes, invoices, technicians and assets. Includes test records; margins use saved job costing.</p>
         </div>
-        <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-[#17251b] px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
+        <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
       </section>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <ReportKpi label="Active jobs" value={String(activeJobs.length)} detail={`${unassigned} unassigned`} tone={unassigned ? "orange" : "green"} />
@@ -1313,22 +1313,22 @@ function ReportsView({
         <ReportKpi label="Receivables" value={money(receivables)} detail={`${money(overdueBalance)} overdue`} tone={overdueBalance ? "red" : "green"} />
         <ReportKpi label="Maintenance due" value={String(dueMaintenance.length)} detail={`Next 30 days · ${maintenanceAssets.length} plans`} tone={dueMaintenance.length ? "violet" : "green"} />
       </section>
-      <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
+      <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline-soft pb-4 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-sm font-bold">Job profitability</h3>
-            <p className="mt-1 text-[9px] text-slate-400">Revenue vs. direct technician labor &amp; materials cost only — excludes overhead (rent, insurance, software, fuel). Not a substitute for the real books.</p>
+            <p className="mt-1 text-[9px] text-crm-muted">Revenue vs. direct technician labor &amp; materials cost only — excludes overhead (rent, insurance, software, fuel). Not a substitute for the real books.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {(["month", "lastMonth", "quarter", "ytd", "custom"] as const).map((preset) => (
-              <button key={preset} onClick={() => setPlPreset(preset)} className={`rounded px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide ${plPreset === preset ? "bg-tech-green text-brand-black" : "border border-slate-200 text-slate-500"}`}>
+              <button key={preset} onClick={() => setPlPreset(preset)} className={`rounded px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide ${plPreset === preset ? "bg-crm-primary text-crm-on-primary" : "border border-crm-hairline text-crm-muted"}`}>
                 {preset === "month" ? "This month" : preset === "lastMonth" ? "Last month" : preset === "quarter" ? "This quarter" : preset === "ytd" ? "YTD" : "Custom"}
               </button>
             ))}
             {plPreset === "custom" && (
               <>
-                <input type="date" value={plCustomStart} onChange={(e) => setPlCustomStart(e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-                <input type="date" value={plCustomEnd} onChange={(e) => setPlCustomEnd(e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+                <input type="date" value={plCustomStart} onChange={(e) => setPlCustomStart(e.target.value)} className="rounded border border-crm-hairline px-2 py-1.5 text-[10px]" />
+                <input type="date" value={plCustomEnd} onChange={(e) => setPlCustomEnd(e.target.value)} className="rounded border border-crm-hairline px-2 py-1.5 text-[10px]" />
               </>
             )}
           </div>
@@ -1340,19 +1340,19 @@ function ReportsView({
           <ReportKpi label="Gross margin" value={`${plMargin.toFixed(1)}%`} detail="Profit ÷ revenue" tone={plMargin >= 30 ? "green" : plMargin >= 0 ? "orange" : "red"} />
         </div>
         <div className="mt-5 flex items-center justify-between">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">By job</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-crm-muted">By job</p>
           <div className="flex gap-2">
-            <button onClick={() => setPlSortBy("profit")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "profit" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-500"}`}>Lowest profit first</button>
-            <button onClick={() => setPlSortBy("revenue")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "revenue" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-500"}`}>Highest revenue first</button>
+            <button onClick={() => setPlSortBy("profit")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "profit" ? "bg-slate-900 text-white" : "border border-crm-hairline text-crm-muted"}`}>Lowest profit first</button>
+            <button onClick={() => setPlSortBy("revenue")} className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${plSortBy === "revenue" ? "bg-slate-900 text-white" : "border border-crm-hairline text-crm-muted"}`}>Highest revenue first</button>
           </div>
         </div>
         {plByJob.length ? (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[600px] text-left">
-              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+              <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
                 <tr><th className="px-3 py-2">Job</th><th className="px-3 py-2 text-right">Revenue</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-right">Profit</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-crm-hairline-soft">
                 {plByJob.map((row) => (
                   <tr key={row.jobId}>
                     <td className="px-3 py-3 text-[10px] font-bold">{row.name}</td>
@@ -1376,30 +1376,30 @@ function ReportsView({
           <div className="space-y-4">{aging.map((bucket) => <ReportBar key={bucket.label} label={bucket.label} value={bucket.value} width={(bucket.value / maxAging) * 100} display={money(bucket.value)} danger={bucket.label === "61+ days" && bucket.value > 0} />)}</div>
         </ReportPanel>
         <ReportPanel title="Recorded labor by job" subtitle="Approved and pending submitted hours; voided, rejected and running entries excluded">
-          {jobs.map((job) => { const summary = laborSummary(timeEntries.filter((entry) => entry.jobId === job.id)); return <div key={job.id} className="border-b border-slate-100 py-3 text-xs"><strong>{job.name || job.id}</strong><p>{summary.approved.toFixed(2)} approved hours · {summary.pending.toFixed(2)} pending hours</p></div>; })}
+          {jobs.map((job) => { const summary = laborSummary(timeEntries.filter((entry) => entry.jobId === job.id)); return <div key={job.id} className="border-b border-crm-hairline-soft py-3 text-xs"><strong>{job.name || job.id}</strong><p>{summary.approved.toFixed(2)} approved hours · {summary.pending.toFixed(2)} pending hours</p></div>; })}
         </ReportPanel>
         <ReportPanel title="Technician workload" subtitle="Active assigned work and estimated hours">
-          {workloads.length ? <div className="divide-y divide-slate-100">{workloads.slice(0, 8).map((tech) => <div key={tech.id} className="flex items-center justify-between py-3"><div><p className="text-[11px] font-bold">{tech.name}</p><p className="text-[9px] text-slate-400">{tech.hours ? `${tech.hours.toFixed(1)} estimated hours` : "Hours not estimated"}</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${tech.jobs >= 5 ? "bg-red-100 text-red-700" : tech.jobs ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-500"}`}>{tech.jobs} jobs</span></div>)}</div> : <ReportEmpty text="No technician records are available." />}
+          {workloads.length ? <div className="divide-y divide-crm-hairline-soft">{workloads.slice(0, 8).map((tech) => <div key={tech.id} className="flex items-center justify-between py-3"><div><p className="text-[11px] font-bold">{tech.name}</p><p className="text-[9px] text-crm-muted">{tech.hours ? `${tech.hours.toFixed(1)} estimated hours` : "Hours not estimated"}</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${tech.jobs >= 5 ? "bg-red-100 text-red-700" : tech.jobs ? "bg-green-100 text-green-800" : "bg-crm-surface-card text-crm-muted"}`}>{tech.jobs} jobs</span></div>)}</div> : <ReportEmpty text="No technician records are available." />}
         </ReportPanel>
         <ReportPanel title="Maintenance forecast" subtitle="Recurring customer service due within 30 days">
-          {dueMaintenance.length ? <div className="divide-y divide-slate-100">{dueMaintenance.slice(0, 8).map((asset) => <div key={asset.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-[11px] font-bold">{asset.name}</p><p className="text-[9px] text-slate-400">{asset.customerName} · {asset.site}</p></div><span className="whitespace-nowrap text-[9px] font-bold text-tech-green-deep">{asset.maintenance?.nextServiceDate}</span></div>)}</div> : <ReportEmpty text="No recurring maintenance is due in the next 30 days." />}
+          {dueMaintenance.length ? <div className="divide-y divide-crm-hairline-soft">{dueMaintenance.slice(0, 8).map((asset) => <div key={asset.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-[11px] font-bold">{asset.name}</p><p className="text-[9px] text-crm-muted">{asset.customerName} · {asset.site}</p></div><span className="whitespace-nowrap text-[9px] font-bold text-crm-ink">{asset.maintenance?.nextServiceDate}</span></div>)}</div> : <ReportEmpty text="No recurring maintenance is due in the next 30 days." />}
         </ReportPanel>
       </div>
-      {overdueInvoices.length > 0 && <ReportPanel title="Receivables requiring attention" subtitle={`${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`}><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left"><thead className="bg-slate-50 text-[9px] uppercase text-slate-400"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-slate-100">{overdueInvoices.map((invoice) => <tr key={invoice.id}><td className="px-3 py-3 text-[10px] font-bold">{invoice.invoiceNumber || invoice.id}</td><td className="px-3 py-3 text-[10px]">{invoice.customer}</td><td className="px-3 py-3 text-[10px] text-red-600">{invoice.dueDate}</td><td className="px-3 py-3 text-right text-[10px] font-bold">{money(invoice.balance)}</td></tr>)}</tbody></table></div></ReportPanel>}
+      {overdueInvoices.length > 0 && <ReportPanel title="Receivables requiring attention" subtitle={`${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`}><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left"><thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-crm-hairline-soft">{overdueInvoices.map((invoice) => <tr key={invoice.id}><td className="px-3 py-3 text-[10px] font-bold">{invoice.invoiceNumber || invoice.id}</td><td className="px-3 py-3 text-[10px]">{invoice.customer}</td><td className="px-3 py-3 text-[10px] text-red-600">{invoice.dueDate}</td><td className="px-3 py-3 text-right text-[10px] font-bold">{money(invoice.balance)}</td></tr>)}</tbody></table></div></ReportPanel>}
     </div>
   );
 }
 
 function ReportKpi({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: keyof typeof tones }) {
-  return <section className="rounded border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p><span className={`h-2 w-2 rounded-full border ${tones[tone]}`} /></div><p className="mt-3 font-display text-xl">{value}</p><p className="mt-1 text-[9px] text-slate-400">{detail}</p></section>;
+  return <section className="rounded border border-crm-hairline bg-crm-canvas p-4 shadow-sm"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wide text-crm-muted">{label}</p><span className={`h-2 w-2 rounded-full border ${tones[tone]}`} /></div><p className="mt-3 crm-display-sm">{value}</p><p className="mt-1 text-[9px] text-crm-muted">{detail}</p></section>;
 }
 function ReportPanel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  return <section className="rounded border border-slate-200 bg-white p-5 shadow-sm"><header className="mb-5 border-b border-slate-100 pb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-[9px] text-slate-400">{subtitle}</p></header>{children}</section>;
+  return <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><header className="mb-5 border-b border-crm-hairline-soft pb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-[9px] text-crm-muted">{subtitle}</p></header>{children}</section>;
 }
 function ReportBar({ label, width, display, danger = false }: { key?: string; label: string; value: number; width: number; display: string; danger?: boolean }) {
-  return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-tech-green"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
+  return <div><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-semibold text-crm-body">{label}</span><b>{display}</b></div><div className="h-2 overflow-hidden rounded-full bg-crm-surface-card"><div className={`h-full rounded-full ${danger ? "bg-red-500" : "bg-crm-primary"}`} style={{ width: `${Math.max(width, width > 0 ? 3 : 0)}%` }} /></div></div>;
 }
-function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-[10px] text-slate-400">{text}</div>; }
+function ReportEmpty({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded border border-dashed border-crm-hairline bg-crm-surface-soft p-5 text-center text-[10px] text-crm-muted">{text}</div>; }
 
 function CatalogView({
   items,
@@ -1425,56 +1425,56 @@ function CatalogView({
   };
   return (
     <div className="space-y-5">
-      <section className="rounded border border-slate-200 bg-white shadow-sm">
-        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+      <section className="rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline-soft p-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-sm font-bold">Materials & stock catalog</h2>
-            <p className="text-[10px] text-slate-400">Pricing and on-hand quantity for parts and materials</p>
+            <p className="text-[10px] text-crm-muted">Pricing and on-hand quantity for parts and materials</p>
           </div>
           <div className="flex gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search catalog…"
-              className="rounded border border-slate-200 px-3 py-2 text-xs outline-none focus:border-tech-green"
+              className="rounded border border-crm-hairline px-3 py-2 text-xs outline-none focus:border-crm-ink"
             />
-            <button onClick={() => setEditingItem("new")} className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white">
+            <button onClick={() => setEditingItem("new")} className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white">
               <Plus className="mr-1 inline h-3 w-3" /> Add item
             </button>
           </div>
         </header>
         <div className="grid gap-3 p-4 sm:grid-cols-3">
-          <div className="rounded border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[9px] font-bold uppercase text-slate-400">Catalog items</p>
-            <p className="mt-1 font-display text-xl">{items.length}</p>
+          <div className="rounded border border-crm-hairline bg-crm-surface-soft p-4">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">Catalog items</p>
+            <p className="mt-1 crm-display-sm">{items.length}</p>
           </div>
-          <div className="rounded border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[9px] font-bold uppercase text-slate-400">Low stock</p>
-            <p className={`mt-1 font-display text-xl ${lowStock.length ? "text-orange-600" : ""}`}>{lowStock.length}</p>
+          <div className="rounded border border-crm-hairline bg-crm-surface-soft p-4">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">Low stock</p>
+            <p className={`mt-1 crm-display-sm ${lowStock.length ? "text-orange-600" : ""}`}>{lowStock.length}</p>
           </div>
-          <div className="rounded border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[9px] font-bold uppercase text-slate-400">Stock value</p>
-            <p className="mt-1 font-display text-xl">{money(stockValue)}</p>
+          <div className="rounded border border-crm-hairline bg-crm-surface-soft p-4">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">Stock value</p>
+            <p className="mt-1 crm-display-sm">{money(stockValue)}</p>
           </div>
         </div>
         {visible.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left">
-              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+              <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
                 <tr>
                   {["Item", "SKU", "Category", "Unit price", "On hand", "Status", "Actions"].map((h) => (
                     <th key={h} className="px-4 py-3">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-crm-hairline-soft">
                 {visible.map((item) => {
                   const low = (item.quantityOnHand ?? 0) <= (item.reorderThreshold ?? 5);
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50">
+                    <tr key={item.id} className="hover:bg-crm-surface-soft">
                       <td className="px-4 py-3 text-[11px] font-semibold">{item.name}</td>
-                      <td className="px-4 py-3 text-[10px] text-slate-400">{item.sku || "—"}</td>
-                      <td className="px-4 py-3 text-[10px] text-slate-400">{item.category || "—"}</td>
+                      <td className="px-4 py-3 text-[10px] text-crm-muted">{item.sku || "—"}</td>
+                      <td className="px-4 py-3 text-[10px] text-crm-muted">{item.category || "—"}</td>
                       <td className="px-4 py-3 text-[10px]">{money(item.unitPrice)}</td>
                       <td className="px-4 py-3 text-[10px] font-semibold">{item.quantityOnHand ?? 0}</td>
                       <td className="px-4 py-3">
@@ -1484,7 +1484,7 @@ function CatalogView({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <button onClick={() => setEditingItem(item)} className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold">Edit</button>
+                          <button onClick={() => setEditingItem(item)} className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold">Edit</button>
                           <button onClick={() => void remove(item)} className="rounded border border-red-200 px-2 py-1.5 text-[9px] font-bold text-red-600">Delete</button>
                         </div>
                       </td>
@@ -1499,7 +1499,7 @@ function CatalogView({
             <div>
               <Boxes className="mx-auto h-8 w-8 text-slate-300" />
               <p className="mt-3 text-xs font-semibold">{items.length ? "No items match your search" : "No catalog items yet"}</p>
-              <p className="mt-1 text-[10px] text-slate-400">Add parts and materials to track pricing and on-hand quantity.</p>
+              <p className="mt-1 text-[10px] text-crm-muted">Add parts and materials to track pricing and on-hand quantity.</p>
             </div>
           </div>
         )}
@@ -1550,9 +1550,9 @@ function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose
   };
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-      <form onSubmit={save} className="w-full max-w-md rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl">
+      <form onSubmit={save} className="w-full max-w-md rounded border border-crm-hairline bg-crm-canvas p-6 text-crm-ink shadow-2xl">
         <div className="flex items-start justify-between">
-          <h2 className="font-display text-lg uppercase">{item ? "Edit catalog item" : "Add catalog item"}</h2>
+          <h2 className="crm-display-sm">{item ? "Edit catalog item" : "Add catalog item"}</h2>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
@@ -1571,7 +1571,7 @@ function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">Cancel</button>
-          <button disabled={saving} className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
+          <button disabled={saving} className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
             {saving ? "Saving…" : "Save item"}
           </button>
         </div>
@@ -1582,7 +1582,7 @@ function CatalogItemModal({ item, onClose }: { item: CatalogItem | null; onClose
 
 function MaterialAllocations({ jobs, onOpen }: { jobs: LiveJob[]; onOpen: (job: LiveJob) => void }) {
   const allocations = jobs.flatMap((job) => (job.equipment || []).map((item, index) => ({ job, item, index })));
-  return <section className="rounded border bg-white p-5"><h2 className="font-bold">Job materials & equipment</h2><p className="my-3 text-xs text-slate-500">Live allocations from work orders. These are job requirements, not warehouse stock counts.</p>{allocations.length ? allocations.map(({ job, item, index }) => <div key={`${job.id}-${index}`} className="flex justify-between gap-3 border-b py-3 text-xs"><div><strong>{item.description}</strong><p>Qty {item.quantity || '—'} · {item.providedBy === 'client' || item.fulfillmentSource === 'customer_shipped' ? 'Client provided' : item.providedBy === 'techsavvy' || item.fulfillmentSource === 'techsavvy_supplied' ? 'TechSavvy provided' : 'Provider not specified'}</p></div><button onClick={() => onOpen(job)} className="text-green-700 underline">{job.name || job.id}</button></div>) : <p>No materials allocated to jobs.</p>}</section>;
+  return <section className="rounded border bg-crm-canvas p-5"><h2 className="font-bold">Job materials & equipment</h2><p className="my-3 text-xs text-crm-muted">Live allocations from work orders. These are job requirements, not warehouse stock counts.</p>{allocations.length ? allocations.map(({ job, item, index }) => <div key={`${job.id}-${index}`} className="flex justify-between gap-3 border-b py-3 text-xs"><div><strong>{item.description}</strong><p>Qty {item.quantity || '—'} · {item.providedBy === 'client' || item.fulfillmentSource === 'customer_shipped' ? 'Client provided' : item.providedBy === 'techsavvy' || item.fulfillmentSource === 'techsavvy_supplied' ? 'TechSavvy provided' : 'Provider not specified'}</p></div><button onClick={() => onOpen(job)} className="text-green-700 underline">{job.name || job.id}</button></div>) : <p>No materials allocated to jobs.</p>}</section>;
 }
 
 
@@ -1658,17 +1658,17 @@ function QuotesView({
     }
   };
   return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex items-center justify-between border-b border-slate-100 p-4">
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex items-center justify-between border-b border-crm-hairline-soft p-4">
         <div>
           <h2 className="text-sm font-bold">Quotes & estimates</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Live pricing, approval and job conversion
           </p>
         </div>
         <button
           onClick={onCreate}
-          className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white"
+          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
         >
           <Plus className="mr-1 inline h-3 w-3" /> New quote
         </button>
@@ -1676,7 +1676,7 @@ function QuotesView({
       {quotes.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left">
-            <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+            <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
               <tr>
                 {[
                   "Quote",
@@ -1692,24 +1692,24 @@ function QuotesView({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-crm-hairline-soft">
               {quotes.map((q) => (
                 <tr key={q.id}>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setViewingQuote(q)}
-                      className="font-mono text-[10px] font-bold text-tech-green-deep underline decoration-dotted underline-offset-2"
+                      className="font-mono text-[10px] font-bold text-crm-ink underline decoration-dotted underline-offset-2"
                     >
                       {q.quoteNumber || q.id}
                     </button>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[11px] font-semibold">{q.customer}</p>
-                    <p className="text-[9px] text-slate-400">{q.site}</p>
+                    <p className="text-[9px] text-crm-muted">{q.site}</p>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[10px]">{q.title}</p>
-                    <p className="text-[9px] text-slate-400">
+                    <p className="text-[9px] text-crm-muted">
                       {q.lineItems?.length || 0} line items
                     </p>
                   </td>
@@ -1725,7 +1725,7 @@ function QuotesView({
                     <div className="flex gap-1">
                       <button
                         onClick={() => setViewingQuote(q)}
-                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                       >
                         View
                       </button>
@@ -1735,7 +1735,7 @@ function QuotesView({
                           q.status === "Converted"
                         }
                         onClick={() => void emailQuote(q)}
-                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
                       >
                         {working === `email-${q.id}`
                           ? "Sending…"
@@ -1745,7 +1745,7 @@ function QuotesView({
                       </button>
                       <button
                         onClick={() => setEditingQuote(q)}
-                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
                       >
                         Terms{q.stipulations?.length ? ` (${q.stipulations.length})` : ""}
                       </button>
@@ -1757,7 +1757,7 @@ function QuotesView({
                             ? "Customer approval is required before job conversion."
                             : "Create work order"
                         }
-                        className="rounded bg-tech-green px-3 py-1.5 text-[9px] font-bold text-brand-black disabled:opacity-40"
+                        className="rounded bg-crm-primary px-3 py-1.5 text-[9px] font-bold text-crm-on-primary disabled:opacity-40"
                       >
                         {q.status === "Converted"
                           ? "Job created"
@@ -1824,14 +1824,14 @@ function QuoteDetailModal({
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-slate-100 p-6">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas shadow-2xl">
+        <div className="flex items-start justify-between border-b border-crm-hairline-soft p-6">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               {quote.quoteNumber || quote.id}
             </p>
-            <h2 className="font-display text-lg uppercase">{quote.title}</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="crm-display-sm">{quote.title}</h2>
+            <p className="mt-1 text-xs text-crm-muted">
               {quote.customer} · {quote.site}
             </p>
           </div>
@@ -1853,7 +1853,7 @@ function QuoteDetailModal({
               {quote.status}
             </span>
             {quote.customerDelivery?.status && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-crm-muted">
                 {quote.customerDelivery.status === "sent" ? "Sent" : "Delivered"} to{" "}
                 {quote.customerDelivery.email}
                 {quote.customerDelivery.sentAt
@@ -1863,19 +1863,19 @@ function QuoteDetailModal({
             )}
           </div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Line items
             </p>
             <button
               type="button"
               onClick={onEditItems}
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               Edit
             </button>
           </div>
           <table className="w-full text-left text-xs">
-            <thead className="text-[9px] uppercase text-slate-400">
+            <thead className="text-[9px] uppercase text-crm-muted">
               <tr>
                 <th className="pb-2">Description</th>
                 <th className="pb-2 text-right">Qty</th>
@@ -1883,7 +1883,7 @@ function QuoteDetailModal({
                 <th className="pb-2 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-crm-hairline-soft">
               {quote.lineItems.map((item, index) => (
                 <tr key={index}>
                   <td className="py-2.5">{item.description}</td>
@@ -1896,40 +1896,40 @@ function QuoteDetailModal({
               ))}
             </tbody>
           </table>
-          <div className="mt-4 flex justify-between border-t border-slate-200 pt-3 text-sm">
-            <span className="text-slate-500">Total</span>
-            <b className="font-display text-lg">{money(quote.total)}</b>
+          <div className="mt-4 flex justify-between border-t border-crm-hairline pt-3 text-sm">
+            <span className="text-crm-muted">Total</span>
+            <b className="crm-display-sm">{money(quote.total)}</b>
           </div>
-          <div className="mt-6 border-t border-slate-100 pt-5">
+          <div className="mt-6 border-t border-crm-hairline-soft pt-5">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-[9px] font-bold uppercase text-slate-500">
+              <p className="text-[9px] font-bold uppercase text-crm-muted">
                 Stipulations &amp; terms
               </p>
               <button
                 type="button"
                 onClick={onEditTerms}
-                className="text-[9px] font-bold text-tech-green-deep"
+                className="text-[9px] font-bold text-crm-ink"
               >
                 Edit
               </button>
             </div>
             {quote.stipulations?.length ? (
-              <ol className="space-y-1.5 text-xs text-slate-600">
+              <ol className="space-y-1.5 text-xs text-crm-body">
                 {quote.stipulations.map((line, index) => (
                   <li key={index} className="flex gap-2">
-                    <span className="text-slate-400">{index + 1}.</span>
+                    <span className="text-crm-muted">{index + 1}.</span>
                     <span>{line}</span>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-crm-muted">
                 No stipulations set — the customer sees scope and price only.
               </p>
             )}
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+        <div className="flex justify-end gap-2 border-t border-crm-hairline-soft p-4">
           <button
             type="button"
             onClick={onClose}
@@ -1996,14 +1996,14 @@ function LineItemsModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               {quote.quoteNumber || quote.id}
             </p>
-            <h2 className="font-display text-lg uppercase">Edit line items</h2>
+            <h2 className="crm-display-sm">Edit line items</h2>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -2011,7 +2011,7 @@ function LineItemsModal({
         </div>
         <div className="mt-5">
           <div className="mb-2 flex justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Line items
             </p>
             <button
@@ -2019,7 +2019,7 @@ function LineItemsModal({
               onClick={() =>
                 setItems([...items, { description: "", quantity: "1", unitPrice: "" }])
               }
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add item
             </button>
@@ -2037,7 +2037,7 @@ function LineItemsModal({
                   )
                 }
                 placeholder="Labor or material"
-                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                className="rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <input
                 type="number"
@@ -2051,7 +2051,7 @@ function LineItemsModal({
                     ),
                   )
                 }
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <input
                 type="number"
@@ -2066,7 +2066,7 @@ function LineItemsModal({
                   )
                 }
                 placeholder="$ each"
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <button
                 type="button"
@@ -2079,9 +2079,9 @@ function LineItemsModal({
             </div>
           ))}
         </div>
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-          <span className="text-xs text-slate-500">Quote total</span>
-          <b className="font-display text-xl">${total.toLocaleString()}</b>
+        <div className="mt-5 flex items-center justify-between border-t border-crm-hairline-soft pt-4">
+          <span className="text-xs text-crm-muted">Quote total</span>
+          <b className="crm-display-sm">${total.toLocaleString()}</b>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -2093,7 +2093,7 @@ function LineItemsModal({
           </button>
           <button
             disabled={saving || !items.some((i) => i.description.trim())}
-            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save items"}
           </button>
@@ -2139,14 +2139,14 @@ function StipulationsModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               {quote.quoteNumber || quote.id}
             </p>
-            <h2 className="font-display text-lg uppercase">
+            <h2 className="crm-display-sm">
               Stipulations &amp; terms
             </h2>
           </div>
@@ -2156,27 +2156,27 @@ function StipulationsModal({
         </div>
         <div className="mt-5">
           <div className="mb-2 flex justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Shown to {quote.customer} before they approve
             </p>
             <button
               type="button"
               onClick={() => setLines([...lines, ""])}
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add stipulation
             </button>
           </div>
           {lines.map((line, index) => (
             <div key={index} className="mb-2 flex gap-2">
-              <span className="mt-2.5 text-[10px] text-slate-400">{index + 1}.</span>
+              <span className="mt-2.5 text-[10px] text-crm-muted">{index + 1}.</span>
               <input
                 value={line}
                 onChange={(e) =>
                   setLines(lines.map((x, i) => (i === index ? e.target.value : x)))
                 }
                 placeholder="e.g. Quote valid for 30 days"
-                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+                className="flex-1 rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <button
                 type="button"
@@ -2189,7 +2189,7 @@ function StipulationsModal({
             </div>
           ))}
         </div>
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-crm-hairline-soft pt-4">
           <button
             type="button"
             onClick={onClose}
@@ -2199,7 +2199,7 @@ function StipulationsModal({
           </button>
           <button
             disabled={saving}
-            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save terms"}
           </button>
@@ -2218,11 +2218,11 @@ function LiveSchedulingQueue({
 }) {
   const queue = jobs.filter(needsDispatch);
   return (
-    <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded border border-crm-hairline bg-crm-canvas p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold">Live dispatch queue</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Jobs awaiting a technician or schedule
           </p>
         </div>
@@ -2236,25 +2236,25 @@ function LiveSchedulingQueue({
             <button
               key={job.id}
               onClick={() => onSchedule(job)}
-              className="min-w-52 rounded border border-slate-200 p-3 text-left hover:border-tech-green"
+              className="min-w-52 rounded border border-crm-hairline p-3 text-left hover:border-crm-ink"
             >
-              <p className="font-mono text-[9px] text-tech-green-deep">
+              <p className="font-mono text-[9px] text-crm-ink">
                 {job.workOrderNumber || job.id}
               </p>
               <p className="mt-1 text-[11px] font-semibold">
                 {job.name || "Untitled job"}
               </p>
-              <p className="mt-1 text-[9px] text-slate-400">
+              <p className="mt-1 text-[9px] text-crm-muted">
                 {job.vendorName || "Customer pending"}
               </p>
-              <span className="mt-2 inline-block text-[9px] font-bold text-tech-green-deep">
+              <span className="mt-2 inline-block text-[9px] font-bold text-crm-ink">
                 Assign & schedule →
               </span>
             </button>
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-[10px] text-slate-400">
+        <p className="mt-3 text-[10px] text-crm-muted">
           All active jobs have a technician assignment.
         </p>
       )}
@@ -2282,11 +2282,11 @@ function LiveScheduleBoard({
       Math.min(24, Number(time.slice(0, 2)) + Number(time.slice(3)) / 60),
     );
   return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col justify-between gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center">
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline p-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-sm font-bold">Live schedule board</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Assignments update in real time across CRM and contractor operations
           </p>
         </div>
@@ -2294,20 +2294,20 @@ function LiveScheduleBoard({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded border border-slate-200 px-3 py-2 text-xs"
+          className="rounded border border-crm-hairline px-3 py-2 text-xs"
         />
       </header>
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
-          <div className="grid grid-cols-[190px_1fr] border-b border-slate-200 bg-slate-50">
-            <div className="border-r border-slate-200 px-4 py-3 text-[9px] font-bold uppercase text-slate-400">
+          <div className="grid grid-cols-[190px_1fr] border-b border-crm-hairline bg-crm-surface-soft">
+            <div className="border-r border-crm-hairline px-4 py-3 text-[9px] font-bold uppercase text-crm-muted">
               Technician
             </div>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
               {hours.map((h) => (
                 <div
                   key={h}
-                  className="border-r border-slate-200 py-3 text-center text-[9px] text-slate-400"
+                  className="border-r border-crm-hairline py-3 text-center text-[9px] text-crm-muted"
                 >
                   {h}
                 </div>
@@ -2321,10 +2321,10 @@ function LiveScheduleBoard({
             return (
               <div
                 key={tech.id}
-                className="grid min-h-20 grid-cols-[190px_1fr] border-b border-slate-100"
+                className="grid min-h-20 grid-cols-[190px_1fr] border-b border-crm-hairline-soft"
               >
-                <div className="flex items-center gap-3 border-r border-slate-200 px-4">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-tech-green-deep text-[9px] font-bold text-white">
+                <div className="flex items-center gap-3 border-r border-crm-hairline px-4">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-crm-ink text-[9px] font-bold text-white">
                     {(tech.name || tech.companyName || "T")
                       .split(" ")
                       .map((x) => x[0])
@@ -2335,7 +2335,7 @@ function LiveScheduleBoard({
                     <p className="text-[11px] font-semibold">
                       {tech.name || tech.companyName || "Technician"}
                     </p>
-                    <p className="text-[9px] text-slate-400">
+                    <p className="text-[9px] text-crm-muted">
                       {tech.specialty || "Field technician"}
                     </p>
                   </div>
@@ -2373,13 +2373,13 @@ function LiveScheduleBoard({
             );
           })}
           {!technicians.length && (
-            <div className="p-8 text-center text-xs text-slate-400">
+            <div className="p-8 text-center text-xs text-crm-muted">
               Add contractors in the Contractor Portal before scheduling jobs.
             </div>
           )}
         </div>
       </div>
-      <footer className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-[9px] text-slate-400">
+      <footer className="border-t border-crm-hairline-soft bg-crm-surface-soft px-4 py-3 text-[9px] text-crm-muted">
         {scheduled.length} scheduled job{scheduled.length === 1 ? "" : "s"} on
         this date · Click a block to reassign or reschedule
       </footer>
@@ -2397,20 +2397,20 @@ function LiveJobsView({
   onSchedule: (job: LiveJob) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex items-center justify-between border-b border-slate-100 p-4">
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex items-center justify-between border-b border-crm-hairline-soft p-4">
         <div>
           <h2 className="text-sm font-bold">Detailed job records</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Scope, labor, materials, cost, schedule and field status
           </p>
         </div>
-        <span className="text-[10px] text-slate-400">{jobs.length} total</span>
+        <span className="text-[10px] text-crm-muted">{jobs.length} total</span>
       </header>
       {jobs.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left">
-            <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+            <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
               <tr>
                 {[
                   "Work order",
@@ -2427,13 +2427,13 @@ function LiveJobsView({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-crm-hairline-soft">
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-slate-50">
+                <tr key={job.id} className="hover:bg-crm-surface-soft">
                   <td className="px-4 py-3">
                     <button
                       onClick={() => onOpen(job)}
-                      className="font-mono text-[10px] font-bold text-tech-green-deep hover:underline"
+                      className="font-mono text-[10px] font-bold text-crm-ink hover:underline"
                     >
                       {job.workOrderNumber || job.id}
                     </button>
@@ -2445,12 +2445,12 @@ function LiveJobsView({
                     <p className="text-[10px] font-semibold">
                       {job.vendorName || "Not assigned"}
                     </p>
-                    <p className="text-[9px] text-slate-400">
+                    <p className="text-[9px] text-crm-muted">
                       {job.address || "Address pending"}
                     </p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px]">
+                    <span className="rounded-full bg-crm-surface-card px-2 py-1 text-[9px]">
                       {job.status || "New"}
                     </span>
                   </td>
@@ -2475,13 +2475,13 @@ function LiveJobsView({
                     <div className="flex gap-2">
                       <button
                         onClick={() => onOpen(job)}
-                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                       >
                         Open
                       </button>
                       <button
                         onClick={() => onSchedule(job)}
-                        className="rounded bg-[#17251b] px-2 py-1.5 text-[9px] font-bold text-white"
+                        className="rounded bg-crm-primary hover:bg-crm-primary-active px-2 py-1.5 text-[9px] font-bold text-white"
                       >
                         Schedule
                       </button>
@@ -2493,7 +2493,7 @@ function LiveJobsView({
           </table>
         </div>
       ) : (
-        <div className="p-10 text-center text-xs text-slate-400">
+        <div className="p-10 text-center text-xs text-crm-muted">
           No active jobs yet. Create one directly or convert an accepted quote.
         </div>
       )}
@@ -2668,16 +2668,16 @@ function JobDetailModal({
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
       <form
         onSubmit={save}
-        className="h-full w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl"
+        className="h-full w-full max-w-2xl overflow-y-auto bg-crm-canvas p-6 shadow-2xl"
       >
-        <div className="flex justify-between border-b border-slate-100 pb-5">
+        <div className="flex justify-between border-b border-crm-hairline-soft pb-5">
           <div>
-            <p className="font-mono text-[9px] text-tech-green-deep">
+            <p className="font-mono text-[9px] text-crm-ink">
               {job.workOrderNumber || job.id}
             </p>
-            <h2 className="mt-1 font-display text-xl uppercase">Job details</h2>
+            <h2 className="mt-1 crm-display-sm">Job details</h2>
             {job.status !== "voided" && (
-              <button type="button" onClick={() => onPreview(job)} className="mt-1 text-[10px] font-bold text-tech-green-deep underline">
+              <button type="button" onClick={() => onPreview(job)} className="mt-1 text-[10px] font-bold text-crm-ink underline">
                 Preview technician view
               </button>
             )}
@@ -2701,12 +2701,12 @@ function JobDetailModal({
               onChange={(v) => setForm({ ...form, address: v })}
             />
           </div>
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Status
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {[
                 "New",
@@ -2750,12 +2750,12 @@ function JobDetailModal({
             value={form.workOrderNumber}
             onChange={(v) => setForm({ ...form, workOrderNumber: v })}
           />
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Work order template
             <select
               value={form.workOrderTemplate}
               onChange={(e) => setForm({ ...form, workOrderTemplate: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {["general", "nextivity", "security", "low-voltage", "network"].map((x) => (
                 <option key={x} value={x}>{x}</option>
@@ -2768,12 +2768,12 @@ function JobDetailModal({
             onChange={(v) => setForm({ ...form, travelRate: v })}
             type="number"
           />
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Technician lead
             <select
               value={form.technicianLeadId}
               onChange={(e) => setForm({ ...form, technicianLeadId: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               <option value="">Unassigned</option>
               {assignableTechnicians
@@ -2784,9 +2784,9 @@ function JobDetailModal({
             </select>
           </label>
           <div className="sm:col-span-2">
-            <label className="text-[9px] font-bold uppercase text-slate-500">Assign technicians</label>
-            <div className="mt-1.5 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded border border-slate-200">
-              <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-600 cursor-pointer hover:bg-slate-50">
+            <label className="text-[9px] font-bold uppercase text-crm-muted">Assign technicians</label>
+            <div className="mt-1.5 max-h-40 divide-y divide-crm-hairline-soft overflow-y-auto rounded border border-crm-hairline">
+              <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-600 cursor-pointer hover:bg-crm-surface-soft">
                 <input
                   type="checkbox"
                   checked={assignedTechIds.includes("ALL")}
@@ -2795,7 +2795,7 @@ function JobDetailModal({
                 Anyone (all technicians)
               </label>
               {assignableTechnicians.map((tech) => (
-                <label key={tech.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-slate-50">
+                <label key={tech.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-crm-surface-soft">
                   <input
                     type="checkbox"
                     checked={!assignedTechIds.includes("ALL") && assignedTechIds.includes(tech.id)}
@@ -2827,7 +2827,7 @@ function JobDetailModal({
             onChange={(v) => setForm({ ...form, targetCompletion: v })}
             type="date"
           />
-          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-500">
+          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-crm-muted">
             <input
               type="checkbox"
               checked={form.signatureRequired}
@@ -2836,19 +2836,19 @@ function JobDetailModal({
             Signature required before completion
           </label>
           <div className="rounded border p-3 text-xs"><strong>Timecard labor hours</strong><p>{recordedHours.approved.toFixed(2)} approved · {recordedHours.pending.toFixed(2)} pending</p><a className="text-green-700 underline" href="/crm">Review timecards</a></div>
-          <label className="sm:col-span-2 text-[9px] font-bold uppercase text-slate-500">
+          <label className="sm:col-span-2 text-[9px] font-bold uppercase text-crm-muted">
             Job and site notes
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={4}
-              className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs outline-none focus:border-tech-green"
+              className="mt-1.5 w-full rounded border border-crm-hairline p-3 text-xs outline-none focus:border-crm-ink"
             />
           </label>
         </div>
         <div className="mt-6">
           <div className="flex justify-between">
-            <h3 className="text-[10px] font-bold uppercase text-slate-500">
+            <h3 className="text-[10px] font-bold uppercase text-crm-muted">
               Materials & equipment
             </h3>
             <button
@@ -2859,7 +2859,7 @@ function JobDetailModal({
                   { description: "", quantity: "1", unitPrice: "" },
                 ])
               }
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add material
             </button>
@@ -2879,7 +2879,7 @@ function JobDetailModal({
                   )
                 }
                 placeholder="Description"
-                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                className="rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <input
                 value={item.quantity}
@@ -2891,7 +2891,7 @@ function JobDetailModal({
                   )
                 }
                 placeholder="Qty"
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <input
                 type="number"
@@ -2904,7 +2904,7 @@ function JobDetailModal({
                   )
                 }
                 placeholder="Unit cost"
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <button
                 type="button"
@@ -2920,13 +2920,13 @@ function JobDetailModal({
         </div>
         <div className="mt-6">
           <div className="flex justify-between">
-            <h3 className="text-[10px] font-bold uppercase text-slate-500">
+            <h3 className="text-[10px] font-bold uppercase text-crm-muted">
               Scope tasks
             </h3>
             <button
               type="button"
               onClick={() => setTasks([...tasks, ""])}
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add task
             </button>
@@ -2941,7 +2941,7 @@ function JobDetailModal({
                   )
                 }
                 placeholder="Installation step or deliverable"
-                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+                className="flex-1 rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <button
                 type="button"
@@ -2955,13 +2955,13 @@ function JobDetailModal({
         </div>
         <div className="mt-6">
           <div className="flex justify-between">
-            <h3 className="text-[10px] font-bold uppercase text-slate-500">
+            <h3 className="text-[10px] font-bold uppercase text-crm-muted">
               QA checklist
             </h3>
             <button
               type="button"
               onClick={() => setQaChecklist([...qaChecklist, ""])}
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add checklist item
             </button>
@@ -2976,7 +2976,7 @@ function JobDetailModal({
                   )
                 }
                 placeholder="Completion verification step"
-                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+                className="flex-1 rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <button
                 type="button"
@@ -2989,19 +2989,19 @@ function JobDetailModal({
           ))}
         </div>
         <div className="mt-6">
-          <h3 className="text-[10px] font-bold uppercase text-slate-500">SOW and work order documents</h3>
+          <h3 className="text-[10px] font-bold uppercase text-crm-muted">SOW and work order documents</h3>
           {job.attachments?.length ? (
             <ul className="mt-2 space-y-1">
               {job.attachments.map((file, index) => (
                 <li key={index} className="text-xs">
-                  <a href={file.url} target="_blank" rel="noreferrer" className="text-tech-green-deep underline">
+                  <a href={file.url} target="_blank" rel="noreferrer" className="text-crm-ink underline">
                     📎 {file.name}
                   </a>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-1 text-[10px] text-slate-400">No documents uploaded yet.</p>
+            <p className="mt-1 text-[10px] text-crm-muted">No documents uploaded yet.</p>
           )}
           <input
             type="file"
@@ -3009,19 +3009,19 @@ function JobDetailModal({
             onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))}
             className="mt-2 w-full text-xs"
           />
-          <p className="mt-1 text-[10px] text-slate-400">PDF, Word, text, or image files. Uploads become available to signed-in technicians.</p>
+          <p className="mt-1 text-[10px] text-crm-muted">PDF, Word, text, or image files. Uploads become available to signed-in technicians.</p>
         </div>
-        <div className="mt-6 grid grid-cols-3 gap-3 rounded bg-slate-50 p-4 text-center">
+        <div className="mt-6 grid grid-cols-3 gap-3 rounded bg-crm-surface-soft p-4 text-center">
           <div>
-            <p className="text-[9px] uppercase text-slate-400">Labor cost</p>
+            <p className="text-[9px] uppercase text-crm-muted">Labor cost</p>
             <b className="text-sm">${laborCost.toLocaleString()}</b>
           </div>
           <div>
-            <p className="text-[9px] uppercase text-slate-400">Material cost</p>
+            <p className="text-[9px] uppercase text-crm-muted">Material cost</p>
             <b className="text-sm">${materialCost.toLocaleString()}</b>
           </div>
           <div>
-            <p className="text-[9px] uppercase text-slate-400">Est. margin</p>
+            <p className="text-[9px] uppercase text-crm-muted">Est. margin</p>
             <b
               className={
                 margin >= 30
@@ -3033,7 +3033,7 @@ function JobDetailModal({
             </b>
           </div>
         </div>
-        <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-2 border-t border-slate-100 bg-white py-4">
+        <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-2 border-t border-crm-hairline-soft bg-crm-canvas py-4">
           {job.status !== "voided" ? (
             <button
               type="button"
@@ -3044,7 +3044,7 @@ function JobDetailModal({
               {voiding ? "Voiding…" : "Void work order"}
             </button>
           ) : (
-            <span className="text-[10px] font-bold uppercase text-slate-400">Voided</span>
+            <span className="text-[10px] font-bold uppercase text-crm-muted">Voided</span>
           )}
           <div className="flex gap-2">
             <button
@@ -3056,7 +3056,7 @@ function JobDetailModal({
             </button>
             <button
               disabled={saving}
-              className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+              className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
             >
               {saving ? "Saving…" : "Save job"}
             </button>
@@ -3243,18 +3243,18 @@ function InvoicesView({
     pdf.save(`${invoice.invoiceNumber || "TechSavvy-Invoice"}.pdf`);
   };
   return (
-    <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+    <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline-soft p-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-sm font-bold">Invoices & payments</h2>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-crm-muted">
             Generate billing from job labor and materials, then track collection
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
         <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness} className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-[9px] font-bold text-violet-700 disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
         <label className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] font-bold text-amber-800"><input type="checkbox" checked={earlyBilling} onChange={(event)=>setEarlyBilling(event.target.checked)} className="accent-amber-500"/>Early billing override</label>
-        <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-tech-green/30 bg-[#e8f7ed] px-3 py-2 text-[10px] font-bold text-tech-green-deep disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
+        <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[10px] font-bold text-crm-ink disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
         <select
           defaultValue=""
           onChange={(e) => {
@@ -3262,7 +3262,7 @@ function InvoicesView({
             if (job) onCreate(job);
             e.currentTarget.value = "";
           }}
-          className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white"
+          className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
         >
           <option value="" disabled>
             {candidates.length ? "Create invoice from billing-ready job" : earlyBilling ? "No uninvoiced jobs available" : "No billing-ready jobs"}
@@ -3278,7 +3278,7 @@ function InvoicesView({
       {invoices.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left">
-            <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+            <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
               <tr>
                 {[
                   "Invoice",
@@ -3296,25 +3296,25 @@ function InvoicesView({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-crm-hairline-soft">
               {invoices.map((invoice) => (
-                <tr key={invoice.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-[10px] font-bold text-tech-green-deep">
+                <tr key={invoice.id} className="hover:bg-crm-surface-soft">
+                  <td className="px-4 py-3 font-mono text-[10px] font-bold text-crm-ink">
                     {invoice.invoiceNumber || invoice.id}
-                    {invoice.qboSync?.lastReconciledAt && <span className="mt-1 block font-sans text-[8px] font-normal text-slate-400">QB checked {new Date(invoice.qboSync.lastReconciledAt).toLocaleDateString()}</span>}
+                    {invoice.qboSync?.lastReconciledAt && <span className="mt-1 block font-sans text-[8px] font-normal text-crm-muted">QB checked {new Date(invoice.qboSync.lastReconciledAt).toLocaleDateString()}</span>}
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[10px] font-semibold">
                       {invoice.customer}
                     </p>
-                    <p className="text-[9px] text-slate-400">
+                    <p className="text-[9px] text-crm-muted">
                       {invoice.workOrderNumber}
                     </p>
                   </td>
                   <td className="px-4 py-3 text-[9px]">
                     {invoice.issueDate}
                     <br />
-                    <span className="text-slate-400">
+                    <span className="text-crm-muted">
                       Due {invoice.dueDate}
                     </span>
                   </td>
@@ -3367,14 +3367,14 @@ function InvoicesView({
                       </button>
                       <button
                         onClick={() => void download(invoice)}
-                        className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                       >
                         PDF
                       </button>
                       <button
                         disabled={invoice.balance <= 0}
                         onClick={() => onPayment(invoice)}
-                        className="rounded bg-tech-green px-2 py-1.5 text-[9px] font-bold text-brand-black disabled:opacity-30"
+                        className="rounded bg-crm-primary px-2 py-1.5 text-[9px] font-bold text-crm-on-primary disabled:opacity-30"
                       >
                         Payment
                       </button>
@@ -3390,7 +3390,7 @@ function InvoicesView({
           <div>
             <ReceiptText className="mx-auto h-8 w-8 text-slate-300" />
             <p className="mt-3 text-xs font-semibold">No invoices yet</p>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-[10px] text-crm-muted">
               Choose a completed job above to generate the first invoice.
             </p>
           </div>
@@ -3524,17 +3524,17 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="font-mono text-[9px] text-tech-green-deep">
+            <p className="font-mono text-[9px] text-crm-ink">
               {job.workOrderNumber || job.id}
             </p>
-            <h2 className="mt-1 font-display text-lg uppercase">
+            <h2 className="mt-1 crm-display-sm">
               Generate invoice
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-crm-muted">
               {job.vendorName} · {job.name}
             </p>
             {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">Early billing override · current job status: {job.status || 'New'}</p>}
@@ -3559,14 +3559,14 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
             type="date"
             required
           />
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Payment terms
             <select
               value={accounting.paymentTerms}
               onChange={(e) =>
                 setAccounting({ ...accounting, paymentTerms: e.target.value })
               }
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {["Due on receipt", "Net 15", "Net 30", "Net 45", "Net 60"].map(
                 (term) => (
@@ -3583,7 +3583,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
             }
             type="number"
           />
-          <label className="col-span-2 text-[9px] font-bold uppercase text-slate-500">
+          <label className="col-span-2 text-[9px] font-bold uppercase text-crm-muted">
             Customer message
             <textarea
               value={accounting.customerMessage}
@@ -3594,13 +3594,13 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                 })
               }
               rows={2}
-              className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline p-3 text-xs"
             />
           </label>
         </div>
         <div className="mt-5">
           <div className="flex justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Invoice lines
             </p>
             <button
@@ -3616,7 +3616,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                   },
                 ])
               }
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add line
             </button>
@@ -3636,7 +3636,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                     ),
                   )
                 }
-                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                className="rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <input
                 type="number"
@@ -3650,7 +3650,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                     ),
                   )
                 }
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <input
                 type="number"
@@ -3664,7 +3664,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                     ),
                   )
                 }
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <button
                 type="button"
@@ -3676,16 +3676,16 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
             </div>
           ))}
         </div>
-        <div className="mt-5 ml-auto grid max-w-xs gap-2 border-t border-slate-100 pt-4 text-xs">
+        <div className="mt-5 ml-auto grid max-w-xs gap-2 border-t border-crm-hairline-soft pt-4 text-xs">
           <div className="flex justify-between">
-            <span className="text-slate-500">Subtotal</span>
+            <span className="text-crm-muted">Subtotal</span>
             <b>${subtotal.toLocaleString()}</b>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500">Discount</span>
+            <span className="text-crm-muted">Discount</span>
             <b>-${discount.toLocaleString()}</b>
           </div>
-          <label className="flex items-center justify-between text-slate-500">
+          <label className="flex items-center justify-between text-crm-muted">
             Tax rate{" "}
             <span>
               <input
@@ -3694,7 +3694,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
                 step=".01"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value)}
-                className="w-16 rounded border border-slate-200 px-2 py-1 text-right text-slate-900"
+                className="w-16 rounded border border-crm-hairline px-2 py-1 text-right text-crm-ink"
               />{" "}
               %
             </span>
@@ -3714,7 +3714,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
           </button>
           <button
             disabled={saving || total <= 0}
-            className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Creating…" : "Create invoice"}
           </button>
@@ -3773,15 +3773,15 @@ function PaymentModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
       <form
         onSubmit={save}
-        className="w-full max-w-md rounded bg-white p-6 shadow-2xl"
+        className="w-full max-w-md rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="font-mono text-[9px] text-tech-green-deep">
+            <p className="font-mono text-[9px] text-crm-ink">
               {invoice.invoiceNumber || invoice.id}
             </p>
-            <h2 className="font-display text-lg uppercase">Record payment</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="crm-display-sm">Record payment</h2>
+            <p className="text-xs text-crm-muted">
               Balance: ${invoice.balance.toLocaleString()}
             </p>
           </div>
@@ -3797,12 +3797,12 @@ function PaymentModal({
             type="number"
             required
           />
-          <label className="block text-[9px] font-bold uppercase text-slate-500">
+          <label className="block text-[9px] font-bold uppercase text-crm-muted">
             Payment method
             <select
               value={form.method}
               onChange={(e) => setForm({ ...form, method: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {["ACH", "Credit Card", "Check", "Cash", "Wire", "Other"].map(
                 (x) => (
@@ -3823,7 +3823,7 @@ function PaymentModal({
             Number(form.amount) <= 0 ||
             Number(form.amount) > invoice.balance
           }
-          className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
+          className="mt-5 w-full rounded bg-crm-primary px-4 py-3 text-xs font-bold text-crm-on-primary disabled:opacity-40"
         >
           {saving ? "Recording…" : "Record payment"}
         </button>
@@ -3893,27 +3893,27 @@ function QuoteModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               Itemized estimate
             </p>
-            <h2 className="font-display text-lg uppercase">New quote</h2>
+            <h2 className="crm-display-sm">New quote</h2>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Customer
             <select
               required
               value={form.customer}
               onChange={(e) => setForm({ ...form, customer: e.target.value })}
-              className="mt-1 w-full rounded border border-slate-200 p-2.5 text-xs"
+              className="mt-1 w-full rounded border border-crm-hairline p-2.5 text-xs"
             >
               <option value="">Select</option>
               {records.map((c) => (
@@ -3938,7 +3938,7 @@ function QuoteModal({
         </div>
         <div className="mt-5">
           <div className="mb-2 flex justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Line items
             </p>
             <button
@@ -3949,7 +3949,7 @@ function QuoteModal({
                   { description: "", quantity: "1", unitPrice: "" },
                 ])
               }
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add item
             </button>
@@ -3970,7 +3970,7 @@ function QuoteModal({
                   )
                 }
                 placeholder="Labor or material"
-                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                className="rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <input
                 type="number"
@@ -3984,7 +3984,7 @@ function QuoteModal({
                     ),
                   )
                 }
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <input
                 type="number"
@@ -3999,7 +3999,7 @@ function QuoteModal({
                   )
                 }
                 placeholder="$ each"
-                className="rounded border border-slate-200 px-2 text-xs"
+                className="rounded border border-crm-hairline px-2 text-xs"
               />
               <button
                 type="button"
@@ -4012,22 +4012,22 @@ function QuoteModal({
             </div>
           ))}
         </div>
-        <div className="mt-5 border-t border-slate-100 pt-5">
+        <div className="mt-5 border-t border-crm-hairline-soft pt-5">
           <div className="mb-2 flex justify-between">
-            <p className="text-[9px] font-bold uppercase text-slate-500">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">
               Stipulations &amp; terms
             </p>
             <button
               type="button"
               onClick={() => setStipulations([...stipulations, ""])}
-              className="text-[9px] font-bold text-tech-green-deep"
+              className="text-[9px] font-bold text-crm-ink"
             >
               + Add stipulation
             </button>
           </div>
           {stipulations.map((line, index) => (
             <div key={index} className="mb-2 flex gap-2">
-              <span className="mt-2.5 text-[10px] text-slate-400">{index + 1}.</span>
+              <span className="mt-2.5 text-[10px] text-crm-muted">{index + 1}.</span>
               <input
                 value={line}
                 onChange={(e) =>
@@ -4036,7 +4036,7 @@ function QuoteModal({
                   )
                 }
                 placeholder="e.g. Quote valid for 30 days"
-                className="flex-1 rounded border border-slate-200 px-3 py-2 text-xs"
+                className="flex-1 rounded border border-crm-hairline px-3 py-2 text-xs"
               />
               <button
                 type="button"
@@ -4048,14 +4048,14 @@ function QuoteModal({
             </div>
           ))}
           {!stipulations.length && (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-crm-muted">
               No stipulations added — the customer will see the scope and price only.
             </p>
           )}
         </div>
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-          <span className="text-xs text-slate-500">Quote total</span>
-          <b className="font-display text-xl">${total.toLocaleString()}</b>
+        <div className="mt-5 flex items-center justify-between border-t border-crm-hairline-soft pt-4">
+          <span className="text-xs text-crm-muted">Quote total</span>
+          <b className="crm-display-sm">${total.toLocaleString()}</b>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -4067,7 +4067,7 @@ function QuoteModal({
           </button>
           <button
             disabled={saving || !items.some((i) => i.description.trim())}
-            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save quote"}
           </button>
@@ -4122,27 +4122,27 @@ function ScheduleModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
       <form
         onSubmit={save}
-        className="w-full max-w-md rounded bg-white p-6 shadow-2xl"
+        className="w-full max-w-md rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="font-mono text-[9px] text-tech-green-deep">
+            <p className="font-mono text-[9px] text-crm-ink">
               {job.workOrderNumber || job.id}
             </p>
-            <h2 className="mt-1 font-display text-lg uppercase">
+            <h2 className="mt-1 crm-display-sm">
               Assign technician
             </h2>
-            <p className="text-xs text-slate-500">{job.name}</p>
+            <p className="text-xs text-crm-muted">{job.name}</p>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-5 space-y-3">
-          <label className="block text-[9px] font-bold uppercase text-slate-500">
+          <label className="block text-[9px] font-bold uppercase text-crm-muted">
             Technicians ({techIds.length} selected)
-            <span className="mt-1 block text-[9px] font-normal normal-case text-slate-400">The first selected technician is the lead. Select everyone assigned to this job.</span>
-            <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded border border-slate-200 p-2">{technicians.map((technician)=><label key={technician.id} className="flex items-start gap-2 rounded p-2 text-xs font-normal normal-case hover:bg-slate-50"><input type="checkbox" checked={techIds.includes(technician.id)} onChange={()=>setTechIds((current)=>current.includes(technician.id)?current.filter((id)=>id!==technician.id):[...current,technician.id])} className="mt-0.5 accent-green-500"/><span><strong className="block">{technician.name || technician.companyName || technician.id}</strong>{technician.specialty&&<span className="text-[9px] text-slate-400">{technician.specialty}</span>}</span></label>)}</div>
+            <span className="mt-1 block text-[9px] font-normal normal-case text-crm-muted">The first selected technician is the lead. Select everyone assigned to this job.</span>
+            <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded border border-crm-hairline p-2">{technicians.map((technician)=><label key={technician.id} className="flex items-start gap-2 rounded p-2 text-xs font-normal normal-case hover:bg-crm-surface-soft"><input type="checkbox" checked={techIds.includes(technician.id)} onChange={()=>setTechIds((current)=>current.includes(technician.id)?current.filter((id)=>id!==technician.id):[...current,technician.id])} className="mt-0.5 accent-green-500"/><span><strong className="block">{technician.name || technician.companyName || technician.id}</strong>{technician.specialty&&<span className="text-[9px] text-crm-muted">{technician.specialty}</span>}</span></label>)}</div>
           </label>
           <Field
             label="Schedule date"
@@ -4170,7 +4170,7 @@ function ScheduleModal({
         </div>
         <button
           disabled={saving || techIds.length === 0}
-          className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
+          className="mt-5 w-full rounded bg-crm-primary px-4 py-3 text-xs font-bold text-crm-on-primary disabled:opacity-40"
         >
           {saving ? "Scheduling…" : "Confirm assignment"}
         </button>
@@ -4262,13 +4262,13 @@ function AssetsView({
   };
   return (
     <>
-      <section className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-        <header className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+      <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+        <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline-soft p-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-sm font-bold">
               Customer assets & recurring maintenance
             </h2>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-crm-muted">
               Installed equipment, warranty coverage, service history and
               preventative work
             </p>
@@ -4285,13 +4285,13 @@ function AssetsView({
             </button>
             <button
               onClick={onCreate}
-              className="rounded bg-[#17251b] px-3 py-2 text-[10px] font-bold text-white"
+              className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-white"
             >
               <Plus className="mr-1 inline h-3 w-3" /> Add asset
             </button>
           </div>
         </header>
-        <div className="grid grid-cols-2 gap-px border-b border-slate-100 bg-slate-100 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px border-b border-crm-hairline-soft bg-crm-surface-card sm:grid-cols-4">
           <AssetMetric label="Registered assets" value={assets.length} />
           <AssetMetric
             label="Active"
@@ -4315,7 +4315,7 @@ function AssetsView({
         {assets.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left">
-              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+              <thead className="bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
                 <tr>
                   {[
                     "Asset",
@@ -4332,19 +4332,19 @@ function AssetsView({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-crm-hairline-soft">
                 {assets.map((asset) => {
                   const isDue = Boolean(
                     asset.maintenance?.enabled &&
                     asset.maintenance.nextServiceDate <= today,
                   );
                   return (
-                    <tr key={asset.id} className="hover:bg-slate-50">
+                    <tr key={asset.id} className="hover:bg-crm-surface-soft">
                       <td className="px-4 py-3">
                         <p className="text-[11px] font-semibold">
                           {asset.name}
                         </p>
-                        <p className="text-[9px] text-slate-400">
+                        <p className="text-[9px] text-crm-muted">
                           {asset.category} · {asset.status}
                         </p>
                       </td>
@@ -4352,7 +4352,7 @@ function AssetsView({
                         <p className="text-[10px] font-semibold">
                           {customerFor(asset, customers)?.name || 'Customer link needs review'}
                         </p>
-                        <p className="text-[9px] text-slate-400">
+                        <p className="text-[9px] text-crm-muted">
                           {asset.site}
                         </p>
                       </td>
@@ -4360,7 +4360,7 @@ function AssetsView({
                         <p className="text-[10px]">
                           {asset.manufacturer} {asset.model}
                         </p>
-                        <p className="font-mono text-[9px] text-slate-400">
+                        <p className="font-mono text-[9px] text-crm-muted">
                           S/N {asset.serialNumber || "—"}
                         </p>
                       </td>
@@ -4391,7 +4391,7 @@ function AssetsView({
                               : `Next ${asset.maintenance.nextServiceDate}`
                             : "Not scheduled"}
                         </span>
-                        <p className="mt-1 text-[9px] text-slate-400">
+                        <p className="mt-1 text-[9px] text-crm-muted">
                           {asset.maintenance?.enabled
                             ? `Every ${asset.maintenance.frequencyMonths} month(s)`
                             : "—"}
@@ -4405,13 +4405,13 @@ function AssetsView({
                       <td className="px-4 py-3">
                         <button
                           onClick={() => setEditingAsset(asset)}
-                          className="rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                          className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setServiceAsset(asset)}
-                          className="ml-1 rounded border border-slate-200 px-2 py-1.5 text-[9px] font-bold"
+                          className="ml-1 rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                         >
                           Record service
                         </button>
@@ -4430,13 +4430,13 @@ function AssetsView({
               <p className="mt-3 text-xs font-semibold">
                 No customer assets yet
               </p>
-              <p className="mt-1 text-[10px] text-slate-400">
+              <p className="mt-1 text-[10px] text-crm-muted">
                 Register installed equipment to begin recurring maintenance
                 planning.
               </p>
               <button
                 onClick={onCreate}
-                className="mt-4 rounded bg-[#17251b] px-4 py-2 text-[10px] font-bold text-white"
+                className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold text-white"
               >
                 Add first asset
               </button>
@@ -4472,12 +4472,12 @@ function AssetMetric({
   warning?: boolean;
 }) {
   return (
-    <div className="bg-white p-4">
-      <p className="text-[9px] font-semibold uppercase text-slate-400">
+    <div className="bg-crm-canvas p-4">
+      <p className="text-[9px] font-semibold uppercase text-crm-muted">
         {label}
       </p>
       <p
-        className={`mt-1 font-display text-xl ${warning ? "text-orange-600" : "text-slate-900"}`}
+        className={`mt-1 crm-display-sm ${warning ? "text-orange-600" : "text-crm-ink"}`}
       >
         {value}
       </p>
@@ -4561,21 +4561,21 @@ function AssetModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={save}
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-white p-6 shadow-2xl"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               Customer equipment register
             </p>
-            <h2 className="font-display text-lg uppercase">{asset ? "Edit asset" : "New asset"}</h2>
+            <h2 className="crm-display-sm">{asset ? "Edit asset" : "New asset"}</h2>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Customer
             <select
               required
@@ -4583,7 +4583,7 @@ function AssetModal({
               onChange={(e) =>
                 setForm({ ...form, customerId: e.target.value, site: "" })
               }
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               <option value="">Select customer</option>
               {customers.map((customer) => (
@@ -4593,13 +4593,13 @@ function AssetModal({
               ))}
             </select>
           </label>
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Customer site
             <select
               required
               value={form.site}
               onChange={(e) => setForm({ ...form, site: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               <option value="">Select site</option>
               {(selectedCustomer?.sites || []).map((site) => (
@@ -4614,12 +4614,12 @@ function AssetModal({
             onChange={(value) => setForm({ ...form, name: value })}
             required
           />
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Category
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {[
                 "Network Equipment",
@@ -4649,12 +4649,12 @@ function AssetModal({
             value={form.serialNumber}
             onChange={(value) => setForm({ ...form, serialNumber: value })}
           />
-          <label className="text-[9px] font-bold uppercase text-slate-500">
+          <label className="text-[9px] font-bold uppercase text-crm-muted">
             Status
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
               {["Active", "Out of Service", "Retired"].map((value) => (
                 <option key={value}>{value}</option>
@@ -4739,7 +4739,7 @@ function AssetModal({
           </button>
           <button
             disabled={saving}
-            className="rounded bg-[#17251b] px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-5 py-2 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save asset"}
           </button>
@@ -4797,17 +4797,17 @@ function ServiceRecordModal({
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4">
       <form
         onSubmit={save}
-        className="w-full max-w-md rounded bg-white p-6 shadow-2xl"
+        className="w-full max-w-md rounded bg-crm-canvas p-6 shadow-2xl"
       >
         <div className="flex justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
               {asset.customerName}
             </p>
-            <h2 className="font-display text-lg uppercase">
+            <h2 className="crm-display-sm">
               Record asset service
             </h2>
-            <p className="text-xs text-slate-500">{asset.name}</p>
+            <p className="text-xs text-crm-muted">{asset.name}</p>
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -4822,24 +4822,24 @@ function ServiceRecordModal({
             required
           />
           <label className="block text-xs">Related work order (optional)<select value={form.jobId} onChange={(event) => { const job = jobs.find((item) => item.id === event.target.value); setForm({ ...form, jobId: job?.id || '', workOrderNumber: job?.workOrderNumber || job?.id || '' }); }} className="mt-2 w-full rounded border p-2"><option value="">No linked work order</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.workOrderNumber || job.id} — {job.name}</option>)}</select></label>
-          <label className="block text-[9px] font-bold uppercase text-slate-500">
+          <label className="block text-[9px] font-bold uppercase text-crm-muted">
             Service notes
             <textarea
               required
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={4}
-              className="mt-1.5 w-full rounded border border-slate-200 p-3 text-xs"
+              className="mt-1.5 w-full rounded border border-crm-hairline p-3 text-xs"
             />
           </label>
-          <p className="rounded bg-slate-50 p-3 text-[10px] text-slate-500">
+          <p className="rounded bg-crm-surface-soft p-3 text-[10px] text-crm-muted">
             Next maintenance date:{" "}
-            <b className="text-slate-800">{nextDate()}</b>
+            <b className="text-crm-ink">{nextDate()}</b>
           </p>
         </div>
         <button
           disabled={saving}
-          className="mt-5 w-full rounded bg-tech-green px-4 py-3 text-xs font-bold text-brand-black disabled:opacity-40"
+          className="mt-5 w-full rounded bg-crm-primary px-4 py-3 text-xs font-bold text-crm-on-primary disabled:opacity-40"
         >
           {saving ? "Saving…" : "Complete service record"}
         </button>
@@ -4866,43 +4866,43 @@ function AccessGate({
   return (
     <div className="grid min-h-screen place-items-center bg-[#0b0f0c] p-5 text-white">
       <div className="w-full max-w-md rounded border border-white/10 bg-[#151916] p-7 shadow-2xl">
-        <span className="grid h-11 w-11 place-items-center rounded bg-tech-green text-brand-black">
+        <span className="grid h-11 w-11 place-items-center rounded bg-crm-primary text-crm-on-primary">
           <ShieldCheck className="h-5 w-5" />
         </span>
-        <p className="mt-6 text-[10px] font-mono uppercase tracking-[.25em] text-tech-green">
+        <p className="mt-6 text-[10px] font-mono uppercase tracking-[.25em] text-crm-ink">
           Protected workspace
         </p>
-        <h1 className="mt-2 font-display text-xl uppercase">
+        <h1 className="mt-2 crm-display-sm">
           CRM administrator access
         </h1>
         {access === "checking" ? (
-          <p className="mt-4 text-sm text-slate-400">Checking your session…</p>
+          <p className="mt-4 text-sm text-crm-muted">Checking your session…</p>
         ) : access === "denied" ? (
           <>
-            <p className="mt-4 text-sm leading-relaxed text-slate-400">
+            <p className="mt-4 text-sm leading-relaxed text-crm-muted">
               This account is signed in but does not have the administrator
               claim required to view customer and job records.
             </p>
             <button
               onClick={() => void signOut(auth)}
-              className="mt-5 rounded bg-white/10 px-4 py-2 text-xs font-bold"
+              className="mt-5 rounded bg-crm-canvas/10 px-4 py-2 text-xs font-bold"
             >
               Use another account
             </button>
           </>
         ) : (
           <form onSubmit={onSubmit} className="mt-5 space-y-3">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-crm-muted">
               Email
               <input
                 type="email"
                 required
                 value={login.email}
                 onChange={(e) => setLogin({ ...login, email: e.target.value })}
-                className="mt-2 w-full rounded border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-tech-green"
+                className="mt-2 w-full rounded border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-crm-ink"
               />
             </label>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-crm-muted">
               Password
               <input
                 type="password"
@@ -4911,7 +4911,7 @@ function AccessGate({
                 onChange={(e) =>
                   setLogin({ ...login, password: e.target.value })
                 }
-                className="mt-2 w-full rounded border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-tech-green"
+                className="mt-2 w-full rounded border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-crm-ink"
               />
             </label>
             {error && (
@@ -4921,7 +4921,7 @@ function AccessGate({
             )}
             <button
               disabled={pending}
-              className="w-full rounded bg-tech-green px-4 py-3 text-xs font-bold uppercase tracking-wider text-brand-black disabled:opacity-50"
+              className="w-full rounded bg-crm-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-crm-on-primary disabled:opacity-50"
             >
               {pending ? "Signing in…" : "Open CRM"}
             </button>
@@ -5004,19 +5004,19 @@ function CreateRecordModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="w-full max-w-lg rounded border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"
+        className="w-full max-w-lg rounded border border-crm-hairline bg-crm-canvas p-6 text-crm-ink shadow-2xl"
       >
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[.2em] text-tech-green-deep">
+            <p className="text-[9px] font-bold uppercase tracking-[.2em] text-crm-ink">
               Live Firestore record
             </p>
-            <h2 className="mt-1 font-display text-lg uppercase">New {type}</h2>
+            <h2 className="mt-1 crm-display-sm">New {type}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-2 hover:bg-slate-100"
+            className="rounded p-2 hover:bg-crm-surface-card"
           >
             <X className="h-4 w-4" />
           </button>
@@ -5056,13 +5056,13 @@ function CreateRecordModal({
             </>
           ) : (
             <>
-              <label className="sm:col-span-2 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+              <label className="sm:col-span-2 text-[9px] font-bold uppercase tracking-wider text-crm-muted">
                 Customer
                 <select
                   required
                   value={job.customer}
                   onChange={(e) => setJob({ ...job, customer: e.target.value })}
-                  className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs"
+                  className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
                 >
                   <option value="">Select customer</option>
                   {records.map((c) => (
@@ -5110,13 +5110,13 @@ function CreateRecordModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-slate-200 px-4 py-2 text-xs font-semibold"
+            className="rounded border border-crm-hairline px-4 py-2 text-xs font-semibold"
           >
             Cancel
           </button>
           <button
             disabled={saving}
-            className="rounded bg-[#17251b] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save record"}
           </button>
@@ -5139,14 +5139,14 @@ function Field({
   required?: boolean;
 }) {
   return (
-    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">
+    <label className="block text-[9px] font-bold uppercase tracking-wider text-crm-muted">
       {label}
       <input
         type={type}
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full rounded border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-tech-green"
+        className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs outline-none focus:border-crm-ink"
       />
     </label>
   );
@@ -5165,10 +5165,10 @@ function EmptyState({
       <div>
         <Building2 className="mx-auto h-8 w-8 text-slate-300" />
         <p className="mt-3 text-xs font-semibold">{label}</p>
-        <p className="mt-1 text-[10px] text-slate-400">{detail}</p>
+        <p className="mt-1 text-[10px] text-crm-muted">{detail}</p>
         <button
           onClick={onCreate}
-          className="mt-4 rounded bg-[#17251b] px-4 py-2 text-[10px] font-bold uppercase text-white"
+          className="mt-4 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-[10px] font-bold uppercase text-white"
         >
           <Plus className="mr-1 inline h-3 w-3" /> Create customer
         </button>
