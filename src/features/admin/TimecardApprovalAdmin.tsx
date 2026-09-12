@@ -73,9 +73,24 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
   );
 
   const filtered = technicianFilter === "ALL" ? entries : entries.filter((entry) => entry.technicianUid === technicianFilter);
-  const totalOwed = filtered
-    .filter((tc) => tc.status !== "voided" && tc.qbStatus !== "synced")
-    .reduce((sum, tc) => sum + getEntryTotals(tc).totalGross, 0);
+  const nonVoided = filtered.filter((tc) => tc.status !== "voided");
+  const totalOwed = nonVoided.reduce((sum, tc) => sum + getEntryTotals(tc).totalGross, 0);
+
+  // Per-job-site breakdown for whichever technician is currently selected --
+  // "All technicians" would mix pay across people, so this only makes sense
+  // (and only renders) once one tech is picked from the filter above.
+  const siteBreakdown = useMemo(() => {
+    if (technicianFilter === "ALL") return [];
+    const bySite = new Map<string, { jobSite: string; days: number; totalGross: number }>();
+    nonVoided.forEach((entry) => {
+      const key = entry.jobSite || "Unspecified job site";
+      const existing = bySite.get(key) || { jobSite: key, days: 0, totalGross: 0 };
+      existing.days += 1;
+      existing.totalGross += getEntryTotals(entry).totalGross;
+      bySite.set(key, existing);
+    });
+    return Array.from(bySite.values()).sort((a, b) => b.totalGross - a.totalGross);
+  }, [technicianFilter, nonVoided]);
 
   const setItemStatus = async (entryId: string, itemType: string, status: "approved" | "rejected") => {
     let feedback = "";
@@ -197,6 +212,27 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
           <div className="text-2xl font-bold mt-1 text-emerald-400">${totalOwed.toFixed(2)}</div>
         </div>
       </div>
+
+      {technicianFilter !== "ALL" && siteBreakdown.length > 0 && (
+        <div className="mb-6 rounded-xl border border-slate-800 bg-slate-950 p-6">
+          <div className="mb-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Totals by job site — {technicianOptions.find((t) => t.uid === technicianFilter)?.name || "technician"}</div>
+          <div className="divide-y divide-slate-800">
+            {siteBreakdown.map((site) => (
+              <div key={site.jobSite} className="flex items-center justify-between py-2.5">
+                <div>
+                  <div className="text-sm font-semibold text-slate-200">{site.jobSite}</div>
+                  <div className="text-[10px] text-slate-500">{site.days} {site.days === 1 ? "day" : "days"}</div>
+                </div>
+                <div className="text-base font-bold text-emerald-400">${site.totalGross.toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-slate-700 pt-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Total owed — all jobs</div>
+            <div className="text-lg font-bold text-emerald-400">${totalOwed.toFixed(2)}</div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {loading && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">Loading timecards…</div>}
