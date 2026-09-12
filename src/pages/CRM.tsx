@@ -708,6 +708,7 @@ export default function CRM() {
             ) : module === "quotes" ? (
               <QuotesView
                 quotes={liveQuotes}
+                customers={liveCustomers}
                 onCreate={() => setQuoteOpen(true)}
               />
             ) : module === "jobs" ? (
@@ -1592,15 +1593,32 @@ function MaterialAllocations({ jobs, onOpen }: { jobs: LiveJob[]; onOpen: (job: 
 
 function QuotesView({
   quotes,
+  customers,
   onCreate,
 }: {
   quotes: LiveQuote[];
+  customers: LiveCustomer[];
   onCreate: () => void;
 }) {
   const [working, setWorking] = useState("");
   const [editingQuote, setEditingQuote] = useState<LiveQuote | null>(null);
   const [viewingQuote, setViewingQuote] = useState<LiveQuote | null>(null);
   const [editingItemsQuote, setEditingItemsQuote] = useState<LiveQuote | null>(null);
+  const [editingBasicsQuote, setEditingBasicsQuote] = useState<LiveQuote | null>(null);
+  const deleteQuote = async (quote: LiveQuote) => {
+    if (quote.status === "Converted") return;
+    if (!confirm(`Delete quote ${quote.quoteNumber || quote.id}? This cannot be undone.`)) return;
+    setWorking(`delete-${quote.id}`);
+    try {
+      await deleteDoc(doc(db, "quotes", quote.id));
+      await recordAudit("deleted", "quote", quote.id, `Deleted quote ${quote.quoteNumber || quote.id} for ${quote.customer}`, { total: quote.total });
+      setViewingQuote(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not delete this quote.");
+    } finally {
+      setWorking("");
+    }
+  };
   const emailQuote = async (quote: LiveQuote) => {
     setWorking(`email-${quote.id}`);
     try {
@@ -1754,6 +1772,22 @@ function QuotesView({
                         Terms{q.stipulations?.length ? ` (${q.stipulations.length})` : ""}
                       </button>
                       <button
+                        disabled={q.status === "Converted"}
+                        onClick={() => setEditingBasicsQuote(q)}
+                        title={q.status === "Converted" ? "Converted quotes can't be edited." : "Edit customer, site, and title"}
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        disabled={q.status === "Converted" || working === `delete-${q.id}`}
+                        onClick={() => void deleteQuote(q)}
+                        title={q.status === "Converted" ? "Converted quotes can't be deleted." : "Delete this quote"}
+                        className="rounded border border-crm-error/30 px-2 py-1.5 text-[9px] font-bold text-crm-error disabled:opacity-40"
+                      >
+                        {working === `delete-${q.id}` ? "Deleting…" : "Delete"}
+                      </button>
+                      <button
                         disabled={q.status !== "Accepted" || working === q.id}
                         onClick={() => void convert(q)}
                         title={
@@ -1801,12 +1835,25 @@ function QuotesView({
             setEditingItemsQuote(viewingQuote);
             setViewingQuote(null);
           }}
+          onEditBasics={() => {
+            setEditingBasicsQuote(viewingQuote);
+            setViewingQuote(null);
+          }}
+          onDelete={() => void deleteQuote(viewingQuote)}
+          deleting={working === `delete-${viewingQuote.id}`}
         />
       )}
       {editingItemsQuote && (
         <LineItemsModal
           quote={editingItemsQuote}
           onClose={() => setEditingItemsQuote(null)}
+        />
+      )}
+      {editingBasicsQuote && (
+        <QuoteEditModal
+          quote={editingBasicsQuote}
+          customers={customers}
+          onClose={() => setEditingBasicsQuote(null)}
         />
       )}
     </section>
@@ -1818,11 +1865,17 @@ function QuoteDetailModal({
   onClose,
   onEditTerms,
   onEditItems,
+  onEditBasics,
+  onDelete,
+  deleting,
 }: {
   quote: LiveQuote;
   onClose: () => void;
   onEditTerms: () => void;
   onEditItems: () => void;
+  onEditBasics: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -1933,7 +1986,27 @@ function QuoteDetailModal({
             )}
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-crm-hairline-soft p-4">
+        <div className="flex items-center justify-between gap-2 border-t border-crm-hairline-soft p-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={quote.status === "Converted"}
+              onClick={onEditBasics}
+              title={quote.status === "Converted" ? "Converted quotes can't be edited." : "Edit customer, site, and title"}
+              className="rounded border border-crm-hairline px-4 py-2 text-xs font-bold disabled:opacity-40"
+            >
+              Edit details
+            </button>
+            <button
+              type="button"
+              disabled={quote.status === "Converted" || deleting}
+              onClick={onDelete}
+              title={quote.status === "Converted" ? "Converted quotes can't be deleted." : "Delete this quote"}
+              className="rounded border border-crm-error/30 px-4 py-2 text-xs font-bold text-crm-error disabled:opacity-40"
+            >
+              {deleting ? "Deleting…" : "Delete quote"}
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -1943,6 +2016,109 @@ function QuoteDetailModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuoteEditModal({
+  quote,
+  customers,
+  onClose,
+}: {
+  quote: LiveQuote;
+  customers: LiveCustomer[];
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    customer: quote.customer,
+    site: quote.site,
+    title: quote.title,
+  });
+  const [saving, setSaving] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "quotes", quote.id), {
+        customer: form.customer,
+        site: form.site,
+        title: form.title,
+        customerId: customerFor({ customer: form.customer }, customers)?.id || null,
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit(
+        "updated",
+        "quote",
+        quote.id,
+        `Updated details for ${quote.quoteNumber || quote.id}`,
+        { customer: form.customer, site: form.site },
+      );
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={submit}
+        className="w-full max-w-lg rounded bg-crm-canvas p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-crm-ink">
+              {quote.quoteNumber || quote.id}
+            </p>
+            <h2 className="crm-display-sm">Edit quote details</h2>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3">
+          <label className="text-[9px] font-bold uppercase tracking-wider text-crm-muted">
+            Customer
+            <select
+              required
+              value={form.customer}
+              onChange={(e) => setForm({ ...form, customer: e.target.value })}
+              className="mt-1.5 w-full rounded border border-crm-hairline p-2.5 text-xs"
+            >
+              <option value="">Select</option>
+              {customers.map((c) => (
+                <option key={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Site address"
+            value={form.site}
+            onChange={(v) => setForm({ ...form, site: v })}
+            required
+          />
+          <Field
+            label="Quote title / scope"
+            value={form.title}
+            onChange={(v) => setForm({ ...form, title: v })}
+            required
+          />
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border px-4 py-2 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={saving}
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -3095,8 +3271,33 @@ function InvoicesView({
   const [delivering, setDelivering] = useState("");
   const [reconciling, setReconciling] = useState(false);
   const [refreshingReadiness, setRefreshingReadiness] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<LiveInvoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<LiveInvoice | null>(null);
+  const [deletingId, setDeletingId] = useState("");
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  const isLocked = (invoice: LiveInvoice) => invoice.qboSync?.status === "synced" || Number(invoice.amountPaid || 0) > 0;
+  const deleteInvoice = async (invoice: LiveInvoice) => {
+    if (isLocked(invoice)) return;
+    if (!confirm(`Delete invoice ${invoice.invoiceNumber || invoice.id}? This cannot be undone.`)) return;
+    setDeletingId(invoice.id);
+    try {
+      await deleteDoc(doc(db, "invoices", invoice.id));
+      if (invoice.jobId) {
+        try {
+          await updateDoc(doc(db, "jobs", invoice.jobId), { status: "Ready to Invoice", updatedAt: serverTimestamp() });
+        } catch (error) {
+          console.error("Could not revert job status after invoice delete:", error);
+        }
+      }
+      await recordAudit("deleted", "invoice", invoice.id, `Deleted invoice ${invoice.invoiceNumber || invoice.id} for ${invoice.customer}`, { total: invoice.total, jobId: invoice.jobId || null });
+      setViewingInvoice(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not delete this invoice.");
+    } finally {
+      setDeletingId("");
+    }
+  };
   const syncToQuickBooks = async (invoice: LiveInvoice) => {
     setSyncing(invoice.id);
     try {
@@ -3339,7 +3540,13 @@ function InvoicesView({
                     {money(invoice.balance)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        onClick={() => setViewingInvoice(invoice)}
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
+                      >
+                        View
+                      </button>
                       <button
                         disabled={delivering === invoice.id}
                         onClick={() => void emailInvoice(invoice)}
@@ -3400,7 +3607,320 @@ function InvoicesView({
           </div>
         </div>
       )}
+      {viewingInvoice && (
+        <InvoiceDetailModal
+          invoice={viewingInvoice}
+          locked={isLocked(viewingInvoice)}
+          deleting={deletingId === viewingInvoice.id}
+          onClose={() => setViewingInvoice(null)}
+          onEdit={() => {
+            setEditingInvoice(viewingInvoice);
+            setViewingInvoice(null);
+          }}
+          onDelete={() => void deleteInvoice(viewingInvoice)}
+        />
+      )}
+      {editingInvoice && (
+        <InvoiceEditModal invoice={editingInvoice} onClose={() => setEditingInvoice(null)} />
+      )}
     </section>
+  );
+}
+
+function InvoiceDetailModal({
+  invoice,
+  locked,
+  deleting,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  invoice: LiveInvoice;
+  locked: boolean;
+  deleting: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const money = (value = 0) =>
+    value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas shadow-2xl">
+        <div className="flex items-start justify-between border-b border-crm-hairline-soft p-6">
+          <div>
+            <p className="text-[9px] font-bold uppercase text-crm-ink">{invoice.invoiceNumber || invoice.id}</p>
+            <h2 className="crm-display-sm">{invoice.customer}</h2>
+            <p className="mt-1 text-xs text-crm-muted">
+              {invoice.site || "Address on file"}{invoice.workOrderNumber ? ` · ${invoice.workOrderNumber}` : ""}
+            </p>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${invoice.status === "Paid" ? "bg-crm-success-soft-bg text-crm-success-soft-text" : invoice.status === "Partially Paid" ? "bg-crm-accent-soft-bg text-crm-accent-soft-text" : invoice.status === "Overdue" ? "bg-crm-error-soft-bg text-crm-error-soft-text" : "bg-crm-warning-soft-bg text-crm-warning-soft-text"}`}
+            >
+              {invoice.status}
+            </span>
+            <span className="text-[10px] text-crm-muted">
+              Issued {invoice.issueDate} · Due {invoice.dueDate}
+            </span>
+            {invoice.qboSync?.status === "synced" && (
+              <span className="text-[10px] font-bold text-crm-success">Synced to QuickBooks</span>
+            )}
+            {invoice.customerDelivery?.status && (
+              <span className="text-[10px] text-crm-muted">
+                {invoice.customerDelivery.status === "sent" ? "Sent" : "Delivered"} to {invoice.customerDelivery.email}
+              </span>
+            )}
+          </div>
+          <p className="mb-2 text-[9px] font-bold uppercase text-crm-muted">Line items</p>
+          <table className="w-full text-left text-xs">
+            <thead className="text-[9px] uppercase text-crm-muted">
+              <tr>
+                <th className="pb-2">Description</th>
+                <th className="pb-2 text-right">Qty</th>
+                <th className="pb-2 text-right">Rate</th>
+                <th className="pb-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-crm-hairline-soft">
+              {invoice.lineItems.map((item, index) => (
+                <tr key={index}>
+                  <td className="py-2.5">{item.description}</td>
+                  <td className="py-2.5 text-right">{item.quantity}</td>
+                  <td className="py-2.5 text-right">{money(item.unitPrice)}</td>
+                  <td className="py-2.5 text-right font-semibold">{money(item.quantity * item.unitPrice)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-4 space-y-1.5 border-t border-crm-hairline pt-3 text-xs">
+            <div className="flex justify-between text-crm-muted">
+              <span>Subtotal</span>
+              <span>{money(invoice.subtotal)}</span>
+            </div>
+            {Number(invoice.discount || 0) > 0 && (
+              <div className="flex justify-between text-crm-muted">
+                <span>Discount</span>
+                <span>-{money(invoice.discount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-crm-muted">
+              <span>Tax ({invoice.taxRate}%)</span>
+              <span>{money(invoice.tax)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-crm-muted">Total</span>
+              <b className="crm-display-sm">{money(invoice.total)}</b>
+            </div>
+            <div className="flex justify-between text-crm-muted">
+              <span>Paid</span>
+              <span className="text-crm-success">{money(invoice.amountPaid)}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>Balance due</span>
+              <span>{money(invoice.balance)}</span>
+            </div>
+          </div>
+          {invoice.payments?.length ? (
+            <div className="mt-6 border-t border-crm-hairline-soft pt-5">
+              <p className="mb-2 text-[9px] font-bold uppercase text-crm-muted">Payment history</p>
+              <ul className="space-y-1.5 text-xs text-crm-body">
+                {invoice.payments.map((payment, index) => (
+                  <li key={index} className="flex justify-between">
+                    <span>{new Date(payment.receivedAt).toLocaleDateString()} · {payment.method}{payment.reference ? ` · ${payment.reference}` : ""}</span>
+                    <span className="font-semibold">{money(payment.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-crm-hairline-soft p-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={locked}
+              onClick={onEdit}
+              title={locked ? "Synced or paid invoices can't be edited." : "Edit line items and terms"}
+              className="rounded border border-crm-hairline px-4 py-2 text-xs font-bold disabled:opacity-40"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              disabled={locked || deleting}
+              onClick={onDelete}
+              title={locked ? "Synced or paid invoices can't be deleted." : "Delete this invoice"}
+              className="rounded border border-crm-error/30 px-4 py-2 text-xs font-bold text-crm-error disabled:opacity-40"
+            >
+              {deleting ? "Deleting…" : "Delete invoice"}
+            </button>
+          </div>
+          <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceEditModal({ invoice, onClose }: { invoice: LiveInvoice; onClose: () => void }) {
+  const [items, setItems] = useState(
+    invoice.lineItems.map((item) => ({
+      description: item.description,
+      quantity: String(item.quantity),
+      unitPrice: String(item.unitPrice),
+      kind: item.kind || "service",
+    })),
+  );
+  const [dates, setDates] = useState({ issueDate: invoice.issueDate, dueDate: invoice.dueDate });
+  const [taxRate, setTaxRate] = useState(String(invoice.taxRate || 0));
+  const [discount, setDiscount] = useState(String(invoice.discount || 0));
+  const [paymentTerms, setPaymentTerms] = useState(invoice.paymentTerms || "Net 30");
+  const [customerMessage, setCustomerMessage] = useState(invoice.customerMessage || "");
+  const [saving, setSaving] = useState(false);
+  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  const discountValue = Math.min(subtotal, Number(discount || 0));
+  const tax = ((subtotal - discountValue) * Number(taxRate || 0)) / 100;
+  const total = subtotal - discountValue + tax;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const balance = Math.max(0, total - Number(invoice.amountPaid || 0));
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        lineItems: items
+          .filter((item) => item.description.trim())
+          .map((item) => ({
+            description: item.description.trim(),
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            kind: item.kind || "service",
+          })),
+        ...dates,
+        taxRate: Number(taxRate || 0),
+        discount: discountValue,
+        tax,
+        subtotal,
+        total,
+        balance,
+        paymentTerms,
+        customerMessage: customerMessage.trim(),
+        status: balance <= 0 ? "Paid" : Number(invoice.amountPaid || 0) > 0 ? "Partially Paid" : "Open",
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit("updated", "invoice", invoice.id, `Updated invoice ${invoice.invoiceNumber || invoice.id}`, { total });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        onSubmit={submit}
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-crm-canvas p-6 shadow-2xl"
+      >
+        <div className="flex justify-between">
+          <div>
+            <p className="font-mono text-[9px] text-crm-ink">{invoice.invoiceNumber || invoice.id}</p>
+            <h2 className="mt-1 crm-display-sm">Edit invoice</h2>
+            <p className="text-xs text-crm-muted">{invoice.customer}</p>
+          </div>
+          <button type="button" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Field label="Issue date" type="date" value={dates.issueDate} onChange={(v) => setDates({ ...dates, issueDate: v })} required />
+          <Field label="Due date" type="date" value={dates.dueDate} onChange={(v) => setDates({ ...dates, dueDate: v })} required />
+        </div>
+        <div className="mt-5">
+          <div className="mb-2 flex justify-between">
+            <p className="text-[9px] font-bold uppercase text-crm-muted">Line items</p>
+            <button
+              type="button"
+              onClick={() => setItems([...items, { description: "", quantity: "1", unitPrice: "", kind: "service" }])}
+              className="text-[9px] font-bold text-crm-ink"
+            >
+              + Add item
+            </button>
+          </div>
+          {items.map((item, index) => (
+            <div key={index} className="mb-2 grid grid-cols-[1fr_70px_100px_24px] gap-2">
+              <input
+                required
+                value={item.description}
+                onChange={(e) => setItems(items.map((x, i) => (i === index ? { ...x, description: e.target.value } : x)))}
+                placeholder="Labor or material"
+                className="rounded border border-crm-hairline px-3 py-2 text-xs"
+              />
+              <input
+                type="number"
+                min="0"
+                step=".01"
+                value={item.quantity}
+                onChange={(e) => setItems(items.map((x, i) => (i === index ? { ...x, quantity: e.target.value } : x)))}
+                className="rounded border border-crm-hairline px-2 text-xs"
+              />
+              <input
+                type="number"
+                min="0"
+                step=".01"
+                value={item.unitPrice}
+                onChange={(e) => setItems(items.map((x, i) => (i === index ? { ...x, unitPrice: e.target.value } : x)))}
+                placeholder="$ each"
+                className="rounded border border-crm-hairline px-2 text-xs"
+              />
+              <button
+                type="button"
+                disabled={items.length === 1}
+                onClick={() => setItems(items.filter((_, i) => i !== index))}
+                className="text-crm-error disabled:opacity-20"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Field label="Tax rate (%)" type="number" value={taxRate} onChange={setTaxRate} />
+          <Field label="Discount ($)" type="number" value={discount} onChange={setDiscount} />
+          <Field label="Payment terms" value={paymentTerms} onChange={setPaymentTerms} />
+        </div>
+        <label className="mt-3 block text-[9px] font-bold uppercase tracking-wider text-crm-muted">
+          Customer message
+          <textarea
+            value={customerMessage}
+            onChange={(e) => setCustomerMessage(e.target.value)}
+            rows={2}
+            className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs outline-none focus:border-crm-ink"
+          />
+        </label>
+        <div className="mt-5 flex items-center justify-between border-t border-crm-hairline-soft pt-4">
+          <span className="text-xs text-crm-muted">Invoice total</span>
+          <b className="crm-display-sm">${total.toLocaleString()}</b>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">
+            Cancel
+          </button>
+          <button
+            disabled={saving || !items.some((i) => i.description.trim())}
+            className="rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2 text-xs font-bold text-crm-on-primary disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
