@@ -14,6 +14,17 @@ test("a brand-new job always gets a real hourlyRate and signatureRequired, never
   assert.equal(record.createdAt, NOW);
 });
 
+test("customerBillRate never silently defaults to hourlyRate -- it's a different number (what the customer pays vs. what the tech is paid)", () => {
+  const fresh = buildJobRecord({ name: "Job", hourlyRate: 55 }, null, NOW);
+  assert.equal(fresh.customerBillRate, 0);
+  assert.notEqual(fresh.customerBillRate, fresh.hourlyRate);
+  const withBillRate = buildJobRecord({ name: "Job", hourlyRate: 55, customerBillRate: 95 }, null, NOW);
+  assert.equal(withBillRate.hourlyRate, 55);
+  assert.equal(withBillRate.customerBillRate, 95);
+  const edited = buildJobRecord({ name: "Job" }, { hourlyRate: 55, customerBillRate: 95 }, NOW);
+  assert.equal(edited.customerBillRate, 95);
+});
+
 test("CRM's quote-to-job conversion path (no hourlyRate/signatureRequired supplied) still gets real defaults, not undefined", () => {
   // Mirrors what CRM.tsx's convert() used to pass before saveJob() existed.
   const record = buildJobRecord(

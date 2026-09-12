@@ -153,6 +153,7 @@ type LiveJob = {
   margin?: number;
   notes?: string;
   hourlyRate?: number;
+  customerBillRate?: number;
   estimatedHours?: number;
   actualHours?: number;
   equipment?: { description: string; quantity?: string; unitPrice?: number; providedBy?: string; fulfillmentSource?: string; notes?: string }[];
@@ -2455,6 +2456,7 @@ function JobDetailModal({
     notes: job.notes || "",
     quotedValue: String(job.quotedValue || ""),
     hourlyRate: String(job.hourlyRate || ""),
+    customerBillRate: String(job.customerBillRate || ""),
     estimatedHours: String(job.estimatedHours || ""),
     workOrderNumber: job.workOrderNumber || "",
     workOrderTemplate: job.workOrderTemplate || "general",
@@ -2542,6 +2544,7 @@ function JobDetailModal({
           notes: form.notes.trim(),
           quotedValue: quoted,
           hourlyRate: Number(form.hourlyRate || 0),
+          customerBillRate: Number(form.customerBillRate || 0),
           workOrderNumber: form.workOrderNumber.trim(),
           workOrderTemplate: form.workOrderTemplate,
           travelRate: Number(form.travelRate || 0),
@@ -2655,9 +2658,15 @@ function JobDetailModal({
             type="number"
           />
           <Field
-            label="Hourly cost"
+            label="Hourly cost (paid to tech)"
             value={form.hourlyRate}
             onChange={(v) => setForm({ ...form, hourlyRate: v })}
+            type="number"
+          />
+          <Field
+            label="Customer bill rate (per hour)"
+            value={form.customerBillRate}
+            onChange={(v) => setForm({ ...form, customerBillRate: v })}
             type="number"
           />
           <Field
@@ -3323,14 +3332,31 @@ function InvoicesView({
 
 function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries: BillingTimeEntry[]; onClose: () => void }) {
   const approvedEntries = timeEntries.filter((entry) => entry.active !== true && !['voided', 'rejected'].includes(entry.status || '') && (approvedLabor(entry) || entry.suppliesStatus === 'approved' || entry.travelStatus === 'approved'));
-  const laborHours = laborSummary(approvedEntries).approved;
   const defaultItems: InvoiceLine[] = [];
-  if (laborHours)
-    defaultItems.push({
-      description: `Field labor · ${job.name || "Service work"}`,
-      quantity: laborHours,
-      unitPrice: job.hourlyRate || 0,
-      kind: "labor",
+  // One line per calendar date worked, not per technician: the customer
+  // sees headcount and hours, never who specifically worked. Billed at the
+  // customer rate, which is deliberately a different number than what the
+  // technician is paid (job.hourlyRate) -- never conflate the two here.
+  const laborByDate = new Map<string, number[]>();
+  approvedEntries.filter(approvedLabor).forEach((entry) => {
+    const date = entry.date || "Unspecified date";
+    const hours = Number(entry.totalHours || 0);
+    if (!hours) return;
+    if (!laborByDate.has(date)) laborByDate.set(date, []);
+    laborByDate.get(date)!.push(hours);
+  });
+  Array.from(laborByDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([date, hoursList]) => {
+      const totalHours = hoursList.reduce((sum, h) => sum + h, 0);
+      const uniform = hoursList.every((h) => h === hoursList[0]);
+      const description =
+        hoursList.length === 1
+          ? `${date} — 1 technician — ${hoursList[0].toFixed(2)} hrs`
+          : uniform
+            ? `${date} — ${hoursList.length} technicians @ ${hoursList[0].toFixed(2)} hrs each — ${totalHours.toFixed(2)} hrs total`
+            : `${date} — ${hoursList.length} technicians — ${totalHours.toFixed(2)} hrs total`;
+      defaultItems.push({ description, quantity: totalHours, unitPrice: job.customerBillRate || 0, kind: "labor" });
     });
   approvedEntries.forEach((entry, index) => {
     if (entry.travelStatus === 'approved' && Number(entry.travelCost || 0) > 0) defaultItems.push({ description: `Approved travel${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.travelCost), kind: 'service' });
@@ -3442,6 +3468,7 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
               {job.vendorName} · {job.name}
             </p>
             {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">Early billing override · current job status: {job.status || 'New'}</p>}
+            {!job.customerBillRate && <p className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-[10px] font-bold text-red-700">No customer bill rate set on this job — labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />

@@ -42,6 +42,7 @@ export interface JobSite {
   address: string;
   notes: string;
   hourlyRate: number;
+  customerBillRate?: number;
   travelRate: number;
   workOrderNumber?: string;
   vendorName?: string;

@@ -46,6 +46,12 @@ export function buildJobRecord(
     // directly and only falls back to 55 when the field is entirely absent,
     // so it must always be a real number here, never undefined.
     hourlyRate: Number(input.hourlyRate ?? existing.hourlyRate ?? 55),
+    // What the CUSTOMER is billed per hour -- deliberately separate from
+    // hourlyRate (what the technician is paid). No fallback to hourlyRate:
+    // silently billing at the pay rate would erase the company's margin
+    // without anyone noticing. Left at 0 (not undefined, so it never reads
+    // as "unset" ambiguously) until an admin explicitly sets it.
+    customerBillRate: Number(input.customerBillRate ?? existing.customerBillRate ?? 0),
     travelRate: Number(input.travelRate ?? existing.travelRate ?? 0),
     equipment: input.equipment ?? existing.equipment ?? [],
     scopeTasks: input.scopeTasks ?? existing.scopeTasks ?? [],
