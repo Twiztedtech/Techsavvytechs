@@ -36,6 +36,23 @@ export interface NotificationProfile {
   notificationPreferences: { email: boolean; sms: boolean };
 }
 
+export interface Certification {
+  id: string;
+  name: string;
+  expiryDate: string;
+}
+
+export interface SelfProfile {
+  name: string;
+  email: string;
+  specialty: string;
+  rate: number;
+  employmentType: "1099_contractor" | "w2_employee";
+  skills: string[];
+  tools: string[];
+  certifications: Certification[];
+}
+
 export interface JobSite {
   id: string;
   name: string;

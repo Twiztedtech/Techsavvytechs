@@ -6,6 +6,8 @@ import { SupportTicketModal } from '../features/contractor/support/SupportTicket
 import type { NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
+import { TechSelfProfile } from '../features/contractor/profile/TechSelfProfile';
+import type { SelfProfile } from '../features/contractor/types';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
 import { type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
@@ -31,6 +33,7 @@ export default function ContractorDashboard() {
   const [assignedJobIds, setAssignedJobIds] = useState<string[]>([]);
   const [savedTechnicianSignature, setSavedTechnicianSignature] = useState('');
   const [notificationProfile, setNotificationProfile] = useState<NotificationProfile | null>(null);
+  const [selfProfile, setSelfProfile] = useState<SelfProfile | null>(null);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [contractorJobTab, setContractorJobTab] = useState<'form' | 'instructions'>('form');
   const [completionIntent, setCompletionIntent] = useState<'progress' | 'final'>('progress');
@@ -199,6 +202,7 @@ export default function ContractorDashboard() {
         setAssignedJobIds(data.assignedJobIds || []);
         setSavedTechnicianSignature(data.technicianSignature || '');
         setNotificationProfile(data.notificationProfile || null);
+        setSelfProfile(data.selfProfile || null);
         setJobSitesList(data.jobs || []);
         if (data.activeEntry) {
           const started = new Date(data.activeEntry.clockInAt || data.activeEntry.clockIn).getTime();
@@ -912,9 +916,23 @@ export default function ContractorDashboard() {
                   {timeEntries.length}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setContractorTab('profile')}
+                className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                  contractorTab === 'profile'
+                    ? 'border-amber-500 text-amber-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>🛠️</span>
+                <span>My Profile</span>
+              </button>
             </div>
 
-            {contractorTab === 'logger' ? (
+            {contractorTab === 'profile' ? (
+              <TechSelfProfile profile={selfProfile} onUpdated={setSelfProfile} />
+            ) : contractorTab === 'logger' ? (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
                 {/* LEFT COLUMN: LIVE CLOCK-IN & TIME LOG FORM */}

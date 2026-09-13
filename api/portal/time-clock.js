@@ -327,6 +327,19 @@ export default async function handler(req, res) {
             sms: contractor.data().notificationPreferences?.sms !== false,
           },
         } : null,
+        // Read-only fields (name/rate/employmentType/specialty) are admin-
+        // managed elsewhere; skills/tools/certifications are the one part of
+        // this a technician can edit themselves, via update_self_profile.
+        selfProfile: contractor ? {
+          name: contractor.data().name || '',
+          email: contractor.data().email || '',
+          specialty: contractor.data().specialty || '',
+          rate: Number(contractor.data().rate || 0),
+          employmentType: contractor.data().employmentType === 'w2_employee' ? 'w2_employee' : '1099_contractor',
+          skills: Array.isArray(contractor.data().skills) ? contractor.data().skills : [],
+          tools: Array.isArray(contractor.data().tools) ? contractor.data().tools : [],
+          certifications: Array.isArray(contractor.data().certifications) ? contractor.data().certifications : [],
+        } : null,
       });
     }
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
@@ -403,6 +416,31 @@ export default async function handler(req, res) {
       }
       await contractor.ref.set(update, { merge: true });
       return res.status(200).json({ success: true, notificationPreferences: update.notificationPreferences });
+    }
+    if (action === 'update_self_profile') {
+      const contractor = await contractorProfileFor(user);
+      // Whitelisted fields only -- a technician may update their own skills,
+      // tools, and certifications, never rate/employmentType/name/email,
+      // which stay admin-managed (see ContractorRosterAdmin's TechProfileModal).
+      const sanitizeTags = (value) => (Array.isArray(value) ? value : [])
+        .map((tag) => String(tag || '').trim().slice(0, 60))
+        .filter(Boolean)
+        .slice(0, 40);
+      const sanitizeCertifications = (value) => (Array.isArray(value) ? value : [])
+        .map((cert) => ({
+          id: String(cert?.id || '').slice(0, 40) || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: String(cert?.name || '').trim().slice(0, 80),
+          expiryDate: /^\d{4}-\d{2}-\d{2}$/.test(cert?.expiryDate) ? cert.expiryDate : '',
+        }))
+        .filter((cert) => cert.name)
+        .slice(0, 40);
+      const update = {
+        skills: sanitizeTags(req.body?.skills),
+        tools: sanitizeTags(req.body?.tools),
+        certifications: sanitizeCertifications(req.body?.certifications),
+      };
+      await contractor.ref.set(update, { merge: true });
+      return res.status(200).json({ success: true, selfProfile: update });
     }
     if (action === 'send_mobile_code') {
       const contractor = await contractorProfileFor(user);
