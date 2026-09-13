@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { Calendar, Link2, Plug, Plus, RefreshCw, X } from "lucide-react";
+import { Calendar, IdCard, Link2, Plug, Plus, RefreshCw, X } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { getEntryTotals } from "../contractor/timesheets/calculations";
 import { CrmBadge, CrmButton, CrmCard } from "../crm/ui";
+import { TechProfileModal } from "./TechProfileModal";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
 
@@ -49,6 +50,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
   const [checkingInvitationId, setCheckingInvitationId] = useState<string | null>(null);
   const [reviewingOnboardingId, setReviewingOnboardingId] = useState<string | null>(null);
   const [viewingTimecardsFor, setViewingTimecardsFor] = useState<ContractorRecord | null>(null);
+  const [viewingProfileFor, setViewingProfileFor] = useState<ContractorRecord | null>(null);
 
   const [lifecycleTarget, setLifecycleTarget] = useState<ContractorRecord | null>(null);
   const [lifecycleStatus, setLifecycleStatus] = useState<"Active" | "Suspended" | "Offboarded">("Active");
@@ -267,7 +269,11 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
           <tbody className="divide-y divide-crm-hairline-soft">
             {contractors.map((cont) => (
               <tr key={cont.id} className="hover:bg-crm-surface-soft">
-                <td className="p-3 font-semibold text-crm-ink">{cont.name}</td>
+                <td className="p-3 font-semibold text-crm-ink">
+                  <button type="button" onClick={() => setViewingProfileFor(cont)} className="underline decoration-dotted underline-offset-2 hover:text-crm-ink">
+                    {cont.name}
+                  </button>
+                </td>
                 <td className="p-3 font-mono">{cont.email}</td>
                 <td className="p-3">
                   <CrmBadge tone={cont.employmentType === "w2_employee" ? "violet" : "neutral"}>
@@ -322,6 +328,9 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                 </td>
                 <td className="p-3 text-right">
                   <div className="flex min-w-[165px] flex-col items-end gap-1.5 font-sans">
+                    <button type="button" onClick={() => setViewingProfileFor(cont)} className="flex items-center gap-1 px-2.5 py-1 rounded border border-crm-hairline hover:border-crm-ink/40 text-[10px] font-bold text-crm-body hover:bg-crm-surface-card transition cursor-pointer">
+                      <IdCard className="h-3 w-3" /> Profile
+                    </button>
                     <button type="button" onClick={() => setViewingTimecardsFor(cont)} className="flex items-center gap-1 px-2.5 py-1 rounded border border-crm-hairline hover:border-crm-ink/40 text-[10px] font-bold text-crm-body hover:bg-crm-surface-card transition cursor-pointer">
                       <Calendar className="h-3 w-3" /> View History
                     </button>
@@ -550,6 +559,17 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
             </div>
           </div>
         </div>
+      )}
+      {viewingProfileFor && (
+        <TechProfileModal
+          contractor={viewingProfileFor}
+          onClose={() => setViewingProfileFor(null)}
+          onOpenW9={() => void openContractorW9(viewingProfileFor)}
+          onOpenHistory={() => {
+            setViewingTimecardsFor(viewingProfileFor);
+            setViewingProfileFor(null);
+          }}
+        />
       )}
     </div>
   );
