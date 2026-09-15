@@ -86,14 +86,13 @@ const modules: {
   id: Module;
   label: string;
   icon: typeof LayoutDashboard;
-  count?: number;
 }[] = [
   { id: "dashboard", label: "Operations", icon: LayoutDashboard },
   { id: "schedule", label: "Schedule & Dispatch", icon: CalendarDays },
   { id: "customers", label: "Customers & Sites", icon: Users },
-  { id: "quotes", label: "Quotes", icon: FileText, count: 8 },
-  { id: "jobs", label: "Jobs", icon: BriefcaseBusiness, count: 14 },
-  { id: "invoices", label: "Invoices", icon: ReceiptText, count: 6 },
+  { id: "quotes", label: "Quotes", icon: FileText },
+  { id: "jobs", label: "Jobs", icon: BriefcaseBusiness },
+  { id: "invoices", label: "Invoices", icon: ReceiptText },
   { id: "catalog", label: "Materials & Stock", icon: Boxes },
   { id: "assets", label: "Customer Assets", icon: Wrench },
   { id: "reports", label: "Reports", icon: BarChart3 },
@@ -104,6 +103,34 @@ const modules: {
   { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
   { id: "requests", label: "Client Requests", icon: Inbox },
 ];
+
+// Groups the flat `modules` list above into labeled sidebar sections
+// (audited: a flat 15-item list had no visual hierarchy at all).
+// Each id must exist in `modules`; order within a group is preserved.
+const moduleGroups: { label: string; ids: Module[] }[] = [
+  { label: "Operations", ids: ["dashboard", "schedule", "jobs"] },
+  { label: "Sales & Billing", ids: ["quotes", "invoices", "customers", "assets"] },
+  { label: "Inventory", ids: ["catalog"] },
+  { label: "Team", ids: ["contractors", "timecards"] },
+  { label: "Client", ids: ["requests"] },
+  { label: "Insights & Admin", ids: ["reports", "reminders", "audit", "tickets"] },
+];
+
+// The header/sidebar "Create new" button dispatches to the one action that
+// actually matches the module you're looking at, instead of silently
+// defaulting to "create a job" everywhere except Customers (the bug this
+// fixes: clicking it on Invoices used to open a job-creation modal).
+// Modules not listed here already have their own dedicated create control
+// inside the view itself (e.g. Materials & Stock's "+ Add catalog item"),
+// or have nothing to create (Reports, Audit Trail, Timecard Approval) — the
+// generic button is hidden for those rather than guessing.
+const createActionByModule: Partial<Record<Module, { label: string }>> = {
+  dashboard: { label: "Add job" },
+  jobs: { label: "Add job" },
+  customers: { label: "New customer" },
+  quotes: { label: "New quote" },
+  assets: { label: "New asset" },
+};
 const tones: Record<string, string> = {
   sky: "border-crm-accent/20 bg-crm-accent/10 text-crm-accent",
   orange: "border-crm-warning/20 bg-crm-warning/10 text-crm-warning",
@@ -508,6 +535,20 @@ export default function CRM() {
     setMobileNav(false);
   };
 
+  // Dispatches "Create new" to whatever the current module actually means by
+  // it (see createActionByModule above) instead of always opening the job
+  // modal. No-ops for modules with no mapped action -- those hide the button.
+  const handleCreateNew = () => {
+    if (module === "customers") return setCreateType("customer");
+    if (module === "quotes") return setQuoteOpen(true);
+    if (module === "assets") return setAssetOpen(true);
+    if (createActionByModule[module]) return setCreateType("job");
+  };
+
+  const confirmSignOut = () => {
+    if (confirm("Sign out of the CRM?")) void signOut(auth);
+  };
+
   const submitLogin = async (event: FormEvent) => {
     event.preventDefault();
     setIsSigningIn(true);
@@ -572,20 +613,23 @@ export default function CRM() {
           </label>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setCreateType("job")}
-            className="hidden items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:flex"
-          >
-            <Plus className="h-3.5 w-3.5" /> Quick create
-          </button>
-          <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
+          {createActionByModule[module] && (
+            <button
+              onClick={handleCreateNew}
+              className="hidden items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:flex"
+            >
+              <Plus className="h-3.5 w-3.5" /> {createActionByModule[module]!.label}
+            </button>
+          )}
+          <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" aria-label="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
             <Settings className="h-4 w-4" />
           </a>
           <CrmThemeToggle theme={crmTheme} onToggle={toggleCrmTheme} />
           <button
-            onClick={() => void signOut(auth)}
+            onClick={confirmSignOut}
             className="grid h-8 w-8 place-items-center rounded-full bg-crm-primary text-[10px] font-bold text-crm-on-primary"
             title="Sign out"
+            aria-label="Sign out"
           >
             TT
           </button>
@@ -595,37 +639,50 @@ export default function CRM() {
         <aside
           className={`${mobileNav ? "fixed inset-y-16 left-0 z-30 flex" : "hidden"} w-64 flex-col border-r border-crm-hairline bg-crm-canvas shadow-xl lg:static lg:flex lg:shadow-none`}
         >
-          <div className="border-b border-crm-hairline-soft p-3">
-            <button
-              onClick={() =>
-                setCreateType(module === "customers" ? "customer" : "job")
-              }
-              className="flex w-full items-center justify-between rounded-lg bg-crm-primary px-3 py-2.5 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
-            >
-              <span className="flex items-center gap-2">
-                <Plus className="h-4 w-4" /> Create new
-              </span>
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-            {modules.map(({ id, label, icon: Icon }) => {
-              const count = id === 'jobs' ? liveJobs.length : id === 'quotes' ? liveQuotes.length : id === 'invoices' ? liveInvoices.length : undefined;
-              return (
+          {createActionByModule[module] && (
+            <div className="border-b border-crm-hairline-soft p-3">
               <button
-                key={id}
-                onClick={() => go(id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium ${module === id ? "bg-crm-surface-card text-crm-ink" : "text-crm-muted hover:bg-crm-surface-soft"}`}
+                onClick={handleCreateNew}
+                className="flex w-full items-center justify-between rounded-lg bg-crm-primary px-3 py-2.5 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
               >
-                <Icon className="h-4 w-4" />
-                <span className="flex-1">{label}</span>
-                {count ? (
-                  <span className="rounded-full bg-crm-surface-strong px-2 py-0.5 text-[10px] text-crm-muted">
-                    {count}
-                  </span>
-                ) : null}
+                <span className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" /> {createActionByModule[module]!.label}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
-            ); })}
+            </div>
+          )}
+          <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+            {moduleGroups.map((group) => (
+              <div key={group.label}>
+                <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-crm-muted-soft">
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.ids.map((id) => {
+                    const item = modules.find((m) => m.id === id);
+                    if (!item) return null;
+                    const Icon = item.icon;
+                    const count = id === 'jobs' ? liveJobs.length : id === 'quotes' ? liveQuotes.length : id === 'invoices' ? liveInvoices.length : undefined;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => go(id)}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium ${module === id ? "bg-crm-surface-card text-crm-ink" : "text-crm-muted hover:bg-crm-surface-soft"}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="flex-1">{item.label}</span>
+                        {count ? (
+                          <span className="rounded-full bg-crm-surface-strong px-2 py-0.5 text-[10px] text-crm-muted">
+                            {count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
           <div className="border-t border-crm-hairline-soft p-4">
             <div className="flex items-center gap-2 text-[11px] text-crm-muted">
@@ -651,15 +708,14 @@ export default function CRM() {
                 <button onClick={() => go('reports')} className="flex items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft">
                   <Archive className="h-3.5 w-3.5" /> Export
                 </button>
-                <button
-                  onClick={() =>
-                    setCreateType(module === "customers" ? "customer" : "job")
-                  }
-                  className="flex items-center gap-2 rounded-lg bg-crm-primary px-3 py-2 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add{" "}
-                  {module === "customers" ? "customer" : "job"}
-                </button>
+                {createActionByModule[module] && (
+                  <button
+                    onClick={handleCreateNew}
+                    className="flex items-center gap-2 rounded-lg bg-crm-primary px-3 py-2 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {createActionByModule[module]!.label}
+                  </button>
+                )}
               </div>
             </div>
           </div>
