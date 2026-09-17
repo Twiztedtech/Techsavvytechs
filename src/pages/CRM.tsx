@@ -14,7 +14,6 @@ import {
   ClipboardCheck,
   Clock3,
   FileText,
-  Gauge,
   HardHat,
   Inbox,
   LayoutDashboard,
@@ -589,17 +588,10 @@ export default function CRM() {
           {mobileNav ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
         <div className="flex items-center gap-3 border-r border-crm-hairline pr-4">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-crm-primary text-crm-on-primary">
-            <Gauge className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-crm-ink">
-              TechSavvy
-            </p>
-            <p className="text-[10px] uppercase tracking-[.18em] text-crm-muted">
-              Field Operations
-            </p>
-          </div>
+          <img src="/logo-techsavvy.svg" alt="TechSavvy" className="h-7 w-auto" />
+          <p className="hidden text-[10px] uppercase tracking-[.18em] text-crm-muted sm:block">
+            Field Operations
+          </p>
         </div>
         <div className="hidden flex-1 items-center px-5 md:flex">
           <label className="flex w-full max-w-xl items-center gap-2 rounded-lg border border-crm-hairline bg-crm-surface-soft px-3 py-2">
