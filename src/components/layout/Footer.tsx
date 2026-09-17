@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router';
-import { Logo } from '../Logo';
 import { Mail, Phone } from 'lucide-react';
 
 export const Footer = () => {
@@ -10,7 +9,7 @@ export const Footer = () => {
       
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-16">
         <div className="col-span-2">
-          <Logo variant="horizontal" className="mb-8" />
+          <img src="/logo-techsavvy.svg" alt="TechSavvy LLC" className="mb-8 h-14 w-auto rounded-sm" />
           <p className="text-slate-500 text-sm max-w-sm leading-relaxed mb-10 font-light">
             Providing high-performance technical infrastructure for Sacramento and Bay Area businesses. 
             From the data center to the device, we ensure your tech is an asset, not a burden.

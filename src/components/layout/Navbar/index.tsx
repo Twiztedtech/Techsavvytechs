@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Logo } from '../../Logo';
 import { Button } from '../../ui/Button';
 import { NavItem, NavDropdownItem } from './NavItem';
 import { Link } from 'react-router';
@@ -14,7 +13,7 @@ export const Navbar = () => {
     <nav className="sticky top-0 z-50 bg-brand-black/80 backdrop-blur-md border-b border-white/5">
       <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
         <Link to="/">
-          <Logo variant="horizontal" className="scale-90 md:scale-100 origin-left" />
+          <img src="/logo-techsavvy.svg" alt="TechSavvy LLC" className="h-12 w-auto rounded-sm md:h-14" />
         </Link>
         
         <div className="hidden lg:flex items-center gap-6 font-mono text-[12px] uppercase tracking-[0.16em] text-slate-400 h-full">
