@@ -303,6 +303,20 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                   <CrmBadge tone={entry.status === "voided" ? "neutral" : entry.status === "approved" ? "success" : entry.status === "rejected" ? "error" : "neutral"}>{entry.status}</CrmBadge>
                 </div>
                 <div className="text-sm font-semibold text-crm-ink">{entry.jobSite}</div>
+                {(entry.clockInLocation || entry.clockOutLocation) && (
+                  <div className="flex gap-3 text-[11px]">
+                    {entry.clockInLocation && (
+                      <a href={`https://www.google.com/maps?q=${entry.clockInLocation.lat},${entry.clockInLocation.lng}`} target="_blank" rel="noreferrer" className="text-crm-accent hover:underline">
+                        📍 Clock-in location
+                      </a>
+                    )}
+                    {entry.clockOutLocation && (
+                      <a href={`https://www.google.com/maps?q=${entry.clockOutLocation.lat},${entry.clockOutLocation.lng}`} target="_blank" rel="noreferrer" className="text-crm-accent hover:underline">
+                        📍 Clock-out location
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div className="text-[11px] text-crm-muted font-mono">{techEmail}</div>
                 <div className="flex gap-2 items-center mt-1">
                   <span className="text-[11px] text-crm-muted">QBO status:</span>

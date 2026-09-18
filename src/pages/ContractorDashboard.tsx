@@ -8,6 +8,7 @@ import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
 import { TechSelfProfile } from '../features/contractor/profile/TechSelfProfile';
 import { MyCrewPanel } from '../features/contractor/crew/MyCrewPanel';
+import { JobMessagesPanel } from '../features/contractor/messages/JobMessagesPanel';
 import type { SelfProfile } from '../features/contractor/types';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
@@ -316,6 +317,19 @@ export default function ContractorDashboard() {
     ['tst_job_sites', 'tst_time_entries', 'tst_job_sites_viewed_at', 'tst_support_tickets'].forEach((key) => localStorage.removeItem(key));
   }, []);
 
+  // Best-effort GPS stamp for clock-in/out. Never blocks the action it's
+  // attached to -- a denied permission, timeout, or unsupported browser just
+  // means no location gets recorded, not a failed clock-in/out.
+  const captureLocation = (): Promise<{ lat: number; lng: number; accuracy?: number } | undefined> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(undefined);
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy }),
+        () => resolve(undefined),
+        { timeout: 8000, maximumAge: 60000 },
+      );
+    });
+
   const handleStartShift = async () => {
     const now = new Date();
     const formattedTime = now.toTimeString().slice(0, 5);
@@ -326,8 +340,9 @@ export default function ContractorDashboard() {
     }
 
     try {
+      const location = await captureLocation();
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'start', jobId: selectedJobObj.id }) });
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'start', jobId: selectedJobObj.id, location }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not start the time clock.');
       setActiveShift({ isClockedIn: true, startTime: data.entry.clockIn, jobName: currentName, elapsedSeconds: 0 });
@@ -341,8 +356,9 @@ export default function ContractorDashboard() {
 
   const handleStopShift = async () => {
     try {
+      const location = await captureLocation();
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'stop' }) });
+      const response = await fetch('/api/portal/time-clock', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'stop', location }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not stop the time clock.');
       setClockOut(data.entry.clockOut);
@@ -1001,6 +1017,12 @@ export default function ContractorDashboard() {
                       )}
                     </div>
                   </div>
+
+                  {selectedJobObj?.id && !isCustomJob && (
+                    <div className="mb-6">
+                      <JobMessagesPanel jobId={selectedJobObj.id} />
+                    </div>
+                  )}
 
                   {/* FORM SECTION */}
                   <form onSubmit={handleSubmitLog} className="space-y-4">

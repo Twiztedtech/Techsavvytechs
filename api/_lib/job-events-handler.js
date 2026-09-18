@@ -1,16 +1,24 @@
 import { adminAuth, adminDb } from './firebase-admin.js';
 import { clean, clientRecipients, nowIso, recordEvent, sendEmail, sendSms, syncCalendarAppointment } from './client-portal.js';
 
+// Dispatcher and Assistant Admin can use the internal messaging thread on
+// this handler (see the RBAC plan's messaging design); Office/Billing was
+// never asked for here and stays out. Admin is always privileged separately.
+const MESSAGING_STAFF_ROLES = new Set(['assistant_admin', 'dispatcher']);
+const isPrivilegedCaller = (user) => user.admin === true || MESSAGING_STAFF_ROLES.has(user.staffRole);
+
 async function portalUser(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) throw Object.assign(new Error('Authentication required.'), { statusCode: 401 });
   const user = await adminAuth.verifyIdToken(token);
-  if (user.admin !== true && user.contractor !== true) throw Object.assign(new Error('Contractor Portal access is required.'), { statusCode: 403 });
+  if (user.admin !== true && user.contractor !== true && !MESSAGING_STAFF_ROLES.has(user.staffRole)) {
+    throw Object.assign(new Error('Contractor Portal access is required.'), { statusCode: 403 });
+  }
   return user;
 }
 
 async function contractorFor(user) {
-  if (user.admin === true) return null;
+  if (isPrivilegedCaller(user)) return null;
   const snapshot = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
   if (snapshot.empty) throw Object.assign(new Error('Contractor profile is not linked.'), { statusCode: 403 });
   return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
@@ -19,7 +27,7 @@ async function contractorFor(user) {
 async function assignedJob(user, contractor, jobId) {
   const job = await adminDb.collection('jobs').doc(jobId).get();
   if (!job.exists) throw Object.assign(new Error('Job not found.'), { statusCode: 404 });
-  if (user.admin !== true) {
+  if (!isPrivilegedCaller(user)) {
     const assigned = Array.isArray(job.data().assignedTechIds) ? job.data().assignedTechIds : [job.data().assignedTechId || 'ALL'];
     if (!assigned.includes('ALL') && !assigned.includes(contractor.id)) throw Object.assign(new Error('You are not assigned to this job.'), { statusCode: 403 });
   }
@@ -72,6 +80,75 @@ async function respondReschedule(req, res, user, contractor) {
   return res.status(200).json({ success: true, status: 'scheduled' });
 }
 
+// Technician-assigned contractor emails for a job, used to ping the crew
+// about a new internal note the same way client-visible updates already
+// email the customer.
+async function assignedContractorEmails(job) {
+  const ids = Array.isArray(job.data().assignedTechIds) ? job.data().assignedTechIds : [job.data().assignedTechId].filter(Boolean);
+  if (!ids.length || ids.includes('ALL')) return [];
+  const snapshots = await Promise.all(ids.map((id) => adminDb.collection('contractors').doc(id).get()));
+  return snapshots.filter((doc) => doc.exists && doc.data().email).map((doc) => doc.data().email);
+}
+
+async function listMessages(req, res, user, contractor) {
+  const jobId = clean(req.query?.jobId, 120);
+  await assignedJob(user, contractor, jobId);
+  const privileged = isPrivilegedCaller(user);
+  const snapshot = await adminDb.collection('job_messages').where('jobId', '==', jobId).get();
+  const messages = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((message) => (privileged ? ['internal', 'client', 'portal', 'email'].includes(message.visibility) : message.visibility === 'internal'))
+    .sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')));
+  return res.status(200).json({ messages });
+}
+
+async function sendMessage(req, res, user, contractor) {
+  const jobId = clean(req.body?.jobId, 120);
+  const job = await assignedJob(user, contractor, jobId);
+  const message = clean(req.body?.message, 5000);
+  if (!message) return res.status(422).json({ error: 'A message is required.' });
+
+  const isAdmin = user.admin === true;
+  const isAssistantAdmin = user.staffRole === 'assistant_admin';
+  const isDispatcher = user.staffRole === 'dispatcher';
+  const canSendClientVisible = isAdmin || isAssistantAdmin;
+  // Never trust the caller's requested visibility -- a Dispatcher or a
+  // technician can only ever post internally, no matter what they send.
+  const visibility = req.body?.visibility === 'client' && canSendClientVisible ? 'client' : 'internal';
+  const authorRole = isAdmin ? 'admin' : isAssistantAdmin ? 'assistant_admin' : isDispatcher ? 'dispatcher' : 'contractor';
+  const authorName = contractor?.name || user.email || authorRole;
+  const now = nowIso();
+
+  const ref = await adminDb.collection('job_messages').add({
+    jobId, message, visibility, authorRole, authorUid: user.uid, authorName, source: 'portal', createdAt: now,
+  });
+  await recordEvent({ jobId, type: 'message_posted', actorUid: user.uid, actorRole: authorRole, visibility, message: message.slice(0, 200) });
+
+  if (visibility === 'client') {
+    const recipients = await clientRecipients(jobId);
+    await Promise.allSettled(recipients.map((recipient) => sendEmail({
+      to: recipient.email, subject: `New message on your ${job.data().workOrderNumber || 'job'}`,
+      text: message, html: `<p>${message}</p>`, jobId, type: 'admin_message',
+    })));
+  } else if (isPrivilegedCaller(user)) {
+    // Admin/Dispatcher posted an internal note -- ping the assigned crew.
+    const emails = await assignedContractorEmails(job);
+    await Promise.allSettled(emails.map((email) => sendEmail({
+      to: email, subject: `New team note on ${job.data().workOrderNumber || 'your job'}`,
+      text: message, html: `<p>${message}</p>`, jobId, type: 'internal_message',
+    })));
+  } else {
+    // A technician posted an internal note -- ping the office.
+    const alertEmails = process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(',') || [process.env.SUPPORT_EMAIL].filter(Boolean);
+    await sendEmail({
+      to: alertEmails, subject: `${job.data().workOrderNumber || 'Job'}: new note from ${authorName}`,
+      text: message, html: `<p>${message}</p>`, jobId, type: 'internal_message',
+    }).catch(() => {});
+  }
+
+  return res.status(201).json({ id: ref.id, jobId, message, visibility, authorRole, authorName, createdAt: now });
+}
+
 async function listAppointments(req, res, user, contractor) {
   const jobId = clean(req.query?.jobId, 120);
   await assignedJob(user, contractor, jobId);
@@ -87,6 +164,8 @@ export default async function handler(req, res) {
     if (req.method === 'GET' && action === 'appointments') return await listAppointments(req, res, user, contractor);
     if (req.method === 'POST' && action === 'progress') return await createProgress(req, res, user, contractor);
     if (req.method === 'POST' && action === 'reschedule-response') return await respondReschedule(req, res, user, contractor);
+    if (req.method === 'GET' && action === 'messages') return await listMessages(req, res, user, contractor);
+    if (req.method === 'POST' && action === 'messages') return await sendMessage(req, res, user, contractor);
     return res.status(404).json({ error: 'Job event operation not found.' });
   } catch (error) {
     console.error('Portal job event error:', error);

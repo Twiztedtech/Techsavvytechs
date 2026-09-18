@@ -130,6 +130,17 @@ const signatureFor = (contractor) => {
 
 const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
 
+// A clock-in/out GPS stamp is optional and must never block the action it's
+// attached to -- a denied permission, an unsupported browser, or a junk
+// payload all just result in no location being recorded, not a 4xx.
+const cleanLocation = (value) => {
+  const lat = Number(value?.lat);
+  const lng = Number(value?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  const accuracy = Number(value?.accuracy);
+  return { lat, lng, ...(Number.isFinite(accuracy) ? { accuracy } : {}), capturedAt: new Date().toISOString() };
+};
+
 const timeEntryFullyApproved = (entry) => {
   const checks = [
     [Number(entry.totalHours || 0) > 0, entry.laborStatus],
@@ -729,6 +740,7 @@ export default async function handler(req, res) {
         notes: '',
         technicianUid: user.uid,
         active: true,
+        clockInLocation: cleanLocation(req.body?.location),
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -764,7 +776,7 @@ export default async function handler(req, res) {
       // enough to plausibly include one, matching the manual log form's default.
       const breakMinutes = rawHours > 5 ? 30 : 0;
       const totalHours = Math.max(0, rawHours - breakMinutes / 60).toFixed(2);
-      const update = { clockOut: businessClock(ended), clockOutAt: ended.toISOString(), breakMinutes, totalHours, active: false, updatedAt: ended.toISOString() };
+      const update = { clockOut: businessClock(ended), clockOutAt: ended.toISOString(), breakMinutes, totalHours, active: false, clockOutLocation: cleanLocation(req.body?.location), updatedAt: ended.toISOString() };
       await adminDb.collection('time_entries').doc(activeEntry.id).set(update, { merge: true });
       return res.status(200).json({ entry: { ...activeEntry, ...update } });
     }

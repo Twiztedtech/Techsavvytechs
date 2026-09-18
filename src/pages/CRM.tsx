@@ -58,6 +58,7 @@ import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
+import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { CrmThemeToggle } from "../features/crm/ui";
 import { useCrmTheme } from "../features/crm/theme";
@@ -894,6 +895,8 @@ export default function CRM() {
           timeEntries={billingTimeEntries.filter((entry) => entry.jobId === selectedJob.id)}
           onClose={() => setSelectedJob(null)}
           onPreview={(job) => setPreviewJob(job)}
+          canMessage={access === "admin" || access === "assistant_admin" || access === "dispatcher"}
+          canSendClientVisible={access === "admin" || access === "assistant_admin"}
         />
       )}
       {previewJob && (
@@ -2796,6 +2799,8 @@ function JobDetailModal({
   timeEntries,
   onClose,
   onPreview,
+  canMessage,
+  canSendClientVisible,
 }: {
   job: LiveJob;
   customers: LiveCustomer[];
@@ -2804,6 +2809,8 @@ function JobDetailModal({
   timeEntries: BillingTimeEntry[];
   onClose: () => void;
   onPreview: (job: LiveJob) => void;
+  canMessage: boolean;
+  canSendClientVisible: boolean;
 }) {
   const [form, setForm] = useState({
     name: job.name || "",
@@ -3320,6 +3327,11 @@ function JobDetailModal({
             </b>
           </div>
         </div>
+        {canMessage && (
+          <div className="mt-6">
+            <CrmJobMessagesPanel jobId={job.id} canSendClientVisible={canSendClientVisible} />
+          </div>
+        )}
         <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-2 border-t border-crm-hairline-soft bg-crm-canvas py-4">
           {job.status !== "voided" ? (
             <button

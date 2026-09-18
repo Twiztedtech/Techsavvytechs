@@ -102,6 +102,20 @@ export function MyCrewPanel() {
                 <div>
                   <p className="text-sm font-semibold text-slate-100">{entry.technicianName || 'Unknown technician'}</p>
                   <p className="text-[11px] text-slate-500">{entry.jobSite || 'Unknown job'} • {entry.date || 'Unknown date'}</p>
+                  {(entry.clockInLocation || entry.clockOutLocation) && (
+                    <p className="mt-1 flex gap-3 text-[11px]">
+                      {entry.clockInLocation && (
+                        <a href={`https://www.google.com/maps?q=${entry.clockInLocation.lat},${entry.clockInLocation.lng}`} target="_blank" rel="noreferrer" className="text-amber-400 hover:underline">
+                          📍 Clock-in
+                        </a>
+                      )}
+                      {entry.clockOutLocation && (
+                        <a href={`https://www.google.com/maps?q=${entry.clockOutLocation.lat},${entry.clockOutLocation.lng}`} target="_blank" rel="noreferrer" className="text-amber-400 hover:underline">
+                          📍 Clock-out
+                        </a>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
