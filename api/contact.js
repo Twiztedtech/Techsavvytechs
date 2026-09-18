@@ -379,7 +379,23 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
   const preferences = customer.reminderPreferences || {};
   if (!manual && (preferences.enabled === false || preferences[type] === false)) return { skipped: "opted-out" };
   const today = new Date().toISOString().slice(0, 10);
-  const cycle = type === "appointment" ? entity.schedule?.date || entity.targetCompletion || today : type === "maintenance" ? entity.maintenance?.nextServiceDate || today : `${today.slice(0, 8)}${String(Math.floor((Number(today.slice(8, 10)) - 1) / 7) + 1)}`;
+  // Invoices escalate as they age: a fresh nudge weekly, then firmer wording
+  // once it's clearly being ignored, then urgent (with the office CC'd so a
+  // human steps in) and a faster cadence once it's seriously overdue.
+  let invoiceEscalation = null;
+  let cycle;
+  if (type === "invoice") {
+    const daysOverdue = entity.dueDate ? Math.max(0, Math.floor((Date.now() - new Date(`${entity.dueDate}T00:00:00`).getTime()) / 86400000)) : 0;
+    invoiceEscalation = daysOverdue >= 30 ? "urgent" : daysOverdue >= 14 ? "firm" : "gentle";
+    const cadenceDays = invoiceEscalation === "urgent" ? 3 : 7;
+    cycle = `overdue${Math.floor(daysOverdue / cadenceDays)}`;
+  } else if (type === "appointment") {
+    cycle = entity.schedule?.date || entity.targetCompletion || today;
+  } else if (type === "maintenance") {
+    cycle = entity.maintenance?.nextServiceDate || today;
+  } else {
+    cycle = `${today.slice(0, 8)}${String(Math.floor((Number(today.slice(8, 10)) - 1) / 7) + 1)}`;
+  }
   const deliveryId = `${type}_${entityId}_${manual ? `manual_${Date.now()}` : cycle}`.replace(/[^a-zA-Z0-9_-]/g, "_");
   const deliveryRef = adminDb.collection("reminder_deliveries").doc(deliveryId);
   const existingDelivery = await deliveryRef.get();
@@ -400,19 +416,33 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
     }
     const number = entity.quoteNumber || entity.invoiceNumber || entity.workOrderNumber || entity.name || entityId;
     const amount = Number(entity.balance ?? entity.total ?? 0);
-    const detail = type === "appointment" ? `Scheduled for ${entity.schedule?.date || entity.targetCompletion || "the planned service date"}${entity.schedule?.start ? ` at ${entity.schedule.start}` : ""}.` : type === "quote" ? `Your quote ${number} for ${amount.toLocaleString("en-US", { style: "currency", currency: "USD" })} is awaiting your decision.` : type === "invoice" ? `Invoice ${number} has an outstanding balance of ${amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}.` : `${entity.name || "Your equipment"} is due for recurring maintenance on ${entity.maintenance?.nextServiceDate || "the upcoming service date"}.`;
-    const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: `Reminder: TechSavvy invoice ${number} is overdue`, maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
+    const formattedAmount = amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    const invoiceDetailByStage = {
+      gentle: `Just a friendly reminder that invoice ${number} has an outstanding balance of ${formattedAmount}, due ${entity.dueDate || "recently"}.`,
+      firm: `Invoice ${number} remains unpaid — the outstanding balance of ${formattedAmount} was due ${entity.dueDate || "recently"} and is now past due. Please remit payment at your earliest convenience.`,
+      urgent: `Invoice ${number} is seriously past due. The outstanding balance of ${formattedAmount} (due ${entity.dueDate || "recently"}) requires immediate payment. Please contact us right away if there's an issue we should know about.`,
+    };
+    const detail = type === "appointment" ? `Scheduled for ${entity.schedule?.date || entity.targetCompletion || "the planned service date"}${entity.schedule?.start ? ` at ${entity.schedule.start}` : ""}.` : type === "quote" ? `Your quote ${number} for ${formattedAmount} is awaiting your decision.` : type === "invoice" ? invoiceDetailByStage[invoiceEscalation] : `${entity.name || "Your equipment"} is due for recurring maintenance on ${entity.maintenance?.nextServiceDate || "the upcoming service date"}.`;
+    const invoiceSubjectByStage = {
+      gentle: `Reminder: TechSavvy invoice ${number} is overdue`,
+      firm: `Please remit payment — TechSavvy invoice ${number}`,
+      urgent: `Payment required — TechSavvy invoice ${number}`,
+    };
+    const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: type === "invoice" ? invoiceSubjectByStage[invoiceEscalation] : "", maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
     const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
     const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+    // Once an invoice is seriously overdue, loop the office in on every
+    // escalation email so a human knows to step in and follow up directly.
+    const ccAddresses = invoiceEscalation === "urgent" ? (process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") || [supportEmail]) : undefined;
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `techsavvy-${deliveryId}`, "User-Agent": "TechSavvy-CRM/1.0" },
-      body: JSON.stringify({ from: sender, reply_to: supportEmail, to: [email], subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
+      body: JSON.stringify({ from: sender, reply_to: supportEmail, to: [email], ...(ccAddresses ? { cc: ccAddresses } : {}), subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
     });
     if (!response.ok) throw new Error("Reminder email failed: " + (await response.text()));
     const result = await response.json();
-    await deliveryRef.set({ status: "sent", emailId: result.id, sentAt: new Date().toISOString() }, { merge: true });
-    await writeAudit({ actor: actor || { email: "Scheduled reminder" }, action: manual ? "reminder-sent-manually" : "reminder-sent", entityType: type, entityId, summary: `Sent ${type} reminder to ${email}`, details: { deliveryId, email }, source: manual ? "crm" : "scheduled-reminder" });
+    await deliveryRef.set({ status: "sent", emailId: result.id, sentAt: new Date().toISOString(), ...(invoiceEscalation ? { escalation: invoiceEscalation } : {}) }, { merge: true });
+    await writeAudit({ actor: actor || { email: "Scheduled reminder" }, action: manual ? "reminder-sent-manually" : "reminder-sent", entityType: type, entityId, summary: invoiceEscalation ? `Sent ${invoiceEscalation} invoice reminder to ${email}` : `Sent ${type} reminder to ${email}`, details: { deliveryId, email, ...(invoiceEscalation ? { escalation: invoiceEscalation } : {}) }, source: manual ? "crm" : "scheduled-reminder" });
     return { sent: true, deliveryId };
   } catch (error) {
     await deliveryRef.set({ status: "failed", error: error.message, failedAt: new Date().toISOString() }, { merge: true });
