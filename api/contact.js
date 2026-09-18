@@ -368,22 +368,43 @@ async function createPortalServiceRequest(req, res) {
   if (!subject || !message || !address || !preferredDate)
     return res.status(400).json({ error: "Please add a subject, site address, preferred date, and scope summary." });
   const createdAt = new Date().toISOString();
-  const request = adminDb.collection("contacts").doc();
+  const customer = customerSnapshot.data();
+  // Writes to vendor_requests (the same collection BookJob.tsx/ClientPortal.tsx
+  // use) instead of the old standalone `contacts` doc, so this request shows
+  // up in the CRM's Client Requests admin screen and can actually be
+  // converted into a job -- previously it wrote to `contacts`, which no admin
+  // screen reads, so these requests silently went nowhere.
+  const request = adminDb.collection("vendor_requests").doc();
   const attachments = await uploadInlineFiles(req.body?.attachments, request.id);
+  const requestNumber = `TS-${new Date().getUTCFullYear()}-${Date.now().toString().slice(-7)}`;
   await request.set({
-    type: "customer-portal-service-request",
-    name: customerSnapshot.data()?.name,
+    requestNumber,
+    companyName: customer?.name || "",
     customerId: customerSnapshot.id,
-    email: access.email,
-    subject, message, site: site || address, siteName: site || subject, address, siteContact, clientReference, serviceType,
-    scopeSummary: message, scopeTasks: scopeTasks.length ? scopeTasks : [message], equipment, deliverables, requiredDeliverables, accessInstructions, safetyRequirements, attachments,
-    preferredDate,
-    status: "New",
+    createdByClientUid: "",
+    requesterName: customer?.contact || customer?.name || "",
+    requesterEmail: access.email,
+    requesterPhone: customer?.phone || "",
+    clientReference,
+    siteName: site || subject,
+    address,
+    siteContact,
+    accessInstructions: safetyRequirements ? `${accessInstructions}${accessInstructions ? "\n\n" : ""}Safety requirements: ${safetyRequirements}` : accessInstructions,
+    serviceType,
+    scopeSummary: message,
+    scopeTasks: scopeTasks.length ? scopeTasks : [message],
+    equipment,
+    deliverables: requiredDeliverables,
+    requiredDeliverables,
+    attachments,
+    requestedWindows: [{ date: preferredDate, start: "", end: "" }],
+    status: "requested",
+    urgent: false,
     createdAt,
-    deliveryStatus: "portal",
+    source: "customer-portal",
   });
   await writeAudit({ actor: { email: access.email }, action: "service-requested", entityType: "customer", entityId: customerSnapshot.id, summary: `Customer submitted service request: ${subject}`, details: { requestId: request.id, site, preferredDate }, source: "customer-portal" });
-  return res.status(201).json({ success: true, requestId: request.id });
+  return res.status(201).json({ success: true, requestId: request.id, requestNumber });
 }
 
 async function deliverReminder({ type, entityId, entity, customer, actor, manual = false }) {

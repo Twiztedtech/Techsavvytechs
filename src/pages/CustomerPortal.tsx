@@ -59,7 +59,7 @@ export default function CustomerPortal() {
       const response = await fetch("/api/contact?operation=portal-service-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...request, scopeTasks, requiredDeliverables: deliverables, equipment, attachments }) });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || "The service request could not be sent.");
-      setSubmittedRequestNumber(`CP-${String(value.requestId || "").slice(-6).toUpperCase()}`); setSent(true); setRequest(emptyRequest); setScopeTasks([""]); setDeliverables([]); setDeliverableDetail(""); setEquipment([{ description: "", quantity: "", notes: "", fulfillmentSource: "customer_shipped" }]); setRequestFiles([]);
+      setSubmittedRequestNumber(value.requestNumber || `CP-${String(value.requestId || "").slice(-6).toUpperCase()}`); setSent(true); setRequest(emptyRequest); setScopeTasks([""]); setDeliverables([]); setDeliverableDetail(""); setEquipment([{ description: "", quantity: "", notes: "", fulfillmentSource: "customer_shipped" }]); setRequestFiles([]);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "The service request could not be sent."); }
     finally { setSending(false); }
   };

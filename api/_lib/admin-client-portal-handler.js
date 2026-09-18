@@ -245,9 +245,22 @@ async function convertRequest(req, res, admin) {
       .status(409)
       .json({ error: "This request already has a work order." });
   const request = snapshot.data();
-  const customerMatches = await adminDb.collection('customers').where('name', '==', request.companyName).get();
-  if (customerMatches.size > 1) return res.status(409).json({ error: 'Multiple CRM customers match this company. Resolve the duplicate customer records before converting.' });
-  const customerRef = customerMatches.empty ? adminDb.collection('customers').doc() : customerMatches.docs[0].ref;
+  // A request that already knows its customer (e.g. submitted through the
+  // logged-in customer portal) is linked directly -- the fragile name-match
+  // fallback below is only for anonymous/public booking-form requests that
+  // never had a customerId to begin with.
+  let customerRef;
+  let customerExists = false;
+  if (request.customerId) {
+    const existing = await adminDb.collection('customers').doc(request.customerId).get();
+    customerRef = adminDb.collection('customers').doc(request.customerId);
+    customerExists = existing.exists;
+  } else {
+    const customerMatches = await adminDb.collection('customers').where('name', '==', request.companyName).get();
+    if (customerMatches.size > 1) return res.status(409).json({ error: 'Multiple CRM customers match this company. Resolve the duplicate customer records before converting.' });
+    customerRef = customerMatches.empty ? adminDb.collection('customers').doc() : customerMatches.docs[0].ref;
+    customerExists = !customerMatches.empty;
+  }
   const deliverables = Array.isArray(request.deliverables) ? request.deliverables : String(request.deliverables || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const jobRef = adminDb.collection("jobs").doc();
   const workOrderNumber =
@@ -319,7 +332,7 @@ async function convertRequest(req, res, admin) {
     updatedAt: nowIso(),
   };
   const batch = adminDb.batch();
-  if (customerMatches.empty) batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], createdAt: nowIso(), updatedAt: nowIso() });
+  if (!customerExists) batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], createdAt: nowIso(), updatedAt: nowIso() }, { merge: true });
   batch.set(jobRef, job);
   batch.set(adminDb.collection("scope_versions").doc(`${jobRef.id}_1`), {
     jobId: jobRef.id,
