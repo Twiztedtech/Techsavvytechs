@@ -7,12 +7,18 @@ import jobEventsHandler from '../_lib/job-events-handler.js';
 import { businessDate, businessClock } from '../_lib/business-time.js';
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 
+// Assistant Admin gets the same standing as a full Admin inside this file —
+// the RBAC role matrix grants it full Timecard Approval access, which means
+// the same visibility across every technician's entries/actions that Admin
+// already has here, not just the technician's own data.
+const isAdminTier = (user) => user.admin === true || user.staffRole === 'assistant_admin';
+
 const getUser = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) throw new Error('Authentication required.');
   const user = await adminAuth.verifyIdToken(token);
-  if (user.admin !== true && user.contractor !== true) throw new Error('Contractor Portal access is required.');
-  if (user.admin !== true) {
+  if (!isAdminTier(user) && user.contractor !== true) throw new Error('Contractor Portal access is required.');
+  if (!isAdminTier(user)) {
     const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
     if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
     const data = contractor.docs[0].data();
@@ -25,7 +31,7 @@ const getUser = async (req) => {
 
 const workOrdersFor = async (user) => {
   const jobs = await adminDb.collection('jobs').get();
-  if (user.admin === true) return jobs.docs;
+  if (isAdminTier(user)) return jobs.docs;
   const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
   if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
   const contractorId = contractor.docs[0].id;
@@ -37,11 +43,19 @@ const workOrdersFor = async (user) => {
 };
 
 const entriesFor = async (user) => {
-  const snapshot = user.admin === true
+  const isLead = !isAdminTier(user) && user.technicianLead === true;
+  let leadJobIds = null;
+  if (isLead) {
+    const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
+    if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
+    const jobsSnapshot = await adminDb.collection('jobs').where('technicianLeadId', '==', contractor.docs[0].id).get();
+    leadJobIds = new Set(jobsSnapshot.docs.map((jobDoc) => jobDoc.id));
+  }
+  const snapshot = (isAdminTier(user) || isLead)
     ? await adminDb.collection('time_entries').get()
     : await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).get();
   const contractorByUid = new Map();
-  if (user.admin === true) {
+  if (isAdminTier(user) || isLead) {
     const contractors = await adminDb.collection('contractors').get();
     contractors.docs.forEach((contractor) => {
       const data = contractor.data();
@@ -51,6 +65,7 @@ const entriesFor = async (user) => {
     });
   }
   return snapshot.docs
+    .filter((entry) => !isLead || leadJobIds.has(entry.data().jobId) || entry.data().technicianUid === user.uid)
     .map((entry) => {
       const data = entry.data();
       const contractor = contractorByUid.get(data.technicianUid);
@@ -65,6 +80,27 @@ const entriesFor = async (user) => {
       };
     })
     .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+};
+
+// A Technician Lead can approve/void only their own crew's entries — "crew"
+// means the entry's job has technicianLeadId === the lead's own contractor
+// doc id (see the RBAC plan's Phase 5). Admin always passes; anyone else
+// (including a lead looking at an entry outside their crew) is rejected.
+const requireLeadOrAdmin = async (user, entry) => {
+  if (isAdminTier(user)) return;
+  if (user.technicianLead !== true) {
+    throw Object.assign(new Error('Administrator access required.'), { statusCode: 403 });
+  }
+  const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
+  if (contractor.empty) {
+    throw Object.assign(new Error('Your contractor profile is not linked to this account.'), { statusCode: 403 });
+  }
+  const leadId = contractor.docs[0].id;
+  if (!entry.jobId) throw Object.assign(new Error('This time entry is outside your crew.'), { statusCode: 403 });
+  const job = await adminDb.collection('jobs').doc(entry.jobId).get();
+  if (!job.exists || job.data().technicianLeadId !== leadId) {
+    throw Object.assign(new Error('This time entry is outside your crew.'), { statusCode: 403 });
+  }
 };
 
 const onboardingFor = (data) => {
@@ -283,7 +319,7 @@ export default async function handler(req, res) {
     const user = await getUser(req);
     if (req.query?.portalOperation === 'onboarding') return await handleOnboarding(req, res, user);
     if (req.method === 'GET' && req.query?.action === 'notifications') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const jobId = clean(req.query?.jobId, 120);
       if (!jobId) return res.status(400).json({ error: 'jobId is required.' });
       const snapshot = await adminDb.collection('notification_deliveries').where('jobId', '==', jobId).limit(200).get();
@@ -298,7 +334,7 @@ export default async function handler(req, res) {
       // Admin accounts are bootstrapped with both admin and contractor claims.
       // They do not necessarily have a linked contractor document, and the
       // admin timecard response must not depend on one existing.
-      const contractor = user.admin !== true && user.contractor === true
+      const contractor = !isAdminTier(user) && user.contractor === true
         ? await contractorProfileFor(user)
         : null;
       const jobs = await Promise.all(assignedJobs.map(async (job) => {
@@ -346,14 +382,14 @@ export default async function handler(req, res) {
 
     const action = req.body?.action;
     if (action === 'refresh_billing_readiness') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const jobs = await adminDb.collection('jobs').get();
       let ready = 0;
       for (const job of jobs.docs) if (await refreshJobBillingReadiness(job.id)) ready += 1;
       return res.status(200).json({ success: true, checked: jobs.size, ready });
     }
     if (action === 'retry_notification') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const deliveryId = clean(req.body?.deliveryId, 120);
       if (!deliveryId) return res.status(400).json({ error: 'deliveryId is required.' });
       const deliveryRef = adminDb.collection('notification_deliveries').doc(deliveryId);
@@ -524,13 +560,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
     }
     if (action === 'void_timecard') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user) && user.technicianLead !== true) return res.status(403).json({ error: 'Administrator access required.' });
       const reason = cleanReason(req.body?.reason);
       if (!reason) return res.status(422).json({ error: 'A reason is required to void this submission.' });
       const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
       const snapshot = await docRef.get();
       if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
       const entry = snapshot.data();
+      try {
+        await requireLeadOrAdmin(user, entry);
+      } catch (error) {
+        return res.status(error.statusCode || 403).json({ error: error.message });
+      }
       if (entry.active) return res.status(409).json({ error: 'An active shift cannot be voided.' });
       if (entry.qbStatus === 'synced') return res.status(409).json({ error: 'This entry is already synced to QuickBooks and cannot be voided in the portal.' });
       if (entry.status === 'voided') return res.status(409).json({ error: 'This submission is already voided.' });
@@ -554,7 +595,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
     }
     if (action === 'reverse_synced_timecard') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const reason = cleanReason(req.body?.reason);
       if (!reason) return res.status(422).json({ error: 'Explain why this approved submission is being reversed.' });
       const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
@@ -622,7 +663,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
     }
     if (action === 'void_job') {
-      if (user.admin !== true) return res.status(403).json({ error: 'Administrator access required.' });
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const reason = cleanReason(req.body?.reason);
       if (!reason) return res.status(422).json({ error: 'A reason is required to void this work order.' });
       const jobRef = adminDb.collection('jobs').doc(String(req.body?.jobId || ''));
@@ -908,7 +949,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'approve_item') {
-      if (user.admin !== true) {
+      if (!isAdminTier(user) && user.technicianLead !== true) {
         return res.status(403).json({ error: 'Administrator access required.' });
       }
 
@@ -921,6 +962,11 @@ export default async function handler(req, res) {
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
         return res.status(404).json({ error: 'Time entry not found.' });
+      }
+      try {
+        await requireLeadOrAdmin(user, snapshot.data());
+      } catch (error) {
+        return res.status(error.statusCode || 403).json({ error: error.message });
       }
       if (snapshot.data().status === 'voided') {
         return res.status(409).json({ error: 'Voided submissions cannot be approved or changed.' });
@@ -1071,7 +1117,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'retry_qbo_sync') {
-      if (user.admin !== true) {
+      if (!isAdminTier(user)) {
         return res.status(403).json({ error: 'Administrator access required.' });
       }
 
@@ -1157,7 +1203,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'correct_rate') {
-      if (user.admin !== true) {
+      if (!isAdminTier(user)) {
         return res.status(403).json({ error: 'Administrator access required.' });
       }
 
@@ -1190,7 +1236,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, rate: newRate } });
     }
     if (action === 'add_bonus') {
-      if (user.admin !== true) {
+      if (!isAdminTier(user)) {
         return res.status(403).json({ error: 'Administrator access required.' });
       }
 

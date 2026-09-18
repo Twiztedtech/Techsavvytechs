@@ -20,3 +20,15 @@ export async function requireAdmin(req) {
   if (decoded.admin !== true) throw new Error('Administrator access required.');
   return decoded;
 }
+
+// Admits a full admin OR a caller whose `staffRole` custom claim is in `allowedRoles`.
+// Use this instead of requireAdmin only for actions the recommended role matrix
+// (see the RBAC plan) explicitly grants to a lesser role.
+export async function requireStaffRole(req, allowedRoles) {
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  if (!token) throw new Error('Authentication required.');
+  const decoded = await adminAuth.verifyIdToken(token);
+  if (decoded.admin === true) return decoded;
+  if (typeof decoded.staffRole === 'string' && allowedRoles.includes(decoded.staffRole)) return decoded;
+  throw new Error('You do not have access to this feature.');
+}

@@ -1,4 +1,4 @@
-import { adminAuth, adminDb, requireAdmin } from './_lib/firebase-admin.js';
+import { adminAuth, adminDb, requireStaffRole } from './_lib/firebase-admin.js';
 
 const clean = (value, max = 500) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 const nowIso = () => new Date().toISOString();
@@ -36,14 +36,14 @@ async function submitTicket(req, res) {
 }
 
 async function listTickets(req, res) {
-  await requireAdmin(req);
+  await requireStaffRole(req, ['assistant_admin']);
   const snapshot = await adminDb.collection('support_tickets').orderBy('createdAt', 'desc').limit(200).get();
   const tickets = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   return res.status(200).json({ tickets });
 }
 
 async function updateStatus(req, res) {
-  await requireAdmin(req);
+  await requireStaffRole(req, ['assistant_admin']);
   const id = clean(req.body?.id, 120);
   const status = req.body?.status === 'Resolved' ? 'Resolved' : req.body?.status === 'Open' ? 'Open' : '';
   if (!id || !status) return res.status(422).json({ error: 'A ticket id and valid status are required.' });
@@ -55,7 +55,7 @@ async function updateStatus(req, res) {
 }
 
 async function deleteTicket(req, res) {
-  await requireAdmin(req);
+  await requireStaffRole(req, ['assistant_admin']);
   const id = clean(req.body?.id, 120);
   if (!id) return res.status(422).json({ error: 'A ticket id is required.' });
   await adminDb.collection('support_tickets').doc(id).delete();
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && action === 'delete') return await deleteTicket(req, res);
     return res.status(404).json({ error: 'Support ticket operation not found.' });
   } catch (error) {
-    if (error.message === 'Authentication required.' || error.message === 'Administrator access required.' || error.message === 'Contractor Portal access is required.') {
+    if (error.message === 'Authentication required.' || error.message === 'Administrator access required.' || error.message === 'Contractor Portal access is required.' || error.message === 'You do not have access to this feature.') {
       return res.status(error.statusCode || 403).json({ error: error.message });
     }
     console.error('Support ticket request failed:', error);

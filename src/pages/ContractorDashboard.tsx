@@ -7,6 +7,7 @@ import type { NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
 import { TechSelfProfile } from '../features/contractor/profile/TechSelfProfile';
+import { MyCrewPanel } from '../features/contractor/crew/MyCrewPanel';
 import type { SelfProfile } from '../features/contractor/types';
 import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
@@ -20,6 +21,7 @@ export default function ContractorDashboard() {
   // Authentication & View State
   const [userRole, setUserRole] = useState<'contractor' | 'admin'>('contractor');
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
+  const [isTechnicianLead, setIsTechnicianLead] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [voidTarget, setVoidTarget] = useState<{ id: string; label: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
@@ -71,6 +73,7 @@ export default function ContractorDashboard() {
       return;
     }
     setCanAccessAdmin(false);
+    setIsTechnicianLead(token.claims.technicianLead === true);
     setUserRole('contractor');
     setIsAuthenticated(true);
   }), []);
@@ -928,10 +931,26 @@ export default function ContractorDashboard() {
                 <span>🛠️</span>
                 <span>My Profile</span>
               </button>
+              {isTechnicianLead && (
+                <button
+                  type="button"
+                  onClick={() => setContractorTab('crew')}
+                  className={`pb-3 text-xs font-bold transition border-b-2 flex items-center gap-2 ${
+                    contractorTab === 'crew'
+                      ? 'border-amber-500 text-amber-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>⭐</span>
+                  <span>My Crew</span>
+                </button>
+              )}
             </div>
 
             {contractorTab === 'profile' ? (
               <TechSelfProfile profile={selfProfile} onUpdated={setSelfProfile} />
+            ) : contractorTab === 'crew' ? (
+              <MyCrewPanel />
             ) : contractorTab === 'logger' ? (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 

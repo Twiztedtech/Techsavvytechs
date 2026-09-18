@@ -1,4 +1,4 @@
-import { adminDb, requireAdmin } from "./firebase-admin.js";
+import { adminDb, requireStaffRole } from "./firebase-admin.js";
 import {
   clean,
   hashValue,
@@ -607,8 +607,15 @@ async function saveSettings(req, res, admin) {
 
 export default async function handler(req, res) {
   try {
-    const admin = await requireAdmin(req);
+    // Dispatchers get view-only access to the "requests" dashboard; every
+    // mutating action here (convert, approve, schedule, settings, ...) stays
+    // Admin/Assistant Admin only, per the RBAC role matrix.
+    const admin = await requireStaffRole(req, ["assistant_admin", "dispatcher"]);
     const action = clean(req.query?.action, 60);
+    const isViewOnlyRole = admin.admin !== true && admin.staffRole === "dispatcher";
+    if (isViewOnlyRole && !(req.method === "GET" && action === "dashboard")) {
+      return res.status(403).json({ error: "You do not have access to this feature." });
+    }
     if (req.method === "GET" && action === "dashboard")
       return await listDashboard(res);
     if (req.method === "POST" && action === "organization")
@@ -635,6 +642,7 @@ export default async function handler(req, res) {
     const status = [
       "Authentication required.",
       "Administrator access required.",
+      "You do not have access to this feature.",
     ].includes(error.message)
       ? 403
       : error.statusCode || 500;

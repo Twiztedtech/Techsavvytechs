@@ -49,6 +49,205 @@ async function sendBrandedInvitation({ email, name, resetLink }) {
   return response.json();
 }
 
+const STAFF_ROLES = new Set(['assistant_admin', 'dispatcher', 'office_billing']);
+
+async function sendStaffInvitation({ email, name, staffRole, resetLink }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    const error = new Error('Branded invitation email is not configured yet.');
+    error.statusCode = 503;
+    throw error;
+  }
+  const roleLabels = { assistant_admin: 'Assistant Admin', dispatcher: 'Dispatcher', office_billing: 'Office / Billing' };
+  const roleLabel = roleLabels[staffRole] || staffRole;
+  const firstName = name.trim().split(/\s+/)[0] || 'there';
+  const sender = process.env.EMAIL_FROM || 'TechSavvy CRM <support@techsavvytechs.com>';
+  const supportEmail = process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com';
+  const safeLink = escapeHtml(resetLink);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'TechSavvy-Contractor-Portal/1.0',
+    },
+    body: JSON.stringify({
+      from: sender,
+      reply_to: supportEmail,
+      to: [email],
+      subject: 'Set up your TechSavvy CRM access',
+      text: `Hello ${firstName},\n\nTechSavvy has invited you to the CRM with ${roleLabel} access. Use this secure link to choose your password and sign in:\n${resetLink}\n\nThis link expires automatically. If you need help, reply to this email or contact ${supportEmail}.\n\nTechSavvy CRM`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="color:#16a34a;font-size:24px">TechSavvy CRM</h1><p>Hello ${escapeHtml(firstName)},</p><p>TechSavvy has invited you to the CRM with <strong>${escapeHtml(roleLabel)}</strong> access.</p><p><a href="${safeLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:700">Set up CRM access</a></p><p>This secure link lets you choose your password and expires automatically.</p><p>If you need help, reply to this email or contact <a href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a>.</p><p style="color:#475569">TechSavvy CRM</p></div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('Resend staff invitation failed:', await response.text());
+    const error = new Error('Could not send the branded invitation email.');
+    error.statusCode = 502;
+    throw error;
+  }
+  return response.json();
+}
+
+async function handleStaff(req, res) {
+  const actor = await requireAdmin(req);
+
+  if (req.method === 'GET') {
+    const snapshot = await adminDb.collection('staff_accounts').orderBy('invitedAt', 'desc').get();
+    return res.status(200).json({
+      staff: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    });
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
+  const operation = typeof req.body?.operation === 'string' ? req.body.operation : 'invite';
+
+  if (operation === 'revoke') {
+    const staffId = typeof req.body?.staffId === 'string' ? req.body.staffId : '';
+    if (!staffId) return res.status(400).json({ error: 'A staff account is required.' });
+    const ref = adminDb.collection('staff_accounts').doc(staffId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) return res.status(404).json({ error: 'Staff account not found.' });
+    const staff = snapshot.data();
+    if (staff.authUid) {
+      const user = await adminAuth.getUser(staff.authUid);
+      const claims = { ...(user.customClaims || {}) };
+      delete claims.staffRole;
+      await adminAuth.setCustomUserClaims(staff.authUid, claims);
+      await adminAuth.revokeRefreshTokens(staff.authUid);
+    }
+    const now = new Date().toISOString();
+    await ref.set({ status: 'disabled', revokedAt: now, revokedBy: actor.uid || null }, { merge: true });
+    await writeAudit({
+      actor,
+      action: 'staff.revoked',
+      entityType: 'staff_account',
+      entityId: staffId,
+      summary: `${staff.name || staff.email || staffId} lost CRM access.`,
+      details: { previousRole: staff.staffRole || null },
+    });
+    return res.status(200).json({ success: true });
+  }
+
+  if (operation === 'update-role') {
+    const staffId = typeof req.body?.staffId === 'string' ? req.body.staffId : '';
+    const staffRole = typeof req.body?.staffRole === 'string' ? req.body.staffRole : '';
+    if (!staffId || !STAFF_ROLES.has(staffRole)) return res.status(400).json({ error: 'A staff account and valid role are required.' });
+    const ref = adminDb.collection('staff_accounts').doc(staffId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) return res.status(404).json({ error: 'Staff account not found.' });
+    const staff = snapshot.data();
+    if (staff.authUid) {
+      const user = await adminAuth.getUser(staff.authUid);
+      await adminAuth.setCustomUserClaims(staff.authUid, { ...(user.customClaims || {}), staffRole });
+    }
+    const now = new Date().toISOString();
+    await ref.set({ staffRole, status: 'active', roleChangedAt: now, roleChangedBy: actor.uid || null }, { merge: true });
+    await writeAudit({
+      actor,
+      action: 'staff.role_changed',
+      entityType: 'staff_account',
+      entityId: staffId,
+      summary: `${staff.name || staff.email || staffId} role changed to ${staffRole}.`,
+      details: { previousRole: staff.staffRole || null, staffRole },
+    });
+    return res.status(200).json({ success: true });
+  }
+
+  // operation === 'invite' (default): create or resend a staff CRM invitation.
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const staffRole = typeof req.body?.staffRole === 'string' ? req.body.staffRole : '';
+  if (!email || !name || !STAFF_ROLES.has(staffRole)) {
+    return res.status(400).json({ error: 'A name, email, and valid role are required.' });
+  }
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ error: 'Branded invitation email is not configured yet.' });
+  }
+
+  let user;
+  let accountCreated = false;
+  try {
+    user = await adminAuth.getUserByEmail(email);
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') throw error;
+    user = await adminAuth.createUser({
+      email,
+      displayName: name,
+      password: temporaryPassword(),
+      disabled: false,
+    });
+    accountCreated = true;
+  }
+
+  if (user.disabled) await adminAuth.updateUser(user.uid, { disabled: false });
+  if (!accountCreated && !user.emailVerified) {
+    return res.status(409).json({
+      error: 'This email already belongs to an unverified Firebase account. Have the owner verify the email, or use a different address, before sending an invite.',
+    });
+  }
+
+  await adminAuth.setCustomUserClaims(user.uid, { ...(user.customClaims || {}), staffRole });
+  const appUrl = (process.env.APP_URL || 'https://techsavvytechs.com').replace(/\/$/, '');
+  const passwordResetLink = await adminAuth.generatePasswordResetLink(email, { url: `${appUrl}/crm` });
+  const emailDelivery = await sendStaffInvitation({ email, name, staffRole, resetLink: passwordResetLink });
+
+  const now = new Date().toISOString();
+  const staffId = user.uid;
+  await adminDb.collection('staff_accounts').doc(staffId).set({
+    email,
+    name,
+    staffRole,
+    authUid: user.uid,
+    status: 'active',
+    invitedAt: now,
+    invitedBy: actor.uid || null,
+    invitationDelivery: { emailId: emailDelivery.id, status: 'accepted', acceptedAt: now },
+  }, { merge: true });
+
+  await writeAudit({
+    actor,
+    action: accountCreated ? 'staff.invited' : 'staff.invitation_resent',
+    entityType: 'staff_account',
+    entityId: staffId,
+    summary: `${name} received a branded CRM invitation (${staffRole}).`,
+    details: { email, staffRole, accountCreated },
+  });
+
+  return res.status(200).json({ success: true, email, accountCreated });
+}
+
+async function handleTechnicianLead(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
+  const actor = await requireAdmin(req);
+  const contractorId = typeof req.body?.contractorId === 'string' ? req.body.contractorId : '';
+  const technicianLead = req.body?.technicianLead === true;
+  if (!contractorId) return res.status(400).json({ error: 'A contractor is required.' });
+
+  const ref = adminDb.collection('contractors').doc(contractorId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) return res.status(404).json({ error: 'Contractor profile not found.' });
+  const contractor = snapshot.data();
+
+  if (contractor.authUid) {
+    const user = await adminAuth.getUser(contractor.authUid);
+    const claims = { ...(user.customClaims || {}) };
+    if (technicianLead) claims.technicianLead = true;
+    else delete claims.technicianLead;
+    await adminAuth.setCustomUserClaims(contractor.authUid, claims);
+  }
+  await ref.set({ role: technicianLead ? 'technician_lead' : null }, { merge: true });
+  await writeAudit({
+    actor,
+    action: technicianLead ? 'contractor.technician_lead_granted' : 'contractor.technician_lead_revoked',
+    entityType: 'contractor',
+    entityId: contractorId,
+    summary: `${contractor.name || contractor.email || contractorId} ${technicianLead ? 'made' : 'removed as'} a Technician Lead.`,
+  });
+  return res.status(200).json({ success: true, technicianLead });
+}
+
 const terminalJobStatuses = new Set(['complete', 'completed', 'closed', 'cancelled', 'canceled', 'voided']);
 
 const assignedContractorIds = (job) => Array.isArray(job.assignedTechIds) && job.assignedTechIds.length > 0
@@ -242,6 +441,24 @@ export default async function handler(req, res) {
       if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') return res.status(403).json({ error: error.message });
       console.error('Contractor onboarding review failed:', error);
       return res.status(500).json({ error: 'Could not save the onboarding review.' });
+    }
+  }
+  if (req.query?.adminOperation === 'staff') {
+    try {
+      return await handleStaff(req, res);
+    } catch (error) {
+      if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') return res.status(403).json({ error: error.message });
+      console.error('Staff account operation failed:', error);
+      return res.status(error.statusCode || 500).json({ error: error.message || 'Could not complete the staff operation.' });
+    }
+  }
+  if (req.query?.adminOperation === 'technician-lead') {
+    try {
+      return await handleTechnicianLead(req, res);
+    } catch (error) {
+      if (error.message === 'Authentication required.' || error.message === 'Administrator access required.') return res.status(403).json({ error: error.message });
+      console.error('Technician lead update failed:', error);
+      return res.status(error.statusCode || 500).json({ error: error.message || 'Could not update technician lead status.' });
     }
   }
   if (req.query?.adminOperation === 'invite-status') {

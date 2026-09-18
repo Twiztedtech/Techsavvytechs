@@ -57,6 +57,7 @@ import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
+import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { CrmThemeToggle } from "../features/crm/ui";
 import { useCrmTheme } from "../features/crm/theme";
@@ -80,7 +81,8 @@ type Module =
   | "tickets"
   | "contractors"
   | "timecards"
-  | "requests";
+  | "requests"
+  | "team";
 const modules: {
   id: Module;
   label: string;
@@ -101,6 +103,7 @@ const modules: {
   { id: "contractors", label: "Contractor Roster", icon: HardHat },
   { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
   { id: "requests", label: "Client Requests", icon: Inbox },
+  { id: "team", label: "Team & Access", icon: ShieldCheck },
 ];
 
 // Groups the flat `modules` list above into labeled sidebar sections
@@ -110,10 +113,35 @@ const moduleGroups: { label: string; ids: Module[] }[] = [
   { label: "Operations", ids: ["dashboard", "schedule", "jobs"] },
   { label: "Sales & Billing", ids: ["quotes", "invoices", "customers", "assets"] },
   { label: "Inventory", ids: ["catalog"] },
-  { label: "Team", ids: ["contractors", "timecards"] },
+  { label: "Team", ids: ["contractors", "timecards", "team"] },
   { label: "Client", ids: ["requests"] },
   { label: "Insights & Admin", ids: ["reports", "reminders", "audit", "tickets"] },
 ];
+
+// Staff roles below Admin — see the RBAC plan's module permission matrix.
+// Admin always has full access to every module regardless of this table.
+type StaffRole = "assistant_admin" | "dispatcher" | "office_billing";
+type Access = "checking" | "signed-out" | "denied" | "admin" | StaffRole;
+const MODULE_ACCESS: Record<Module, StaffRole[]> = {
+  dashboard: ["assistant_admin", "dispatcher", "office_billing"],
+  schedule: ["assistant_admin", "dispatcher"],
+  customers: ["assistant_admin", "dispatcher", "office_billing"],
+  quotes: ["assistant_admin", "office_billing"],
+  jobs: ["assistant_admin", "dispatcher", "office_billing"], // office_billing is view-only, see canCreateNew()
+  invoices: ["assistant_admin", "office_billing"],
+  catalog: ["assistant_admin", "office_billing"],
+  assets: ["assistant_admin", "dispatcher"],
+  reports: ["assistant_admin", "office_billing"], // assistant_admin is view-only
+  reminders: ["assistant_admin", "office_billing"],
+  audit: [], // Admin only
+  team: [], // Admin only — role assignment stays Admin-only, per the plan's explicit answer
+  tickets: ["assistant_admin"],
+  contractors: ["assistant_admin"], // view-only, write stays Admin-only (see firestore.rules)
+  timecards: ["assistant_admin"],
+  requests: ["assistant_admin", "dispatcher"], // dispatcher is view-only
+};
+const hasModuleAccess = (access: Access, moduleId: Module) =>
+  access === "admin" || MODULE_ACCESS[moduleId].includes(access as StaffRole);
 
 // The header/sidebar "Create new" button dispatches to the one action that
 // actually matches the module you're looking at, instead of silently
@@ -344,9 +372,7 @@ export default function CRM() {
   const [module, setModule] = useState<Module>("dashboard");
   const [mobileNav, setMobileNav] = useState(false);
   const [query, setQuery] = useState("");
-  const [access, setAccess] = useState<
-    "checking" | "signed-out" | "denied" | "admin"
-  >("checking");
+  const [access, setAccess] = useState<Access>("checking");
   const [login, setLogin] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -399,10 +425,22 @@ export default function CRM() {
           });
           if (response.ok) token = await user.getIdTokenResult(true);
         }
-        setAccess(token.claims.admin === true ? "admin" : "denied");
+        if (token.claims.admin === true) return setAccess("admin");
+        const staffRole = token.claims.staffRole;
+        if (staffRole === "assistant_admin" || staffRole === "dispatcher" || staffRole === "office_billing") {
+          return setAccess(staffRole);
+        }
+        setAccess("denied");
       }),
     [],
   );
+  // Deep-link/devtools guard: if a restricted role's `module` state somehow
+  // points at a module it can't see, bounce back to the always-accessible
+  // dashboard rather than rendering (and issuing Firestore reads for) it.
+  useEffect(() => {
+    if (access === "checking" || access === "signed-out" || access === "denied") return;
+    if (!hasModuleAccess(access, module)) setModule("dashboard");
+  }, [access, module]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const qboConnect = params.get("qbo_connect");
@@ -415,77 +453,80 @@ export default function CRM() {
     }
   }, []);
   useEffect(() => {
-    if (access !== "admin") return;
-    const stopCustomers = onSnapshot(collection(db, "customers"), (snapshot) =>
-      setLiveCustomers(
-        snapshot.docs.map(
-          (item) => ({ id: item.id, ...item.data() }) as LiveCustomer,
+    if (access === "checking" || access === "signed-out" || access === "denied") return;
+    // Each listener is gated to match its collection's firestore.rules read
+    // condition, so a restricted role never issues a doomed onSnapshot call.
+    const isAdmin = access === "admin";
+    const can = (roles: StaffRole[]) => isAdmin || roles.includes(access as StaffRole);
+    const stops: Array<() => void> = [];
+
+    if (can(["assistant_admin", "dispatcher", "office_billing"])) {
+      stops.push(onSnapshot(collection(db, "customers"), (snapshot) =>
+        setLiveCustomers(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as LiveCustomer,
+          ),
         ),
-      ),
-    );
-    const stopJobs = onSnapshot(collection(db, "jobs"), (snapshot) =>
-      setLiveJobs(
-        snapshot.docs
-          .map((item) => ({ id: item.id, ...item.data() }) as LiveJob)
-          .filter((item) => item.status !== "voided"),
-      ),
-    );
-    const stopQuotes = onSnapshot(collection(db, "quotes"), (snapshot) =>
-      setLiveQuotes(
-        snapshot.docs.map(
-          (item) => ({ id: item.id, ...item.data() }) as LiveQuote,
+      ));
+      stops.push(onSnapshot(collection(db, "jobs"), (snapshot) =>
+        setLiveJobs(
+          snapshot.docs
+            .map((item) => ({ id: item.id, ...item.data() }) as LiveJob)
+            .filter((item) => item.status !== "voided"),
         ),
-      ),
-    );
-    const stopTechnicians = onSnapshot(
-      collection(db, "contractors"),
-      (snapshot) =>
+      ));
+    }
+    if (can(["assistant_admin", "office_billing"])) {
+      stops.push(onSnapshot(collection(db, "quotes"), (snapshot) =>
+        setLiveQuotes(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as LiveQuote,
+          ),
+        ),
+      ));
+      stops.push(onSnapshot(collection(db, "invoices"), (snapshot) =>
+        setLiveInvoices(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as LiveInvoice,
+          ),
+        ),
+      ));
+      stops.push(onSnapshot(collection(db, "catalog_items"), (snapshot) =>
+        setCatalogItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as CatalogItem)),
+      ));
+      stops.push(onSnapshot(collection(db, "reminder_deliveries"), (snapshot) =>
+        setReminderDeliveries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ReminderDelivery)),
+      ));
+    }
+    if (can(["assistant_admin", "dispatcher"])) {
+      stops.push(onSnapshot(collection(db, "contractors"), (snapshot) =>
         setTechnicians(
           snapshot.docs.map(
             (item) => ({ id: item.id, ...item.data() }) as Technician,
           ),
         ),
-    );
-    const stopInvoices = onSnapshot(collection(db, "invoices"), (snapshot) =>
-      setLiveInvoices(
-        snapshot.docs.map(
-          (item) => ({ id: item.id, ...item.data() }) as LiveInvoice,
-        ),
-      ),
-    );
-    const stopBillingTimeEntries = onSnapshot(collection(db, "time_entries"), (snapshot) => setBillingTimeEntries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as BillingTimeEntry)));
-    const stopAssets = onSnapshot(
-      collection(db, "customer_assets"),
-      (snapshot) =>
+      ));
+    }
+    if (can(["assistant_admin"])) {
+      stops.push(onSnapshot(collection(db, "time_entries"), (snapshot) => setBillingTimeEntries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as BillingTimeEntry))));
+    }
+    if (can(["assistant_admin", "dispatcher"])) {
+      stops.push(onSnapshot(collection(db, "customer_assets"), (snapshot) =>
         setAssets(
           snapshot.docs.map(
             (item) => ({ id: item.id, ...item.data() }) as CustomerAsset,
           ),
         ),
-    );
-    const stopAuditLogs = onSnapshot(
-      firestoreQuery(collection(db, "audit_logs"), orderBy("createdAt", "desc"), limit(500)),
-      (snapshot) =>
-        setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
-    );
-    const stopCatalogItems = onSnapshot(collection(db, "catalog_items"), (snapshot) =>
-      setCatalogItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as CatalogItem)),
-    );
-    const stopReminderDeliveries = onSnapshot(collection(db, "reminder_deliveries"), (snapshot) =>
-      setReminderDeliveries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ReminderDelivery)),
-    );
-    return () => {
-      stopCustomers();
-      stopJobs();
-      stopQuotes();
-      stopTechnicians();
-      stopInvoices();
-      stopBillingTimeEntries();
-      stopAssets();
-      stopAuditLogs();
-      stopReminderDeliveries();
-      stopCatalogItems();
-    };
+      ));
+    }
+    if (isAdmin) {
+      stops.push(onSnapshot(
+        firestoreQuery(collection(db, "audit_logs"), orderBy("createdAt", "desc"), limit(500)),
+        (snapshot) =>
+          setAuditLogs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as AuditLog)),
+      ));
+    }
+    return () => stops.forEach((stop) => stop());
   }, [access]);
   const jobsForTable = useMemo(
     () =>
@@ -537,7 +578,19 @@ export default function CRM() {
   // Dispatches "Create new" to whatever the current module actually means by
   // it (see createActionByModule above) instead of always opening the job
   // modal. No-ops for modules with no mapped action -- those hide the button.
+  // Office/Billing sees the Jobs module (and the job list embedded in
+  // Dashboard) read-only — they can't create/reassign jobs, only bill them —
+  // so the "Add job" create action is hidden for that combination even
+  // though createActionByModule otherwise maps both modules to it.
+  const canCreateNew = (target: Module) => {
+    if (!createActionByModule[target]) return false;
+    if (access === "admin") return true;
+    if ((target === "jobs" || target === "dashboard") && access === "office_billing") return false;
+    return hasModuleAccess(access, target);
+  };
+
   const handleCreateNew = () => {
+    if (!canCreateNew(module)) return;
     if (module === "customers") return setCreateType("customer");
     if (module === "quotes") return setQuoteOpen(true);
     if (module === "assets") return setAssetOpen(true);
@@ -566,7 +619,7 @@ export default function CRM() {
       setIsSigningIn(false);
     }
   };
-  if (access !== "admin")
+  if (access === "checking" || access === "signed-out" || access === "denied")
     return (
       <AccessGate
         access={access}
@@ -605,7 +658,7 @@ export default function CRM() {
           </label>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {createActionByModule[module] && (
+          {canCreateNew(module) && (
             <button
               onClick={handleCreateNew}
               className="hidden items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:flex"
@@ -631,7 +684,7 @@ export default function CRM() {
         <aside
           className={`${mobileNav ? "fixed inset-y-16 left-0 z-30 flex" : "hidden"} w-64 flex-col border-r border-crm-hairline bg-crm-canvas shadow-xl lg:static lg:flex lg:shadow-none`}
         >
-          {createActionByModule[module] && (
+          {canCreateNew(module) && (
             <div className="border-b border-crm-hairline-soft p-3">
               <button
                 onClick={handleCreateNew}
@@ -645,13 +698,16 @@ export default function CRM() {
             </div>
           )}
           <nav className="flex-1 space-y-4 overflow-y-auto p-3">
-            {moduleGroups.map((group) => (
+            {moduleGroups.map((group) => {
+              const visibleIds = group.ids.filter((id) => hasModuleAccess(access, id));
+              if (visibleIds.length === 0) return null;
+              return (
               <div key={group.label}>
                 <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-crm-muted-soft">
                   {group.label}
                 </p>
                 <div className="space-y-1">
-                  {group.ids.map((id) => {
+                  {visibleIds.map((id) => {
                     const item = modules.find((m) => m.id === id);
                     if (!item) return null;
                     const Icon = item.icon;
@@ -674,7 +730,8 @@ export default function CRM() {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </nav>
           <div className="border-t border-crm-hairline-soft p-4">
             <div className="flex items-center gap-2 text-[11px] text-crm-muted">
@@ -700,7 +757,7 @@ export default function CRM() {
                 <button onClick={() => go('reports')} className="flex items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft">
                   <Archive className="h-3.5 w-3.5" /> Export
                 </button>
-                {createActionByModule[module] && (
+                {canCreateNew(module) && (
                   <button
                     onClick={handleCreateNew}
                     className="flex items-center gap-2 rounded-lg bg-crm-primary px-3 py-2 text-xs font-semibold text-crm-on-primary hover:bg-crm-primary-active"
@@ -796,10 +853,12 @@ export default function CRM() {
               <TimecardApprovalAdmin contractors={technicians} />
             ) : module === "requests" ? (
               <ClientRequestsAdmin contractors={technicians as unknown as { id: string; name: string; email: string }[]} />
+            ) : module === "team" ? (
+              <StaffAccessAdmin />
             ) : module === "reminders" ? (
               <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} />
             ) : module === "dashboard" ? (
-              <><LiveJobsView jobs={liveJobs.filter((job) => [job.name, job.vendorName, job.workOrderNumber].join(' ').toLowerCase().includes(query.toLowerCase()))} onOpen={setSelectedJob} onSchedule={setScheduleJob} /><AuditTrailView logs={auditLogs} /></>
+              <><LiveJobsView jobs={liveJobs.filter((job) => [job.name, job.vendorName, job.workOrderNumber].join(' ').toLowerCase().includes(query.toLowerCase()))} onOpen={setSelectedJob} onSchedule={setScheduleJob} />{access === "admin" && <AuditTrailView logs={auditLogs} />}</>
             ) : (
               <MaterialAllocations jobs={liveJobs} onOpen={setSelectedJob} />
             )}

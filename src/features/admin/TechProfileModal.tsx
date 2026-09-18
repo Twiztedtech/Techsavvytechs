@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { Plus, Trash2, Wrench } from "lucide-react";
-import { db } from "../../lib/firebase";
+import { Plus, Star, Trash2, Wrench } from "lucide-react";
+import { auth, db } from "../../lib/firebase";
 import { CrmBadge, CrmButton, CrmInput, CrmModalShell } from "../crm/ui";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
@@ -90,6 +90,8 @@ export function TechProfileModal({
   const [newCertExpiry, setNewCertExpiry] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [isTechnicianLead, setIsTechnicianLead] = useState(contractor.role === "technician_lead");
+  const [savingLead, setSavingLead] = useState(false);
 
   const addCertification = () => {
     const name = newCertName.trim();
@@ -125,6 +127,27 @@ export function TechProfileModal({
 
   const onboardingStatus = contractor.onboarding?.status || "not_started";
 
+  const toggleTechnicianLead = async () => {
+    const next = !isTechnicianLead;
+    setSavingLead(true);
+    setFeedback("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/admin/contractors/invite?adminOperation=technician-lead", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ contractorId: contractor.id, technicianLead: next }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update Technician Lead status.");
+      setIsTechnicianLead(next);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Could not update Technician Lead status.");
+    } finally {
+      setSavingLead(false);
+    }
+  };
+
   return (
     <CrmModalShell title={form.name || "Technician profile"} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-6">
@@ -136,12 +159,26 @@ export function TechProfileModal({
           <CrmBadge tone={onboardingStatus === "approved" ? "success" : onboardingStatus === "needs_update" ? "warning" : "neutral"}>
             W-9: {onboardingStatus.replace("_", " ")}
           </CrmBadge>
+          {isTechnicianLead && <CrmBadge tone="violet">Technician Lead</CrmBadge>}
           <button type="button" onClick={onOpenW9} className="text-[11px] font-bold text-crm-ink underline underline-offset-2">
             Open W-9
           </button>
           <button type="button" onClick={onOpenHistory} className="text-[11px] font-bold text-crm-ink underline underline-offset-2">
             View timesheet history
           </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-crm-hairline-soft bg-crm-surface-soft p-3">
+          <div className="flex items-start gap-2">
+            <Star className="mt-0.5 h-4 w-4 shrink-0 text-crm-badge-violet" />
+            <div>
+              <p className="text-xs font-semibold text-crm-ink">Technician Lead</p>
+              <p className="text-[11px] text-crm-muted">Can review and approve their crew's timecards and see their crew's jobs in the Contractor Portal.</p>
+            </div>
+          </div>
+          <CrmButton type="button" variant={isTechnicianLead ? "secondary" : "primary"} disabled={savingLead} onClick={() => void toggleTechnicianLead()} className="shrink-0 text-xs">
+            {savingLead ? "Saving…" : isTechnicianLead ? "Remove lead" : "Make lead"}
+          </CrmButton>
         </div>
 
         <section>

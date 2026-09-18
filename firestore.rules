@@ -5,7 +5,10 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
     function isContractor() { return isSignedIn() && request.auth.token.contractor == true; }
-    
+    // Staff roles below Admin (Dispatcher, Assistant Admin, Office/Billing) — see
+    // the RBAC plan for the full module-to-role matrix this backs.
+    function hasStaffRole(roles) { return isSignedIn() && request.auth.token.staffRole in roles; }
+
     // Default Deny
     match /{document=**} {
       allow read, write: if false;
@@ -20,6 +23,7 @@ service cloud.firestore {
     // Keeping these collections server-only prevents cross-company access and
     // ensures contractor private fields never reach client browsers.
     match /client_users/{document=**} { allow read, write: if false; }
+    match /staff_accounts/{document=**} { allow read, write: if false; }
     match /support_tickets/{document=**} { allow read, write: if false; }
     match /vendor_requests/{document=**} { allow read, write: if false; }
     match /appointments/{document=**} { allow read, write: if false; }
@@ -40,7 +44,7 @@ service cloud.firestore {
 
     // Time Entries for Contractor Portal
     match /time_entries/{entryId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin']);
     }
 
     // Job Sites
@@ -48,34 +52,34 @@ service cloud.firestore {
       // Work orders are returned to technicians only by the authenticated
       // server endpoint after it verifies their assignment. This prevents a
       // client-side query from exposing every contractor's jobs.
-      allow read: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow read: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher', 'office_billing']);
+      allow create, update, delete: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher']);
     }
 
     // Reusable customer directory for administrator work-order creation.
     match /customers/{customerId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher', 'office_billing']);
     }
 
     // CRM quotes and estimates. Accepted quotes are converted into jobs by an
     // authenticated administrator in the CRM workspace.
     match /quotes/{quoteId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
     }
 
     // Customer invoices and payment records are restricted to CRM admins.
     match /invoices/{invoiceId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
     }
 
     // Installed customer equipment and its recurring maintenance schedule.
     match /customer_assets/{assetId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher']);
     }
 
     // Materials/parts catalog with pricing and on-hand quantity.
     match /catalog_items/{itemId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
     }
 
     // Immutable administrator and system activity history.
@@ -86,13 +90,18 @@ service cloud.firestore {
 
     // Delivery history is written server-side and visible to administrators.
     match /reminder_deliveries/{deliveryId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
       allow write: if false;
     }
 
     // Contractor Onboarding & Profiles
     match /contractors/{contractorId} {
-      allow read, write: if isAdmin();
+      // Dispatcher needs the technician list to assign/schedule jobs, but
+      // does not get the Contractor Roster admin module (lifecycle/onboarding
+      // stay Admin-only, enforced both by the write rule below and by the
+      // CRM nav's module permission matrix).
+      allow read: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher']);
+      allow write: if isAdmin();
     }
 
     // Settings
