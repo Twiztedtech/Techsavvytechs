@@ -151,6 +151,19 @@ async function sendCustomerDocument(req, res) {
     process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
   const supportEmail =
     process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+  // Some customers' AP departments require this in the invoice itself, not
+  // just reachable via a link, to process payment (invoice #, service date,
+  // PO/project reference, project manager). Include whatever is on file.
+  const apDetails = [
+    ["Invoice #", number],
+    ["Date of service", document.serviceDate || ""],
+    ["PO / project reference", document.clientReference || ""],
+    ["Project manager", document.clientProjectManager || ""],
+  ].filter(([, value]) => value);
+  const apDetailsText = apDetails.map(([label, value]) => `${label}: ${value}`).join("\n");
+  const apDetailsHtml = apDetails.length
+    ? `<table style="margin-top:14px;font-size:13px;color:#334155">${apDetails.map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#64748b">${escapeHtml(label)}</td><td style="font-weight:600">${escapeHtml(value)}</td></tr>`).join("")}</table>`
+    : "";
   const delivery = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -166,8 +179,8 @@ async function sendCustomerDocument(req, res) {
         type === "quote"
           ? `TechSavvy quote ${number} — approval requested`
           : `TechSavvy invoice ${number}`,
-      text: `Hello,\n\n${type === "quote" ? "Please review the proposed work" : "Your invoice is ready"} from TechSavvy.\n${number} · ${total}\n\n${action}: ${link}\n\nThis secure link expires ${expiresAt.slice(0, 10)}. Questions? Reply to this email.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">FIELD SERVICES</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>${type === "quote" ? "A quote is ready for your review and approval." : "Your invoice is ready to view."}</p><p><strong>${escapeHtml(number)}</strong><br><span style="font-size:26px">${escapeHtml(total)}</span></p><p><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${action}</a></p><p style="font-size:12px;color:#64748b">This secure link expires ${escapeHtml(expiresAt.slice(0, 10))}. If you have questions, reply to this email.</p></div></div>`,
+      text: `Hello,\n\n${type === "quote" ? "Please review the proposed work" : "Your invoice is ready"} from TechSavvy.\n${number} · ${total}\n${apDetailsText ? `\n${apDetailsText}\n` : ""}\n${action}: ${link}\n\nThis secure link expires ${expiresAt.slice(0, 10)}. Questions? Reply to this email.`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">FIELD SERVICES</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>${type === "quote" ? "A quote is ready for your review and approval." : "Your invoice is ready to view."}</p><p><strong>${escapeHtml(number)}</strong><br><span style="font-size:26px">${escapeHtml(total)}</span></p>${apDetailsHtml}<p style="margin-top:18px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${action}</a></p><p style="font-size:12px;color:#64748b">This secure link expires ${escapeHtml(expiresAt.slice(0, 10))}. If you have questions, reply to this email.</p></div></div>`,
     }),
   });
   if (!delivery.ok) {
@@ -552,6 +565,8 @@ async function loadCustomerDocument(req, res) {
         customer: value.customer,
         site: value.site || "",
         title: value.title || value.workOrderNumber || "",
+        clientReference: value.clientReference || "",
+        clientProjectManager: value.clientProjectManager || "",
         status: value.status,
         lineItems: value.lineItems || [],
         subtotal: Number(value.subtotal ?? value.total ?? 0),
@@ -562,6 +577,7 @@ async function loadCustomerDocument(req, res) {
         balance: Number(value.balance ?? value.total ?? 0),
         issueDate: value.issueDate || "",
         dueDate: value.dueDate || "",
+        serviceDate: value.serviceDate || "",
         customerMessage: value.customerMessage || "",
         stipulations: Array.isArray(value.stipulations) ? value.stipulations : [],
         paymentLink: value.qboSync?.invoiceLink || null,

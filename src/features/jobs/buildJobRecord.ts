@@ -31,6 +31,11 @@ export function buildJobRecord(
   return {
     ...existing,
     workOrderNumber: input.workOrderNumber ?? existing.workOrderNumber ?? '',
+    // Carried onto the invoice for customers whose AP department requires a
+    // PO/project reference and project manager name to process payment
+    // (e.g. ATG). Optional -- most customers leave these blank.
+    clientReference: input.clientReference ?? existing.clientReference ?? '',
+    clientProjectManager: input.clientProjectManager ?? existing.clientProjectManager ?? '',
     vendorName: input.vendorName ?? existing.vendorName ?? '',
     customerId: input.customerId !== undefined ? input.customerId : (existing.customerId ?? null),
     sourceQuoteId: input.sourceQuoteId ?? existing.sourceQuoteId ?? '',

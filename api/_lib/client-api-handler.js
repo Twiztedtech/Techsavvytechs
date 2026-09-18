@@ -189,6 +189,7 @@ async function createRequest(req, res) {
       ? normalizePhone(clientProfile.phone)
       : normalizePhone(req.body.requesterPhone),
     clientReference,
+    clientProjectManager: clean(req.body.clientProjectManager, 150),
     siteName: clean(req.body.siteName, 160),
     address: clean(req.body.address, 300),
     siteContact: clean(req.body.siteContact, 200),
@@ -806,6 +807,7 @@ async function getJob(req, res) {
       notes: data.clientVisibleNotes || "",
       workOrderNumber: data.workOrderNumber,
       clientReference: data.clientReference,
+      clientProjectManager: data.clientProjectManager || "",
       status: data.clientStatus || data.status,
       targetCompletion: data.targetCompletion,
       scopeTasks: data.scopeTasks || [],

@@ -7,6 +7,8 @@ type CustomerDocumentData = {
   customer: string;
   site: string;
   title: string;
+  clientReference?: string;
+  clientProjectManager?: string;
   status: string;
   lineItems: { description: string; quantity: number; unitPrice: number }[];
   subtotal: number;
@@ -17,6 +19,7 @@ type CustomerDocumentData = {
   balance: number;
   issueDate: string;
   dueDate: string;
+  serviceDate?: string;
   customerMessage: string;
   stipulations?: string[];
   paymentLink?: string;
@@ -131,6 +134,12 @@ export default function CustomerDocument() {
               <h1 className="mt-2 text-lg font-bold">{document.customer}</h1>
               <p className="mt-1 text-xs text-slate-500">{document.site}</p>
               <p className="mt-2 text-sm">{document.title}</p>
+              {(document.clientReference || document.clientProjectManager) && (
+                <div className="mt-2 text-[11px] text-slate-500">
+                  {document.clientReference && <p>PO / project reference: <span className="font-semibold text-slate-700">{document.clientReference}</span></p>}
+                  {document.clientProjectManager && <p>Project manager: <span className="font-semibold text-slate-700">{document.clientProjectManager}</span></p>}
+                </div>
+              )}
             </div>
             <div className="sm:text-right">
               <p className="text-[9px] font-bold uppercase text-slate-400">
@@ -146,6 +155,7 @@ export default function CustomerDocument() {
                   Issued {document.issueDate}
                   <br />
                   Due {document.dueDate}
+                  {document.serviceDate && <><br />Service date {document.serviceDate}</>}
                 </p>
               )}
             </div>

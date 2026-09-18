@@ -17,6 +17,7 @@ type BookingForm = {
   requesterPhone: string;
   referencePrefix: string;
   clientReference: string;
+  clientProjectManager: string;
   siteName: string;
   address: string;
   siteContact: string;
@@ -42,6 +43,7 @@ const initialForm: BookingForm = {
   requesterPhone: "",
   referencePrefix: "",
   clientReference: "",
+  clientProjectManager: "",
   siteName: "",
   address: "",
   siteContact: "",
@@ -380,11 +382,20 @@ export default function BookJob({
                     />
                   </label>
                   <label className="text-xs font-semibold text-slate-300">
-                    PO / work order
+                    PO / project reference #
                     <input
                       value={form.clientReference}
                       onChange={field("clientReference")}
-                      placeholder="Optional"
+                      placeholder="Your PO, project name, or project #"
+                      className="mt-1 w-full rounded border border-white/10 bg-white/5 px-3 py-3 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-300">
+                    Your project manager
+                    <input
+                      value={form.clientProjectManager}
+                      onChange={field("clientProjectManager")}
+                      placeholder="Optional — for your AP department"
                       className="mt-1 w-full rounded border border-white/10 bg-white/5 px-3 py-3 text-sm text-white"
                     />
                   </label>

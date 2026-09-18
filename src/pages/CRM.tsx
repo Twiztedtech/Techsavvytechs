@@ -204,6 +204,8 @@ type LiveJob = {
   id: string;
   customerId?: string;
   workOrderNumber?: string;
+  clientReference?: string;
+  clientProjectManager?: string;
   name?: string;
   vendorName?: string;
   address?: string;
@@ -265,11 +267,14 @@ type LiveInvoice = {
   invoiceNumber?: string;
   jobId?: string;
   workOrderNumber?: string;
+  clientReference?: string;
+  clientProjectManager?: string;
   customer: string;
   site?: string;
   status: string;
   issueDate: string;
   dueDate: string;
+  serviceDate?: string;
   paymentTerms?: string;
   customerMessage?: string;
   discount?: number;
@@ -2827,6 +2832,8 @@ function JobDetailModal({
     customerBillRate: String(job.customerBillRate || ""),
     estimatedHours: String(job.estimatedHours || ""),
     workOrderNumber: job.workOrderNumber || "",
+    clientReference: job.clientReference || "",
+    clientProjectManager: job.clientProjectManager || "",
     workOrderTemplate: job.workOrderTemplate || "general",
     travelRate: String(job.travelRate ?? ""),
     technicianLeadId: job.technicianLeadId || "",
@@ -2914,6 +2921,8 @@ function JobDetailModal({
           hourlyRate: Number(form.hourlyRate || 0),
           customerBillRate: Number(form.customerBillRate || 0),
           workOrderNumber: form.workOrderNumber.trim(),
+          clientReference: form.clientReference.trim(),
+          clientProjectManager: form.clientProjectManager.trim(),
           workOrderTemplate: form.workOrderTemplate,
           travelRate: Number(form.travelRate || 0),
           technicianLeadId: form.technicianLeadId,
@@ -3047,6 +3056,16 @@ function JobDetailModal({
             label="Work order number"
             value={form.workOrderNumber}
             onChange={(v) => setForm({ ...form, workOrderNumber: v })}
+          />
+          <Field
+            label="Client PO / project reference #"
+            value={form.clientReference}
+            onChange={(v) => setForm({ ...form, clientReference: v })}
+          />
+          <Field
+            label="Client project manager"
+            value={form.clientProjectManager}
+            onChange={(v) => setForm({ ...form, clientProjectManager: v })}
           />
           <label className="text-[9px] font-bold uppercase text-crm-muted">
             Work order template
@@ -3777,6 +3796,13 @@ function InvoiceDetailModal({
             <p className="mt-1 text-xs text-crm-muted">
               {invoice.site || "Address on file"}{invoice.workOrderNumber ? ` · ${invoice.workOrderNumber}` : ""}
             </p>
+            {(invoice.clientReference || invoice.clientProjectManager) && (
+              <p className="mt-1 text-[10px] text-crm-muted">
+                {invoice.clientReference && <>Client ref: <strong className="text-crm-ink">{invoice.clientReference}</strong></>}
+                {invoice.clientReference && invoice.clientProjectManager && " · "}
+                {invoice.clientProjectManager && <>PM: <strong className="text-crm-ink">{invoice.clientProjectManager}</strong></>}
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -3790,7 +3816,7 @@ function InvoiceDetailModal({
               {invoice.status}
             </span>
             <span className="text-[10px] text-crm-muted">
-              Issued {invoice.issueDate} · Due {invoice.dueDate}
+              Issued {invoice.issueDate} · Due {invoice.dueDate}{invoice.serviceDate ? ` · Service ${invoice.serviceDate}` : ""}
             </span>
             {invoice.qboSync?.status === "synced" && (
               <span className="text-[10px] font-bold text-crm-success">Synced to QuickBooks</span>
@@ -4103,7 +4129,11 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
   );
   const today = localDate();
   const dueDefault = localDate(new Date(Date.now() + 30 * 86400000));
-  const [dates, setDates] = useState({ issueDate: today, dueDate: dueDefault });
+  // Some customers' AP departments require an explicit "date of service" on
+  // the invoice, not just billing issue/due dates -- default to the earliest
+  // approved labor date worked, falling back to the job's target completion.
+  const earliestServiceDate = Array.from(laborByDate.keys()).sort()[0] || job.targetCompletion || today;
+  const [dates, setDates] = useState({ issueDate: today, dueDate: dueDefault, serviceDate: earliestServiceDate });
   const [taxRate, setTaxRate] = useState("0");
   const [accounting, setAccounting] = useState({
     paymentTerms: "Net 30",
@@ -4129,6 +4159,8 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
         jobId: job.id,
         customerId: job.customerId || null,
         workOrderNumber: job.workOrderNumber || job.id,
+        clientReference: job.clientReference || "",
+        clientProjectManager: job.clientProjectManager || "",
         customer: job.vendorName || "Customer",
         site: job.address || "",
         status: "Open",
@@ -4206,6 +4238,19 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
             type="date"
             required
           />
+          <Field
+            label="Date of service"
+            value={dates.serviceDate}
+            onChange={(v) => setDates({ ...dates, serviceDate: v })}
+            type="date"
+          />
+          {(job.clientReference || job.clientProjectManager) && (
+            <div className="col-span-2 rounded border border-crm-hairline bg-crm-surface-soft p-3 text-[10px] text-crm-muted">
+              {job.clientReference && <p><strong className="text-crm-ink">Client reference:</strong> {job.clientReference}</p>}
+              {job.clientProjectManager && <p><strong className="text-crm-ink">Client PM:</strong> {job.clientProjectManager}</p>}
+              <p className="mt-1">Carried onto this invoice automatically.</p>
+            </div>
+          )}
           <label className="text-[9px] font-bold uppercase text-crm-muted">
             Payment terms
             <select

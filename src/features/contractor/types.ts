@@ -62,6 +62,8 @@ export interface JobSite {
   customerBillRate?: number;
   travelRate: number;
   workOrderNumber?: string;
+  clientReference?: string;
+  clientProjectManager?: string;
   vendorName?: string;
   siteContact?: string;
   dateIssued?: string;

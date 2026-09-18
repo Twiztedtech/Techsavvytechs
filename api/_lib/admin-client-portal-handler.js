@@ -266,6 +266,7 @@ async function convertRequest(req, res, admin) {
     clientVisibleNotes: request.scopeSummary,
     workOrderNumber,
     clientReference: request.clientReference,
+    clientProjectManager: request.clientProjectManager || "",
     vendorName: request.companyName,
     customerId: customerRef.id,
     siteContact:
