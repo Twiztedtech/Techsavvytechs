@@ -1,0 +1,2 @@
+'use client';
+export default function ErrorPage({reset}:{reset:()=>void}){return <section className="shell section"><div className="page-intro"><span className="eyebrow">A SMALL INTERRUPTION</span><h1>LET’S TRY THAT AGAIN.</h1><p>Something didn’t load correctly. Your saved bag should still be on this device.</p><button className="button button-green" onClick={reset}>TRY AGAIN</button></div></section>;}

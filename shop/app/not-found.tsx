@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function NotFound(){return <section className="shell section info-page"><div className="page-intro"><span className="eyebrow">404 / OFF THE MAP</span><h1>LET’S GET YOU<br/><span className="green">BACK ON TRACK.</span></h1><p>That page isn’t part of the collection.</p><Link href="/shop" className="button button-green">EXPLORE THE GEAR →</Link></div></section>;}
