@@ -1,0 +1,3 @@
+import { Catalog } from '@/components/catalog';
+export const metadata={title:'The Collection',description:'Explore original TechSavvy tees and hoodies. Preview the first collection.',alternates:{canonical:'/shop'}};
+export default function Shop(){return <div className="shell section"><div className="page-intro"><span className="eyebrow">TECHSAVVY GEAR / COLLECTION 001</span><h1>FIND YOUR <span className="green">GEAR.</span></h1><p>Original designs. A shared mission. Explore what’s taking shape.</p></div><Catalog/><div className="collection-note"><span>DESIGN PREVIEW</span><p>Prices, colors, and sizes are proposed. Ordering opens after physical samples and fulfillment are ready.</p></div></div>;}
