@@ -1,7 +1,10 @@
 export type Color = 'Black' | 'Charcoal' | 'Olive' | 'White';
 export const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'] as const;
 export type Size = typeof sizes[number];
-export type Crop = { x: number; y: number; w: number; h: number };
+export type Crop = {
+  x: number; y: number; w: number; h: number;
+  src?: string; sourceW?: number; sourceH?: number;
+};
 export type Product = {
   id: string; slug: string; name: string; category: 'T-Shirts' | 'Hoodies'; price: number;
   description: string; statement: string; colors: Color[]; image: Crop;
