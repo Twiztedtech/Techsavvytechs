@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["studio", "dist", "node_modules"]
+  "exclude": ["studio", "shop", "dist", "node_modules"]
 }

@@ -10,4 +10,5 @@ export const metadata: Metadata = {
   description:'Original apparel from TechSavvy. For the builders, troubleshooters, and people who keep technology working. Explore the first collection and partner with us.',
   icons:{icon:'/brand/ts-monogram.png'},openGraph:{type:'website',siteName:'TechSavvy Gear',title:'TechSavvy Gear — Wired for What’s Next.',description:'People solve tech. People matter more. Explore the first collection.'},
 };
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en"><body className={`${inter.variable} ${display.variable}`}><a className="skip-link" href="#main">Skip to content</a><StoreProvider><Header/><main id="main">{children}</main><Footer/></StoreProvider></body></html>;}
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" data-scroll-behavior="smooth"><body className={`${inter.variable} ${display.variable}`}><a className="skip-link" href="#main">Skip to content</a><StoreProvider><Header/><main id="main">{children}</main><Footer/></StoreProvider></body></html>;}
+

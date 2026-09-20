@@ -11,3 +11,7 @@
 - Accessibility: skip link, semantic headings, labeled fields, pressed-state variant selectors, visible focus, reduced-motion support. This implementation has browser checks; it is not a certified WCAG audit.
 
 Before a paid launch, approve physical samples and replace all concept crops with dedicated product and lifestyle images. Small artwork text in the supplied raster is not reliable production artwork.
+
+## Draft fidelity update — September 20
+
+The homepage follows the supplied storefront composition: hero and trust icons, eight product cards (four Logo Tee colors followed by Mission, Head Geek, People Matter, and Hoodie), category tabs, sort selector, card-level size selection and add-to-cart, four value blocks, Wear the Mission banner, and Shop / Support / Company / Stay Connected footer. The existing monogram and full logo are preserved. Social icons are labeled placeholders until real profile URLs are supplied. Unconfirmed shipping/payment claims remain launch-stage copy. Partnership content stays on its dedicated page with a compact homepage link.

@@ -21,5 +21,5 @@ export const findProduct = (slug: string) => products.find(p => p.slug === slug 
 export const settings = {
   name: 'TechSavvy Gear', url: 'https://shop.techsavvytechs.com', companyUrl: 'https://techsavvytechs.com',
   email: 'support@techsavvytechs.com', checkoutEnabled: false,
-  announcement: 'THE FIRST COLLECTION IS TAKING SHAPE. EXPLORE THE PREVIEW.',
+  announcement: 'COLLECTION PREVIEW  |  REPRESENT TECHSAVVY  |  WIRED FOR WHAT’S NEXT.',
 };

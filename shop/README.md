@@ -1,6 +1,6 @@
 # TechSavvy Gear
 
-Partner-facing marketing site and interactive collection preview for **shop.techsavvytechs.com**. Built separately from the existing company and personal websites.
+Partner-facing marketing site and interactive collection preview for **shop.techsavvytechs.com**. Source lives in the Techsavvytechs repository under shop/. It deploys independently from the main company website.
 
 ## Run locally
 
@@ -32,3 +32,4 @@ Payments, customer accounts, order database, inventory reservations, admin inter
 Content lives in `app/`; interactive components in `components/`; theme and responsive rules in `app/globals.css`. Contact email was verified against the existing TechSavvy company website source. Inquiry forms do not send automatically.
 
 See `DESIGN.md`, `PRODUCTS.md`, and `DEPLOYMENT.md` for handoff details.
+
