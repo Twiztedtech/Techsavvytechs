@@ -7,7 +7,7 @@ The shop source is now part of this repository at `shop/`, imported with its ori
 - Hosting project: `techsavvy-projects/techsavvy-gear` (separate from the company website)
 - Local: `cd shop`, `npm ci`, `npm run dev` (port 3100)
 - Verify: from `shop/`, run `npm run lint`, `npm run typecheck`, and `npm run build`.
-- Deploy: from `shop/`, link explicitly to `techsavvy-gear`, then run `vercel deploy --prod --scope techsavvy-projects`.
+- Deploy: push to GitHub `main`. The existing `techsavvy-gear` Vercel project is connected to `Twiztedtech/Techsavvytechs`, with Root Directory `shop` and production branch `main`.
 
 The company site's TypeScript configuration excludes `shop/`; each application owns its dependencies, build, and deployment. No company-site routes or apex-domain records are replaced.
 

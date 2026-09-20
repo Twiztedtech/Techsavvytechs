@@ -14,7 +14,7 @@ Vercel scope/project: `techsavvy-projects/techsavvy-gear`. The shop.techsavvytec
 
 ## Vercel
 
-Connect the standalone repository or deploy this directory with Vercel CLI. Framework: Next.js. Install: `npm ci`. Build: `npm run build`. Output: default. Use Node.js 24.x.
+The existing Vercel project is connected to GitHub repository `Twiztedtech/Techsavvytechs`, production branch `main`, Root Directory `shop`. Pushing to GitHub triggers Vercel deployment. Framework: Next.js. Install: `npm ci`. Build: `npm run build`. Output: default. Use Node.js 24.x.
 
 Validate with `npm run lint`, `npm run typecheck`, and `npm run build` before publishing. Check product selection, cart persistence, mobile navigation, inquiry drafts, and unavailable checkout in a browser.
 
@@ -30,5 +30,5 @@ Replace the mailto draft workflow with a validated, rate-limited server endpoint
 
 ## Repository location
 
-The canonical source is the shop/ directory in Twiztedtech/Techsavvytechs. Existing history was imported with git subtree. For manual deployment, run Vercel from shop/ with its own .vercel project link. Never run a shop deployment using the parent project link. If enabling Vercel Git integration later, select the Techsavvytechs repository and set the shop project Root Directory to shop. The main website keeps its current root configuration.
+The canonical source is the shop/ directory in Twiztedtech/Techsavvytechs. Existing history was imported with git subtree. Git integration was connected on September 20, 2026. Prefer Git-triggered deployments; the project now expects the full repository with Root Directory `shop`. Do not upload the shop folder alone as though the project root were still `.`. The main website keeps its current root configuration and its own Vercel project.
 
