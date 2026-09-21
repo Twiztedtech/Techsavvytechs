@@ -386,7 +386,7 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                 <span className="text-[11px] text-crm-muted block uppercase font-bold tracking-wider">Total Payable</span>
                 <span className="text-xl font-bold text-crm-ink font-mono">${totals.totalGross.toFixed(2)}</span>
                 {entry.status !== "voided" && entry.qbStatus === "synced" && (
-                  <button type="button" onClick={() => voidOrReverse(entry, "reverse")} className="mt-3 block w-full rounded-lg border border-crm-warning/40 bg-crm-warning/10 px-2 py-1.5 text-[11px] font-bold text-crm-warning hover:bg-crm-warning/20">Reverse approval &amp; QuickBooks sync</button>
+                  <button type="button" title="Reverses the QuickBooks bill and sends this entry back to the technician for correction" onClick={() => voidOrReverse(entry, "reverse")} className="mt-3 block w-full rounded-lg border border-crm-warning/40 bg-crm-warning/10 px-2 py-1.5 text-[11px] font-bold text-crm-warning hover:bg-crm-warning/20">Correct entry</button>
                 )}
                 {entry.status !== "voided" && entry.qbStatus !== "synced" && entry.qbStatus !== "reversed" && (
                   <button type="button" onClick={() => voidOrReverse(entry, "void")} className="mt-3 block w-full rounded-lg border border-crm-error/30 bg-crm-error/10 px-2 py-1.5 text-[11px] font-bold text-crm-error hover:bg-crm-error/20">{entry.voidStatus === "requested" ? "Approve void request" : "Void submission"}</button>
