@@ -952,10 +952,10 @@ function CustomersView({
   assets: CustomerAsset[];
   onCreate: () => void;
 }) {
-  const [inviting, setInviting] = useState("");
   const [managing, setManaging] = useState("");
   const [portalDays, setPortalDays] = useState(90);
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
+  const [inviteCustomer, setInviteCustomer] = useState<LiveCustomer | null>(null);
   const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
   const [viewingAgreement, setViewingAgreement] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<LiveCustomer | null>(null);
@@ -973,24 +973,6 @@ function CustomersView({
       alert(error instanceof Error ? error.message : "QuickBooks customer sync failed.");
     } finally {
       setSyncingCustomers(false);
-    }
-  };
-  const invite = async (customer: LiveCustomer) => {
-    setInviting(customer.id);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch("/api/contact?operation=send-customer-portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId: customer.id, expiresInDays: portalDays }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
-      alert(`Customer portal sent to ${result.email}.`);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Portal invitation could not be sent.");
-    } finally {
-      setInviting("");
     }
   };
   const viewAgreement = async (customer: LiveCustomer) => {
@@ -1106,11 +1088,11 @@ function CustomersView({
                   </b>
                 </div>
                 <button
-                  onClick={() => void invite(c)}
-                  disabled={inviting === c.id || !c.email}
+                  onClick={() => setInviteCustomer(c)}
+                  disabled={!c.email}
                   className="mt-3 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-crm-ink disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {inviting === c.id ? "Sending…" : c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
+                  {c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
                 </button>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
@@ -1160,6 +1142,13 @@ function CustomersView({
           invoiceCount={invoices.filter((invoice) => customerFor(invoice, records)?.id === deleteTarget.id).length}
           assetCount={assets.filter((asset) => customerFor(asset, records)?.id === deleteTarget.id).length}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+      {inviteCustomer && (
+        <PortalInviteModal
+          customer={inviteCustomer}
+          defaultDays={portalDays}
+          onClose={() => setInviteCustomer(null)}
         />
       )}
     </section>
@@ -1329,6 +1318,105 @@ function DeleteCustomerModal({
               {deleting ? "Deleting…" : "Delete permanently"}
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PORTAL_INVITE_DEFAULT_SUBJECT = "Your TechSavvy customer portal";
+const PORTAL_INVITE_DEFAULT_MESSAGE =
+  "Your secure customer portal is ready. View jobs, quotes, invoices, equipment and maintenance in one place.";
+
+function PortalInviteModal({
+  customer,
+  defaultDays,
+  onClose,
+}: {
+  customer: LiveCustomer;
+  defaultDays: number;
+  onClose: () => void;
+}) {
+  const [subject, setSubject] = useState(PORTAL_INVITE_DEFAULT_SUBJECT);
+  const [message, setMessage] = useState(PORTAL_INVITE_DEFAULT_MESSAGE);
+  const [days, setDays] = useState(defaultDays);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const expiresLabel = new Date(Date.now() + days * 86400000).toLocaleDateString();
+  const send = async () => {
+    setSending(true);
+    setError("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=send-customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerId: customer.id, expiresInDays: days, subject, message }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
+      alert(`Customer portal sent to ${result.email}.`);
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Portal invitation could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
+      <div className="w-full max-w-lg rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+        <h2 className="text-sm font-bold text-crm-ink">Invite to customer portal</h2>
+        <p className="mt-1 text-[10px] text-crm-muted">
+          Sends a secure portal access link to {customer.email || "this customer's email"}.
+          Review and edit exactly what it says before sending.
+        </p>
+        <div className="mt-4 space-y-3">
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Subject
+            <input
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Message
+            <textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              rows={3}
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Access expires in
+            <select
+              value={days}
+              onChange={(event) => setDays(Number(event.target.value))}
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            >
+              <option value={30}>30 days</option>
+              <option value={60}>60 days</option>
+              <option value={90}>90 days</option>
+              <option value={180}>180 days</option>
+            </select>
+          </label>
+        </div>
+        <div className="mt-4">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-crm-muted">Preview</p>
+          <div className="mt-1.5 whitespace-pre-wrap rounded border border-crm-hairline bg-crm-surface-soft p-3 font-mono text-[10px] leading-relaxed text-crm-body">
+            {`Hello ${customer.contact || customer.name},\n\n${message || PORTAL_INVITE_DEFAULT_MESSAGE}\n\nOpen portal: [secure link generated when sent]\n\nThis access link expires ${expiresLabel}.`}
+          </div>
+        </div>
+        {error && <p className="mt-3 text-[10px] font-bold text-crm-error">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} disabled={sending} className="rounded px-4 py-2 text-xs font-bold text-crm-muted hover:bg-crm-surface-soft">
+            Cancel
+          </button>
+          <button onClick={() => void send()} disabled={sending} className="rounded bg-crm-success px-4 py-2 text-xs font-bold text-white disabled:opacity-60">
+            {sending ? "Sending…" : "Send invite"}
+          </button>
         </div>
       </div>
     </div>
