@@ -816,6 +816,8 @@ export default function CRM() {
               <CustomersView
                 customers={liveCustomers}
                 jobs={liveJobs}
+                quotes={liveQuotes}
+                invoices={liveInvoices}
                 assets={assets}
                 onCreate={() => setCreateType("customer")}
               />
@@ -938,11 +940,15 @@ export default function CRM() {
 function CustomersView({
   customers: records,
   jobs,
+  quotes,
+  invoices,
   assets,
   onCreate,
 }: {
   customers: LiveCustomer[];
   jobs: LiveJob[];
+  quotes: LiveQuote[];
+  invoices: LiveInvoice[];
   assets: CustomerAsset[];
   onCreate: () => void;
 }) {
@@ -952,7 +958,40 @@ function CustomersView({
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
   const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
   const [viewingAgreement, setViewingAgreement] = useState("");
+  const [deleting, setDeleting] = useState("");
   const [syncingCustomers, setSyncingCustomers] = useState(false);
+  // Guards against deleting a customer that still has real history attached
+  // -- the button only ever offers to delete once every count below is zero,
+  // but this is re-checked here too since counts can change between renders.
+  const deleteCustomer = async (customer: LiveCustomer) => {
+    const jobCount = jobs.filter((job) => customerFor(job, records)?.id === customer.id).length;
+    const quoteCount = quotes.filter((quote) => customerFor(quote, records)?.id === customer.id).length;
+    const invoiceCount = invoices.filter((invoice) => customerFor(invoice, records)?.id === customer.id).length;
+    const assetCount = assets.filter((asset) => customerFor(asset, records)?.id === customer.id).length;
+    if (jobCount || quoteCount || invoiceCount || assetCount) {
+      alert(
+        `Can't delete ${customer.name} -- it still has ${[
+          jobCount && `${jobCount} job(s)`,
+          quoteCount && `${quoteCount} quote(s)`,
+          invoiceCount && `${invoiceCount} invoice(s)`,
+          assetCount && `${assetCount} asset(s)`,
+        ]
+          .filter(Boolean)
+          .join(", ")} attached. Remove or reassign those first.`,
+      );
+      return;
+    }
+    if (!confirm(`Permanently delete ${customer.name}? This cannot be undone.`)) return;
+    setDeleting(customer.id);
+    try {
+      await deleteDoc(doc(db, "customers", customer.id));
+      await recordAudit("deleted", "customer", customer.id, `Deleted customer ${customer.name}`, {});
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not delete this customer.");
+    } finally {
+      setDeleting("");
+    }
+  };
   const syncFromQuickBooks = async () => {
     setSyncingCustomers(true);
     try {
@@ -1052,12 +1091,21 @@ function CustomersView({
                   <span className="grid h-9 w-9 place-items-center rounded bg-crm-surface-card text-crm-ink">
                     <Building2 className="h-4 w-4" />
                   </span>
-                  <button
-                    onClick={() => setEditingCustomer(c)}
-                    className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-ink"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setEditingCustomer(c)}
+                      className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-ink"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => void deleteCustomer(c)}
+                      disabled={deleting === c.id}
+                      className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-error disabled:opacity-40"
+                    >
+                      {deleting === c.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
                 </div>
                 <h3 className="mt-4 text-xs font-bold">{c.name}</h3>
                 <p className="text-[10px] text-crm-muted">
