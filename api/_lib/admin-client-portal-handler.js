@@ -156,14 +156,12 @@ async function approveMember(req, res, admin) {
     return res.status(404).json({ error: "Membership request not found." });
   if (
     profile.data().emailVerified !== true ||
-    (profile.data().phoneVerified !== true &&
-      profile.data().phoneVerificationDeferred !== true)
+    profile.data().phoneVerified !== true
   )
     return res
       .status(409)
       .json({
-        error:
-          "The user must verify email and either verify or defer phone verification before approval.",
+        error: "The user must verify email and phone before approval.",
       });
   const roles = Array.isArray(req.body?.roles)
     ? req.body.roles

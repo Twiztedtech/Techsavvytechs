@@ -9,6 +9,9 @@ import {
 import { FieldPath } from "firebase-admin/firestore";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
 import { customerNotifiable, technicianNotifiable } from "./notification-eligibility.js";
+import { normalizePhone } from "./phone.js";
+
+export { normalizePhone };
 
 export const CLIENT_ROLES = [
   "company_admin",
@@ -42,8 +45,6 @@ export const nowIso = () => new Date().toISOString();
 export const clean = (value, max = 500) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
 export const normalizeEmail = (value) => clean(value, 254).toLowerCase();
-export const normalizePhone = (value) =>
-  clean(value, 30).replace(/[^+\d]/g, "");
 export const emailDomain = (email) => normalizeEmail(email).split("@")[1] || "";
 export const opaqueToken = () => randomBytes(24).toString("base64url");
 export const hashValue = (value) =>
@@ -109,7 +110,7 @@ export async function requireClient(req) {
   if (
     data.status !== "active" ||
     data.emailVerified !== true ||
-    (data.phoneVerified !== true && data.phoneVerificationDeferred !== true)
+    data.phoneVerified !== true
   ) {
     throw Object.assign(
       new Error("Client membership is awaiting verification or approval."),

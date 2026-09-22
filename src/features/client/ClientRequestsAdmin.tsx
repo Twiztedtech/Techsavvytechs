@@ -511,18 +511,11 @@ export function ClientRequestsAdmin({
                   <p className="text-[10px] text-crm-muted">
                     {user.email} · email {user.emailVerified ? "✓" : "—"} ·
                     phone{" "}
-                    {user.phoneVerified
-                      ? "✓"
-                      : user.phoneVerificationDeferred
-                        ? "deferred"
-                        : "—"}
+                    {user.phoneVerified ? "✓" : "—"}
                   </p>
                 </div>
                 <button
-                  disabled={
-                    !user.emailVerified ||
-                    (!user.phoneVerified && !user.phoneVerificationDeferred)
-                  }
+                  disabled={!user.emailVerified || !user.phoneVerified}
                   onClick={() =>
                     post("approve-member", {
                       uid: user.id,

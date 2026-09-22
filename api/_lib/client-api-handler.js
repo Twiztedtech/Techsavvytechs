@@ -407,6 +407,7 @@ async function publicRequestStatus(req, res) {
 async function registerMembership(req, res) {
   const user = await requireUser(req);
   const email = normalizeEmail(user.email);
+  const phone = normalizePhone(req.body?.phone);
   if (!user.email_verified)
     return res
       .status(403)
@@ -421,6 +422,10 @@ async function registerMembership(req, res) {
     });
   const org = await adminDb.collection("customers").doc(customerId).get();
   if (!org.exists) return res.status(404).json({ error: "Company not found." });
+  if (!phone)
+    return res.status(422).json({
+      error: "Enter a valid mobile number, including the country code if outside the US.",
+    });
   const requestedRoles = Array.isArray(req.body?.roles)
     ? req.body.roles.filter(
         (role) => CLIENT_ROLES.includes(role) && role !== "company_admin",
@@ -434,7 +439,7 @@ async function registerMembership(req, res) {
         customerId,
         email,
         displayName: clean(req.body?.displayName || user.name || email, 120),
-        phone: normalizePhone(req.body?.phone),
+        phone,
         roles: requestedRoles.length ? requestedRoles : ["project_viewer"],
         requestedRoles,
         status: "pending",
@@ -444,7 +449,7 @@ async function registerMembership(req, res) {
           req.body?.smsConsent === true
             ? {
                 optedIn: true,
-                phone: normalizePhone(req.body?.phone),
+                phone,
                 consentVersion: "client-membership-2026-08",
                 consentedAt: nowIso(),
               }
@@ -571,17 +576,24 @@ async function sendVerificationCode(req, res) {
     },
     { merge: true },
   );
-  const delivery = await sendSms({
-    to: profile.data().phone,
-    body: `${code} is your TechSavvy client portal verification code. It expires in 10 minutes.`,
-    type: "client_verification",
-    important: true,
-  }).catch(() => null);
-  if (!delivery)
+  let delivery;
+  try {
+    delivery = await sendSms({
+      to: profile.data().phone,
+      body: `${code} is your TechSavvy client portal verification code. It expires in 10 minutes.`,
+      type: "client_verification",
+      important: true,
+    });
+  } catch (error) {
+    console.error("Client phone verification delivery failed:", {
+      uid: user.uid,
+      message: error instanceof Error ? error.message : "Unknown SMS error",
+    });
     return res.status(503).json({
       error:
         "The verification text could not be delivered. Please try again shortly or contact TechSavvy.",
     });
+  }
   if (delivery.skipped)
     return res
       .status(503)
@@ -625,33 +637,6 @@ async function verifyCode(req, res) {
       phoneVerifiedAt: nowIso(),
       verificationCodeHash: "",
       verificationExpiresAt: "",
-      updatedAt: nowIso(),
-    },
-    { merge: true },
-  );
-  return res.status(200).json({ success: true, status: "pending_approval" });
-}
-
-async function deferPhoneVerification(req, res) {
-  const user = await requireUser(req);
-  const profileRef = adminDb.collection("client_users").doc(user.uid);
-  const profile = await profileRef.get();
-  if (!profile.exists)
-    return res
-      .status(404)
-      .json({ error: "Submit a company membership request first." });
-  if (profile.data().emailVerified !== true)
-    return res
-      .status(403)
-      .json({ error: "Verify your email before continuing." });
-  await profileRef.set(
-    {
-      phoneVerified: false,
-      phoneVerificationDeferred: true,
-      phoneVerificationDeferredAt: nowIso(),
-      verificationCodeHash: "",
-      verificationExpiresAt: "",
-      smsConsent: { optedIn: false },
       updatedAt: nowIso(),
     },
     { merge: true },
@@ -1008,8 +993,7 @@ async function approveCompanyMember(req, res) {
     return res.status(404).json({ error: "Membership request not found." });
   if (
     target.data().emailVerified !== true ||
-    (target.data().phoneVerified !== true &&
-      target.data().phoneVerificationDeferred !== true)
+    target.data().phoneVerified !== true
   )
     return res
       .status(409)
@@ -1049,8 +1033,6 @@ export default async function handler(req, res) {
       return await sendVerificationCode(req, res);
     if (req.method === "POST" && action === "verify-code")
       return await verifyCode(req, res);
-    if (req.method === "POST" && action === "defer-phone-verification")
-      return await deferPhoneVerification(req, res);
     if (req.method === "GET" && action === "me") return await getMe(req, res);
     if (req.method === "GET" && action === "jobs")
       return await listJobs(req, res);

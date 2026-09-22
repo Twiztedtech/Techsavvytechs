@@ -422,10 +422,13 @@ export default function ClientPortal() {
                   tone: "success",
                   text: "A verification code was sent to your phone.",
                 });
-              } catch {
+              } catch (error) {
                 setNotice({
-                  tone: "success",
-                  text: "Company access was requested. SMS is temporarily unavailable, so continue with verified email for administrator approval.",
+                  tone: "error",
+                  text:
+                    error instanceof Error
+                      ? error.message
+                      : "Could not send the verification code.",
                 });
               }
             } catch (error) {
@@ -446,8 +449,8 @@ export default function ClientPortal() {
           </h2>
           <p className="mt-2 mb-6 text-sm text-slate-400">
             Your verified email domain will suggest the matching company.
-            Membership still requires approval. You can verify your phone by
-            text when available or continue securely with verified email.
+            Membership still requires approval. We will text a six-digit code
+            to verify your mobile number before the request can be approved.
           </p>
           <label className="block text-xs font-bold text-slate-300">
             Name
@@ -465,6 +468,8 @@ export default function ClientPortal() {
             <input
               required
               type="tel"
+              autoComplete="tel"
+              placeholder="(916) 555-0123"
               value={registration.phone}
               onChange={(e) =>
                 setRegistration((v) => ({ ...v, phone: e.target.value }))
@@ -524,13 +529,13 @@ export default function ClientPortal() {
             </p>
           )}
           <button className="w-full bg-safety-orange px-5 py-3 font-bold text-brand-black">
-            Request company access
+            Send verification code
           </button>
         </form>
       </PortalFrame>
     );
 
-  if (!profile.phoneVerified && !profile.phoneVerificationDeferred)
+  if (!profile.phoneVerified)
     return (
       <PortalFrame onSignOut={() => signOut(auth)}>
         <form
@@ -612,39 +617,6 @@ export default function ClientPortal() {
             className="mt-3 w-full glass-button px-5 py-3 text-sm font-bold"
           >
             Resend code
-          </button>
-          <div className="my-5 border-t border-white/10" />
-          <p className="text-center text-xs text-slate-400">
-            SMS is unavailable? Continue with verified email and TechSavvy
-            administrator approval. Text notifications will remain disabled.
-          </p>
-          <button
-            type="button"
-            onClick={async () => {
-              setNotice(null);
-              try {
-                await api("/api/client?action=defer-phone-verification", {
-                  method: "POST",
-                  body: "{}",
-                });
-                await load();
-                setNotice({
-                  tone: "success",
-                  text: "Email-only access requested. Your membership is awaiting approval.",
-                });
-              } catch (error) {
-                setNotice({
-                  tone: "error",
-                  text:
-                    error instanceof Error
-                      ? error.message
-                      : "Could not request email-only access.",
-                });
-              }
-            }}
-            className="mt-3 w-full rounded border border-amber-500/40 px-5 py-3 text-sm font-bold text-amber-300"
-          >
-            Continue with email-only access
           </button>
         </form>
       </PortalFrame>
@@ -1193,8 +1165,7 @@ export default function ClientPortal() {
                     <button
                       disabled={
                         !member.emailVerified ||
-                        (!member.phoneVerified &&
-                          !member.phoneVerificationDeferred)
+                        !member.phoneVerified
                       }
                       onClick={async () => {
                         await api("/api/client?action=approve-member", {
