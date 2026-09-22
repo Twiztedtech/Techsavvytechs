@@ -81,8 +81,16 @@ export interface JobSite {
   equipment?: Array<{
     description: string;
     quantity?: string;
+    upc?: string;
+    serial?: string;
     notes?: string;
     providedBy?: "client" | "techsavvy";
+  }>;
+  packages?: Array<{
+    carrier?: string;
+    trackingNumber?: string;
+    destination?: "site" | "office";
+    description?: string;
   }>;
   requiredDeliverables?: string[];
   scopeTasks?: string[];

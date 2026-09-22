@@ -111,8 +111,18 @@ export default function BookJob({
     {
       description: "",
       quantity: "",
+      upc: "",
+      serial: "",
       notes: "",
       providedBy: "client" as "client" | "techsavvy",
+    },
+  ]);
+  const [packages, setPackages] = useState([
+    {
+      carrier: "",
+      trackingNumber: "",
+      destination: "site" as "site" | "office",
+      description: "",
     },
   ]);
   const [files, setFiles] = useState<File[]>([]);
@@ -214,6 +224,7 @@ export default function BookJob({
           scopeTasks,
           deliverables,
           equipment,
+          packages: packages.filter((p) => p.trackingNumber.trim() || p.description.trim()),
           attachments,
           uploadSession,
         }),
@@ -232,8 +243,9 @@ export default function BookJob({
       setScopeTasks([""]);
       setDeliverables([""]);
       setEquipment([
-        { description: "", quantity: "", notes: "", providedBy: "client" },
+        { description: "", quantity: "", upc: "", serial: "", notes: "", providedBy: "client" },
       ]);
+      setPackages([{ carrier: "", trackingNumber: "", destination: "site", description: "" }]);
       setFiles([]);
       onSubmitted?.();
     } catch (error) {
@@ -408,8 +420,10 @@ export default function BookJob({
                 windows
               </h2>
               <p className="mb-4 text-xs text-slate-400">
-                Monday–Friday, 8:00 AM–5:00 PM Pacific. Requests inside two
-                business days are marked urgent.
+                Monday–Friday, any time. Standard hours are 7:00 AM–5:00 PM
+                Pacific; requested times before 7:00 AM or after 5:00 PM are
+                extended hours and billed at the night rate. Requests inside
+                two business days are marked urgent.
               </p>
               {[
                 [
@@ -439,16 +453,12 @@ export default function BookJob({
                     />
                     <input
                       type="time"
-                      min="08:00"
-                      max="17:00"
                       value={String(form[start as keyof BookingForm])}
                       onChange={field(start as keyof BookingForm)}
                       className="rounded border border-white/10 bg-white/5 px-2 py-3 text-xs text-white"
                     />
                     <input
                       type="time"
-                      min="08:00"
-                      max="17:00"
                       value={String(form[end as keyof BookingForm])}
                       onChange={field(end as keyof BookingForm)}
                       className="rounded border border-white/10 bg-white/5 px-2 py-3 text-xs text-white"
@@ -575,6 +585,8 @@ export default function BookJob({
                         {
                           description: "",
                           quantity: "",
+                          upc: "",
+                          serial: "",
                           notes: "",
                           providedBy: "client",
                         },
@@ -585,77 +597,165 @@ export default function BookJob({
                     + Add item
                   </button>
                 </div>
-                {equipment.map((item, index) => (
-                  <div
-                    key={index}
-                    className="grid gap-2 sm:grid-cols-[150px_1fr_80px_32px]"
-                  >
-                    <select
-                      value={item.providedBy}
-                      onChange={(e) =>
-                        setEquipment((v) =>
-                          v.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  providedBy: e.target.value as
-                                    | "client"
-                                    | "techsavvy",
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      aria-label={`Provider for equipment item ${index + 1}`}
-                      className="rounded border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white"
+                {equipment.map((item, index) => {
+                  const update = (patch: Partial<(typeof equipment)[number]>) =>
+                    setEquipment((v) =>
+                      v.map((x, i) => (i === index ? { ...x, ...patch } : x)),
+                    );
+                  return (
+                    <div
+                      key={index}
+                      className="space-y-2 rounded border border-white/10 bg-white/[0.02] p-3"
                     >
-                      <option value="client">Client provided</option>
-                      <option value="techsavvy">TechSavvy provided</option>
-                    </select>
-                    <input
-                      value={item.description}
-                      onChange={(e) =>
-                        setEquipment((v) =>
-                          v.map((x, i) =>
-                            i === index
-                              ? { ...x, description: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Description"
-                      className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                    />
-                    <input
-                      value={item.quantity}
-                      onChange={(e) =>
-                        setEquipment((v) =>
-                          v.map((x, i) =>
-                            i === index
-                              ? { ...x, quantity: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Qty"
-                      className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                    />
-                    {equipment.length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEquipment((v) => v.filter((_, i) => i !== index))
+                      <div className="grid gap-2 sm:grid-cols-[150px_1fr_80px_32px]">
+                        <select
+                          value={item.providedBy}
+                          onChange={(e) =>
+                            update({
+                              providedBy: e.target.value as "client" | "techsavvy",
+                            })
+                          }
+                          aria-label={`Provider for equipment item ${index + 1}`}
+                          className="rounded border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white"
+                        >
+                          <option value="client">Client provided</option>
+                          <option value="techsavvy">TechSavvy provided</option>
+                        </select>
+                        <input
+                          value={item.description}
+                          onChange={(e) => update({ description: e.target.value })}
+                          placeholder="Description"
+                          className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                        <input
+                          value={item.quantity}
+                          onChange={(e) => update({ quantity: e.target.value })}
+                          placeholder="Qty"
+                          className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                        {equipment.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEquipment((v) => v.filter((_, i) => i !== index))
+                            }
+                            aria-label={`Remove equipment item ${index + 1}`}
+                            className="text-red-400"
+                          >
+                            ×
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <input
+                          value={item.upc}
+                          onChange={(e) => update({ upc: e.target.value })}
+                          placeholder="UPC"
+                          aria-label={`UPC for equipment item ${index + 1}`}
+                          className="rounded border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                        />
+                        <input
+                          value={item.serial}
+                          onChange={(e) => update({ serial: e.target.value })}
+                          placeholder="Serial #"
+                          aria-label={`Serial number for equipment item ${index + 1}`}
+                          className="rounded border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                        />
+                        <input
+                          value={item.notes}
+                          onChange={(e) => update({ notes: e.target.value })}
+                          placeholder="Notes (e.g. on order, ETA Tuesday)"
+                          aria-label={`Notes for equipment item ${index + 1}`}
+                          className="rounded border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+            <section className="glass-card p-6">
+              <div className="mb-2 flex justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold text-tech-green">
+                    Packages / shipments
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Tell us about anything you're shipping to the site or to
+                    the TechSavvy office for this job, so we're not caught off
+                    guard by an unlabeled box.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPackages((v) => [
+                      ...v,
+                      { carrier: "", trackingNumber: "", destination: "site", description: "" },
+                    ])
+                  }
+                  className="shrink-0 text-xs text-tech-green"
+                >
+                  + Add package
+                </button>
+              </div>
+              <div className="space-y-2">
+                {packages.map((pkg, index) => {
+                  const update = (patch: Partial<(typeof packages)[number]>) =>
+                    setPackages((v) =>
+                      v.map((x, i) => (i === index ? { ...x, ...patch } : x)),
+                    );
+                  return (
+                    <div
+                      key={index}
+                      className="grid gap-2 sm:grid-cols-[110px_1fr_1fr_32px]"
+                    >
+                      <select
+                        value={pkg.destination}
+                        onChange={(e) =>
+                          update({ destination: e.target.value as "site" | "office" })
                         }
-                        aria-label={`Remove equipment item ${index + 1}`}
-                        className="text-red-400"
+                        aria-label={`Destination for package ${index + 1}`}
+                        className="rounded border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white"
                       >
-                        ×
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                  </div>
-                ))}
+                        <option value="site">To site</option>
+                        <option value="office">To TechSavvy office</option>
+                      </select>
+                      <input
+                        value={pkg.carrier}
+                        onChange={(e) => update({ carrier: e.target.value })}
+                        placeholder="Carrier (UPS, FedEx, freight...)"
+                        className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                      <input
+                        value={pkg.trackingNumber}
+                        onChange={(e) => update({ trackingNumber: e.target.value })}
+                        placeholder="Tracking number"
+                        className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                      {packages.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => setPackages((v) => v.filter((_, i) => i !== index))}
+                          aria-label={`Remove package ${index + 1}`}
+                          className="text-red-400"
+                        >
+                          ×
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <input
+                        value={pkg.description}
+                        onChange={(e) => update({ description: e.target.value })}
+                        placeholder="What's in it / who it's for"
+                        className="rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white sm:col-span-3"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </section>
             <section className="glass-card p-6 md:p-8">

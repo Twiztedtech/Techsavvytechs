@@ -291,6 +291,7 @@ async function convertRequest(req, res, admin) {
     hourlyRate: Number(req.body?.hourlyRate || 55),
     travelRate: Number(req.body?.travelRate || 35),
     equipment: request.equipment || [],
+    packages: request.packages || [],
     scopeTasks: request.scopeTasks?.length
       ? request.scopeTasks
       : [request.scopeSummary],

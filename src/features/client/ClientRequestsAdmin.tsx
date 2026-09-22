@@ -218,7 +218,35 @@ export function ClientRequestsAdmin({
                               {item.providedBy === "techsavvy"
                                 ? "TechSavvy provided"
                                 : "Client provided"}
+                              {item.upc ? ` · UPC ${item.upc}` : ""}
+                              {item.serial ? ` · SN ${item.serial}` : ""}
                             </span>
+                            {item.notes && (
+                              <span className="block text-crm-muted">{item.notes}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {request.packages?.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
+                        Packages / shipments
+                      </p>
+                      <ul className="mt-1 space-y-1 text-xs text-crm-body">
+                        {request.packages.map((pkg: any, index: number) => (
+                          <li key={`${index}-${pkg.trackingNumber || pkg.description}`}>
+                            <span className="font-bold text-crm-ink">
+                              {pkg.destination === "office" ? "To TechSavvy office" : "To site"}
+                            </span>{" "}
+                            <span className="text-crm-muted">
+                              {pkg.carrier ? `— ${pkg.carrier}` : ""}
+                              {pkg.trackingNumber ? ` #${pkg.trackingNumber}` : ""}
+                            </span>
+                            {pkg.description && (
+                              <span className="block text-crm-muted">{pkg.description}</span>
+                            )}
                           </li>
                         ))}
                       </ul>

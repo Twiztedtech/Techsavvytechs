@@ -47,12 +47,11 @@ function requestedWindows(value) {
       )
         return false;
       const weekday = new Date(`${window.date}T12:00:00Z`).getUTCDay();
-      return (
-        ![0, 6].includes(weekday) &&
-        window.start >= "08:00" &&
-        window.end <= "17:00" &&
-        window.end > window.start
-      );
+      // Any time of day is requestable now (standard hours are 7:00 AM-5:00
+      // PM; anything outside that is extended/night-rate work, not simply
+      // disallowed). Still same calendar day only -- a window spanning past
+      // midnight isn't supported here.
+      return ![0, 6].includes(weekday) && window.end > window.start;
     });
 }
 
@@ -208,10 +207,26 @@ async function createRequest(req, res) {
           .map((v) => ({
             description: clean(v?.description, 300),
             quantity: clean(v?.quantity, 50),
+            upc: clean(v?.upc, 60),
+            serial: clean(v?.serial, 60),
             notes: clean(v?.notes, 300),
             providedBy: v?.providedBy === "techsavvy" ? "techsavvy" : "client",
           }))
           .filter((v) => v.description)
+      : [],
+    // Shipments the customer has coming (or already sent) to the site or the
+    // TechSavvy office for this job, so dispatch knows what to expect and
+    // isn't caught off guard by an unlabeled box at the front desk.
+    packages: Array.isArray(req.body.packages)
+      ? req.body.packages
+          .slice(0, 30)
+          .map((v) => ({
+            carrier: clean(v?.carrier, 80),
+            trackingNumber: clean(v?.trackingNumber, 120),
+            destination: v?.destination === "office" ? "office" : "site",
+            description: clean(v?.description, 300),
+          }))
+          .filter((v) => v.trackingNumber || v.description)
       : [],
     deliverables: Array.isArray(req.body.deliverables)
       ? req.body.deliverables
