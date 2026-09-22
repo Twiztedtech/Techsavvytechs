@@ -192,6 +192,7 @@ type LiveCustomer = {
   assets?: number;
   lifetimeValue?: number;
   portalDelivery?: { status: string; email: string; sentAt: string; expiresAt?: string; revokedAt?: string };
+  portalInvites?: { email: string; sentAt: string; emailId?: string; subject?: string }[];
   serviceAgreement?: { status: string; email: string; sentAt: string; expiresAt?: string; signedAt?: string; signerName?: string };
   rateAgreement?: { standardRate: number; nightRate: number; minimumHours: number; agreedAt: string };
   reminderPreferences?: { enabled?: boolean; appointment?: boolean; quote?: boolean; invoice?: boolean; maintenance?: boolean };
@@ -955,6 +956,23 @@ function CustomersView({
   const [managing, setManaging] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
   const [inviteCustomer, setInviteCustomer] = useState<LiveCustomer | null>(null);
+  const [clientUsers, setClientUsers] = useState<
+    { customerId: string; email: string; status: string; displayName: string }[]
+  >([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const response = await fetch("/api/contact?operation=list-client-users", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (response.ok) setClientUsers(result.users || []);
+      } catch {
+        // Non-critical: portal-invite acceptance status just won't show.
+      }
+    })();
+  }, []);
   const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
   const [viewingAgreement, setViewingAgreement] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<LiveCustomer | null>(null);
@@ -1059,11 +1077,46 @@ function CustomersView({
                   Primary: {c.personnel?.find((p) => p.role === "primary_contact" && p.active !== false)?.name || c.contact || "Not set"}
                 </p>
                 {(() => {
-                  const expiresAt = c.portalDelivery?.expiresAt;
-                  const expired = Boolean(expiresAt && expiresAt < new Date().toISOString());
-                  const revoked = c.portalDelivery?.status === "revoked";
-                  const active = c.portalDelivery?.status === "sent" && !expired;
-                  return <div className="mt-3 flex items-center justify-between rounded bg-crm-surface-soft px-2.5 py-2"><span className={`text-[8px] font-bold uppercase ${active ? "text-crm-success" : revoked ? "text-crm-error" : "text-crm-muted"}`}>{active ? "Portal active" : revoked ? "Portal revoked" : expired ? "Portal expired" : "Not invited"}</span><span className="text-[8px] text-crm-muted">{active && expiresAt ? `Expires ${new Date(expiresAt).toLocaleDateString()}` : c.portalDelivery?.email || ""}</span></div>;
+                  const invites = c.portalInvites || [];
+                  if (!invites.length)
+                    return (
+                      <div className="mt-3 rounded bg-crm-surface-soft px-2.5 py-2">
+                        <span className="text-[8px] font-bold uppercase text-crm-muted">No portal invites sent yet</span>
+                      </div>
+                    );
+                  return (
+                    <div className="mt-3 space-y-1.5 rounded bg-crm-surface-soft px-2.5 py-2">
+                      <span className="text-[8px] font-bold uppercase text-crm-muted">Portal invites</span>
+                      {invites.map((invite, index) => {
+                        const match = clientUsers.find(
+                          (u) => u.customerId === c.id && u.email === invite.email.toLowerCase(),
+                        );
+                        const statusLabel =
+                          match?.status === "active"
+                            ? "Active"
+                            : match?.status === "pending"
+                              ? "Pending approval"
+                              : "Not registered yet";
+                        const statusClass =
+                          match?.status === "active"
+                            ? "text-crm-success"
+                            : match?.status === "pending"
+                              ? "text-crm-warning"
+                              : "text-crm-muted";
+                        return (
+                          <div
+                            key={`${invite.email}-${invite.sentAt}-${index}`}
+                            className="flex items-center justify-between gap-2 text-[9px]"
+                          >
+                            <span className="truncate text-crm-body" title={invite.email}>
+                              {invite.email}
+                            </span>
+                            <span className={`shrink-0 font-bold uppercase ${statusClass}`}>{statusLabel}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })()}
                 <div className="mt-4 grid grid-cols-3 border-y border-crm-hairline-soft py-3 text-center">
                   <div>
@@ -1090,7 +1143,7 @@ function CustomersView({
                   disabled={!c.email}
                   className="mt-3 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-crm-ink disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {c.portalDelivery?.status === "sent" ? "Resend portal access" : "Invite to customer portal"}
+                  Invite to customer portal
                 </button>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
@@ -1357,6 +1410,7 @@ function PortalInviteModal({
   customer: LiveCustomer;
   onClose: () => void;
 }) {
+  const [recipientEmail, setRecipientEmail] = useState(customer.email || "");
   const [subject, setSubject] = useState(PORTAL_INVITE_DEFAULT_SUBJECT);
   const [message, setMessage] = useState(() => buildPortalInviteDefaultMessage(customer.name));
   const [sending, setSending] = useState(false);
@@ -1369,7 +1423,7 @@ function PortalInviteModal({
       const response = await fetch("/api/contact?operation=send-customer-portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId: customer.id, subject, message }),
+        body: JSON.stringify({ customerId: customer.id, recipientEmail, subject, message }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
@@ -1386,10 +1440,21 @@ function PortalInviteModal({
       <div className="w-full max-w-2xl rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
         <h2 className="text-sm font-bold text-crm-ink">Invite to customer portal</h2>
         <p className="mt-1 text-[10px] text-crm-muted">
-          Sends this exact email to {customer.email || "this customer's email"}. Review and edit
-          it below before sending -- nothing goes out until you click Send.
+          Multiple people at {customer.name} can each get their own invite -- change the
+          recipient below to send to someone other than the main contact. Review and edit the
+          email before sending -- nothing goes out until you click Send.
         </p>
         <div className="mt-4 space-y-3">
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Send to
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(event) => setRecipientEmail(event.target.value)}
+              placeholder="name@company.com"
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
           <label className="block text-[10px] font-bold uppercase text-crm-muted">
             Subject
             <input

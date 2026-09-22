@@ -1,4 +1,5 @@
 import { adminDb, adminStorage, requireAdmin } from './_lib/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
@@ -216,26 +217,17 @@ async function sendCustomerPortal(req, res) {
   if (!customerSnapshot.exists)
     return res.status(404).json({ error: "The customer was not found." });
   const customer = customerSnapshot.data();
-  const email = String(customer.email || "").trim().toLowerCase();
+  // Multiple people at the same company may need their own invite (this is
+  // a self-signup pointer, not a single shared magic link), so the
+  // recipient is whichever address the admin targets this send at --
+  // defaulting to the company's contact email, not locked to it.
+  const email = String(req.body?.recipientEmail || customer.email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    return res.status(422).json({ error: "The customer needs a valid email address." });
+    return res.status(422).json({ error: "A valid recipient email address is required." });
   if (!process.env.RESEND_API_KEY)
     return res.status(503).json({ error: "Customer email delivery is not configured." });
 
-  const rawToken = randomBytes(32).toString("base64url");
-  const hash = tokenHash(rawToken);
   const createdAt = new Date().toISOString();
-  const requestedDays = Number(req.body?.expiresInDays || 90);
-  const expiresInDays = Math.min(365, Math.max(7, Number.isFinite(requestedDays) ? requestedDays : 90));
-  const expiresAt = new Date(Date.now() + expiresInDays * 86400000).toISOString();
-  await adminDb.collection("customer_portal_tokens").doc(hash).set({
-    customerId,
-    customerName: customer.name,
-    email,
-    createdAt,
-    expiresAt,
-    createdByUid: user.uid,
-  });
   const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
   const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
   const defaultSubject = "Your TechSavvy customer portal";
@@ -260,16 +252,41 @@ async function sendCustomerPortal(req, res) {
     }),
   });
   if (!delivery.ok) {
-    await adminDb.collection("customer_portal_tokens").doc(hash).delete();
     throw new Error("Portal email delivery failed: " + (await delivery.text()));
   }
   const deliveryData = await delivery.json();
+  // Append-only invite history -- several people at one company can each
+  // get their own invite, so this never overwrites a prior recipient's
+  // entry the way a single portalDelivery object used to.
   await customerRef.set({
-    portalDelivery: { status: "sent", email, emailId: deliveryData.id, sentAt: createdAt, expiresAt, tokenHash: hash },
+    portalInvites: FieldValue.arrayUnion({
+      email,
+      sentAt: createdAt,
+      emailId: deliveryData.id,
+      subject,
+      sentByUid: user.uid,
+    }),
     updatedAt: createdAt,
   }, { merge: true });
-  await writeAudit({ actor: user, action: "portal-invited", entityType: "customer", entityId: customerId, summary: `Sent customer portal access to ${email}`, details: { email, expiresAt }, source: "api" });
-  return res.status(200).json({ success: true, email, expiresAt });
+  await writeAudit({ actor: user, action: "portal-invited", entityType: "customer", entityId: customerId, summary: `Sent customer portal invite to ${email}`, details: { email }, source: "api" });
+  return res.status(200).json({ success: true, email });
+}
+
+async function listClientUsers(req, res) {
+  await requireAdmin(req);
+  const snapshot = await adminDb.collection("client_users").limit(500).get();
+  return res.status(200).json({
+    users: snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        customerId: data.customerId || "",
+        email: String(data.email || "").toLowerCase(),
+        displayName: data.displayName || "",
+        status: data.status || "pending",
+      };
+    }),
+  });
 }
 
 async function manageCustomerPortal(req, res) {
@@ -983,6 +1000,10 @@ export default async function handler(req, res) {
   if (req.query?.operation === 'send-customer-portal' && req.method === 'POST') {
     try { return await sendCustomerPortal(req, res); }
     catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Customer portal delivery failed.' }); }
+  }
+  if (req.query?.operation === 'list-client-users' && req.method === 'GET') {
+    try { return await listClientUsers(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Client users could not be loaded.' }); }
   }
   if (req.query?.operation === 'customer-portal' && req.method === 'GET') {
     try { return await loadCustomerPortal(req, res); }
