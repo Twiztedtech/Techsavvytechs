@@ -953,7 +953,6 @@ function CustomersView({
   onCreate: () => void;
 }) {
   const [managing, setManaging] = useState("");
-  const [portalDays, setPortalDays] = useState(90);
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
   const [inviteCustomer, setInviteCustomer] = useState<LiveCustomer | null>(null);
   const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
@@ -1023,7 +1022,6 @@ function CustomersView({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => void syncFromQuickBooks()} disabled={syncingCustomers} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[9px] font-bold uppercase text-crm-ink disabled:opacity-40">{syncingCustomers ? "Syncing…" : "Sync from QuickBooks"}</button>
-          <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-crm-muted">New access expires<select value={portalDays} onChange={(event) => setPortalDays(Number(event.target.value))} className="rounded border border-crm-hairline px-2 py-1.5 text-[10px] font-semibold normal-case text-crm-body"><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label>
         </div>
       </header>
       {records.length ? (
@@ -1147,7 +1145,6 @@ function CustomersView({
       {inviteCustomer && (
         <PortalInviteModal
           customer={inviteCustomer}
-          defaultDays={portalDays}
           onClose={() => setInviteCustomer(null)}
         />
       )}
@@ -1324,25 +1321,46 @@ function DeleteCustomerModal({
   );
 }
 
-const PORTAL_INVITE_DEFAULT_SUBJECT = "Your TechSavvy customer portal";
-const PORTAL_INVITE_DEFAULT_MESSAGE =
-  "Your secure customer portal is ready. View jobs, quotes, invoices, equipment and maintenance in one place.";
+const PORTAL_INVITE_DEFAULT_SUBJECT = "You're invited to the TechSavvy Client Portal pilot";
+const PORTAL_SIGNUP_LINK = "https://techsavvytechs.com/client";
+const buildPortalInviteDefaultMessage = (companyName: string) =>
+  `Hi [contact name],
+
+We'd like to invite ${companyName} to participate in our TechSavvy Client Portal pilot program.
+
+The portal provides a secure and organized way to submit and manage service requests instead of relying solely on email. Through the portal, you'll be able to:
+
+- Submit new service and installation requests
+- Provide the scope of work and individual scope tasks
+- Add required deliverables
+- Enter site contacts, addresses, and requested service dates
+- Identify client-provided and TechSavvy-provided equipment or materials
+- Upload supporting documents, diagrams, photos, and site files
+- Include a PO, work-order, or invoicing reference number
+- Review upcoming jobs, job history, status updates, and completed-job reports
+
+For security purposes, you'll need to create your own account using your ${companyName} business email address. The ${companyName} company profile is already set up, so the system should connect your account with ${companyName} after registration.
+
+Please use the following secure portal link:
+${PORTAL_SIGNUP_LINK}
+
+This is currently a pilot program, so your feedback about the signup and request-submission process would be greatly appreciated. Please let me know if you encounter any issues.
+
+Thank you,
+Will Jackson
+TechSavvy LLC`;
 
 function PortalInviteModal({
   customer,
-  defaultDays,
   onClose,
 }: {
   customer: LiveCustomer;
-  defaultDays: number;
   onClose: () => void;
 }) {
   const [subject, setSubject] = useState(PORTAL_INVITE_DEFAULT_SUBJECT);
-  const [message, setMessage] = useState(PORTAL_INVITE_DEFAULT_MESSAGE);
-  const [days, setDays] = useState(defaultDays);
+  const [message, setMessage] = useState(() => buildPortalInviteDefaultMessage(customer.name));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const expiresLabel = new Date(Date.now() + days * 86400000).toLocaleDateString();
   const send = async () => {
     setSending(true);
     setError("");
@@ -1351,11 +1369,11 @@ function PortalInviteModal({
       const response = await fetch("/api/contact?operation=send-customer-portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId: customer.id, expiresInDays: days, subject, message }),
+        body: JSON.stringify({ customerId: customer.id, subject, message }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
-      alert(`Customer portal sent to ${result.email}.`);
+      alert(`Customer portal invite sent to ${result.email}.`);
       onClose();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Portal invitation could not be sent.");
@@ -1365,11 +1383,11 @@ function PortalInviteModal({
   };
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
-      <div className="w-full max-w-lg rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+      <div className="w-full max-w-2xl rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
         <h2 className="text-sm font-bold text-crm-ink">Invite to customer portal</h2>
         <p className="mt-1 text-[10px] text-crm-muted">
-          Sends a secure portal access link to {customer.email || "this customer's email"}.
-          Review and edit exactly what it says before sending.
+          Sends this exact email to {customer.email || "this customer's email"}. Review and edit
+          it below before sending -- nothing goes out until you click Send.
         </p>
         <div className="mt-4 space-y-3">
           <label className="block text-[10px] font-bold uppercase text-crm-muted">
@@ -1385,29 +1403,10 @@ function PortalInviteModal({
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              rows={3}
-              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+              rows={16}
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 font-mono text-[11px] font-normal normal-case leading-relaxed text-crm-body"
             />
           </label>
-          <label className="block text-[10px] font-bold uppercase text-crm-muted">
-            Access expires in
-            <select
-              value={days}
-              onChange={(event) => setDays(Number(event.target.value))}
-              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
-            >
-              <option value={30}>30 days</option>
-              <option value={60}>60 days</option>
-              <option value={90}>90 days</option>
-              <option value={180}>180 days</option>
-            </select>
-          </label>
-        </div>
-        <div className="mt-4">
-          <p className="text-[9px] font-bold uppercase tracking-wide text-crm-muted">Preview</p>
-          <div className="mt-1.5 whitespace-pre-wrap rounded border border-crm-hairline bg-crm-surface-soft p-3 font-mono text-[10px] leading-relaxed text-crm-body">
-            {`Hello ${customer.contact || customer.name},\n\n${message || PORTAL_INVITE_DEFAULT_MESSAGE}\n\nOpen portal: [secure link generated when sent]\n\nThis access link expires ${expiresLabel}.`}
-          </div>
         </div>
         {error && <p className="mt-3 text-[10px] font-bold text-crm-error">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">

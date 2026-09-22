@@ -236,15 +236,17 @@ async function sendCustomerPortal(req, res) {
     expiresAt,
     createdByUid: user.uid,
   });
-  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
-  const link = `${appUrl}/customer/portal?token=${encodeURIComponent(rawToken)}`;
   const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
   const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
   const defaultSubject = "Your TechSavvy customer portal";
   const defaultMessage =
     "Your secure customer portal is ready. View jobs, quotes, invoices, equipment and maintenance in one place.";
   const subject = String(req.body?.subject || "").trim().slice(0, 200) || defaultSubject;
-  const message = String(req.body?.message || "").trim().slice(0, 2000) || defaultMessage;
+  // The admin-edited message is the entire email body (it typically already
+  // includes its own link/call to action, e.g. the /client self-signup
+  // pilot invite), so it is sent as-is rather than having a link/expiry
+  // footer appended after it the way the old fixed template did.
+  const message = String(req.body?.message || "").trim().slice(0, 6000) || defaultMessage;
   const delivery = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "User-Agent": "TechSavvy-CRM/1.0" },
@@ -253,8 +255,8 @@ async function sendCustomerPortal(req, res) {
       reply_to: supportEmail,
       to: [email],
       subject,
-      text: `Hello ${customer.contact || customer.name},\n\n${message}\n\nOpen portal: ${link}\n\nThis access link expires ${expiresAt.slice(0, 10)}.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">CUSTOMER PORTAL</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p><p><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">Open customer portal</a></p><p style="font-size:12px;color:#64748b">This access link expires ${escapeHtml(expiresAt.slice(0, 10))}. Questions? Reply to this email.</p></div></div>`,
+      text: message,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">CUSTOMER PORTAL</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p></div></div>`,
     }),
   });
   if (!delivery.ok) {
