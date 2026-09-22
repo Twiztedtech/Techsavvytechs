@@ -958,40 +958,8 @@ function CustomersView({
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
   const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
   const [viewingAgreement, setViewingAgreement] = useState("");
-  const [deleting, setDeleting] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<LiveCustomer | null>(null);
   const [syncingCustomers, setSyncingCustomers] = useState(false);
-  // Guards against deleting a customer that still has real history attached
-  // -- the button only ever offers to delete once every count below is zero,
-  // but this is re-checked here too since counts can change between renders.
-  const deleteCustomer = async (customer: LiveCustomer) => {
-    const jobCount = jobs.filter((job) => customerFor(job, records)?.id === customer.id).length;
-    const quoteCount = quotes.filter((quote) => customerFor(quote, records)?.id === customer.id).length;
-    const invoiceCount = invoices.filter((invoice) => customerFor(invoice, records)?.id === customer.id).length;
-    const assetCount = assets.filter((asset) => customerFor(asset, records)?.id === customer.id).length;
-    if (jobCount || quoteCount || invoiceCount || assetCount) {
-      alert(
-        `Can't delete ${customer.name} -- it still has ${[
-          jobCount && `${jobCount} job(s)`,
-          quoteCount && `${quoteCount} quote(s)`,
-          invoiceCount && `${invoiceCount} invoice(s)`,
-          assetCount && `${assetCount} asset(s)`,
-        ]
-          .filter(Boolean)
-          .join(", ")} attached. Remove or reassign those first.`,
-      );
-      return;
-    }
-    if (!confirm(`Permanently delete ${customer.name}? This cannot be undone.`)) return;
-    setDeleting(customer.id);
-    try {
-      await deleteDoc(doc(db, "customers", customer.id));
-      await recordAudit("deleted", "customer", customer.id, `Deleted customer ${customer.name}`, {});
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not delete this customer.");
-    } finally {
-      setDeleting("");
-    }
-  };
   const syncFromQuickBooks = async () => {
     setSyncingCustomers(true);
     try {
@@ -1085,7 +1053,7 @@ function CustomersView({
             return (
               <article
                 key={c.id}
-                className="rounded border border-crm-hairline p-4 hover:border-crm-hairline"
+                className="rounded border border-crm-hairline p-4 transition-colors hover:border-crm-success hover:bg-crm-success-soft-bg/40"
               >
                 <div className="flex items-start justify-between">
                   <span className="grid h-9 w-9 place-items-center rounded bg-crm-surface-card text-crm-ink">
@@ -1099,11 +1067,10 @@ function CustomersView({
                       Edit
                     </button>
                     <button
-                      onClick={() => void deleteCustomer(c)}
-                      disabled={deleting === c.id}
-                      className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-error disabled:opacity-40"
+                      onClick={() => setDeleteTarget(c)}
+                      className="text-[9px] font-bold uppercase text-crm-muted hover:text-crm-error"
                     >
-                      {deleting === c.id ? "Deleting…" : "Delete"}
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -1183,6 +1150,16 @@ function CustomersView({
         <SendAgreementModal
           customer={agreementCustomer}
           onClose={() => setAgreementCustomer(null)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCustomerModal
+          customer={deleteTarget}
+          jobCount={jobs.filter((job) => customerFor(job, records)?.id === deleteTarget.id).length}
+          quoteCount={quotes.filter((quote) => customerFor(quote, records)?.id === deleteTarget.id).length}
+          invoiceCount={invoices.filter((invoice) => customerFor(invoice, records)?.id === deleteTarget.id).length}
+          assetCount={assets.filter((asset) => customerFor(asset, records)?.id === deleteTarget.id).length}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </section>
@@ -1285,6 +1262,73 @@ function SendAgreementModal({
           <button onClick={() => void send()} disabled={sending} className="rounded bg-crm-success px-4 py-2 text-xs font-bold text-white disabled:opacity-60">
             {sending ? "Sending…" : "Send for signature"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteCustomerModal({
+  customer,
+  jobCount,
+  quoteCount,
+  invoiceCount,
+  assetCount,
+  onClose,
+}: {
+  customer: LiveCustomer;
+  jobCount: number;
+  quoteCount: number;
+  invoiceCount: number;
+  assetCount: number;
+  onClose: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const blockers = [
+    jobCount && `${jobCount} job${jobCount === 1 ? "" : "s"}`,
+    quoteCount && `${quoteCount} quote${quoteCount === 1 ? "" : "s"}`,
+    invoiceCount && `${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"}`,
+    assetCount && `${assetCount} asset${assetCount === 1 ? "" : "s"}`,
+  ].filter(Boolean) as string[];
+  const canDelete = blockers.length === 0;
+  const remove = async () => {
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteDoc(doc(db, "customers", customer.id));
+      await recordAudit("deleted", "customer", customer.id, `Deleted customer ${customer.name}`, {});
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not delete this customer.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
+      <div className="w-full max-w-md rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+        <h2 className="text-sm font-bold text-crm-ink">Delete customer</h2>
+        {canDelete ? (
+          <p className="mt-2 text-xs text-crm-body">
+            Permanently delete <strong>{customer.name}</strong>? This cannot be undone.
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-crm-body">
+            <strong>{customer.name}</strong> can't be deleted yet -- it still has{" "}
+            {blockers.join(", ")} attached. Remove or reassign those first.
+          </p>
+        )}
+        {error && <p className="mt-3 text-[10px] font-bold text-crm-error">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} disabled={deleting} className="rounded px-4 py-2 text-xs font-bold text-crm-muted hover:bg-crm-surface-soft">
+            {canDelete ? "Cancel" : "Close"}
+          </button>
+          {canDelete && (
+            <button onClick={() => void remove()} disabled={deleting} className="rounded bg-crm-error px-4 py-2 text-xs font-bold text-white disabled:opacity-60">
+              {deleting ? "Deleting…" : "Delete permanently"}
+            </button>
+          )}
         </div>
       </div>
     </div>
