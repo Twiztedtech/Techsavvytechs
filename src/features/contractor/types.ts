@@ -60,6 +60,9 @@ export interface JobSite {
   notes: string;
   hourlyRate: number;
   customerBillRate?: number;
+  // Billed to the customer for work performed outside standard business
+  // hours (7:00 AM-5:00 PM) per the signed service agreement's rate terms.
+  customerNightBillRate?: number;
   travelRate: number;
   workOrderNumber?: string;
   clientReference?: string;

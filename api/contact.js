@@ -1,4 +1,4 @@
-import { adminDb, requireAdmin } from './_lib/firebase-admin.js';
+import { adminDb, adminStorage, requireAdmin } from './_lib/firebase-admin.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
@@ -670,6 +670,273 @@ async function respondToQuote(req, res) {
   return res.status(200).json({ success: true, status: decision });
 }
 
+async function sendCustomerAgreement(req, res) {
+  const user = await requireAdmin(req);
+  const customerId = String(req.body?.customerId || "").trim();
+  if (!customerId) return res.status(400).json({ error: "A customer is required." });
+  const customerRef = adminDb.collection("customers").doc(customerId);
+  const customerSnapshot = await customerRef.get();
+  if (!customerSnapshot.exists) return res.status(404).json({ error: "The customer was not found." });
+  const customer = customerSnapshot.data();
+  const email = String(customer.email || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return res.status(422).json({ error: "The customer needs a valid email address." });
+  if (!process.env.RESEND_API_KEY)
+    return res.status(503).json({ error: "Customer email delivery is not configured." });
+
+  const standardRate = Number(req.body?.standardRate);
+  const nightRate = Number(req.body?.nightRate);
+  const minimumHours = Number(req.body?.minimumHours) > 0 ? Number(req.body.minimumHours) : 2;
+  if (!Number.isFinite(standardRate) || standardRate <= 0 || !Number.isFinite(nightRate) || nightRate <= 0)
+    return res.status(400).json({ error: "A standard rate and a night rate are required." });
+
+  const rawToken = randomBytes(32).toString("base64url");
+  const hash = tokenHash(rawToken);
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+  await adminDb.collection("customer_document_tokens").doc(hash).set({
+    type: "agreement",
+    customerId,
+    email,
+    standardRate,
+    nightRate,
+    minimumHours,
+    createdAt,
+    expiresAt,
+    usedAt: null,
+  });
+  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+  const link = `${appUrl}/agreement?token=${encodeURIComponent(rawToken)}`;
+  const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+  const delivery = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: sender,
+      reply_to: supportEmail,
+      to: [email],
+      subject: "Please review & sign your TechSavvy service agreement",
+      text: `Hello ${customer.contact || customer.name},\n\nPlease review and sign your TechSavvy service agreement to get started.\n\nReview & sign: ${link}\n\nThis link expires ${expiresAt.slice(0, 10)}.`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE AGREEMENT</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>Please review and sign your TechSavvy service agreement to get started.</p><p><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">Review &amp; sign agreement</a></p><p style="font-size:12px;color:#64748b">This link expires ${escapeHtml(expiresAt.slice(0, 10))}. Questions? Reply to this email.</p></div></div>`,
+    }),
+  });
+  if (!delivery.ok) {
+    await adminDb.collection("customer_document_tokens").doc(hash).delete();
+    throw new Error("Agreement email delivery failed: " + (await delivery.text()));
+  }
+  const deliveryData = await delivery.json();
+  await customerRef.set(
+    {
+      serviceAgreement: {
+        status: "sent",
+        email,
+        emailId: deliveryData.id,
+        sentAt: createdAt,
+        expiresAt,
+        tokenHash: hash,
+        standardRate,
+        nightRate,
+        minimumHours,
+      },
+      updatedAt: createdAt,
+    },
+    { merge: true },
+  );
+  await writeAudit({ actor: user, action: "emailed", entityType: "customer", entityId: customerId, summary: `Emailed service agreement to ${email}`, details: { email, expiresAt }, source: "api" });
+  return res.status(200).json({ success: true, email, expiresAt });
+}
+
+async function loadCustomerAgreement(req, res) {
+  const rawToken = typeof req.query?.token === "string" ? req.query.token : "";
+  const hash = rawToken ? tokenHash(rawToken) : "";
+  const tokenSnapshot = hash ? await adminDb.collection("customer_document_tokens").doc(hash).get() : null;
+  const access = tokenSnapshot?.data();
+  if (!tokenSnapshot?.exists || access?.type !== "agreement" || access.expiresAt < new Date().toISOString())
+    return res.status(410).json({ error: "This secure link is invalid or has expired." });
+  const customerSnapshot = await adminDb.collection("customers").doc(access.customerId).get();
+  const customer = customerSnapshot.exists ? customerSnapshot.data() : {};
+  if (customer?.serviceAgreement?.tokenHash !== hash)
+    return res.status(410).json({ error: "A newer signing link has replaced this one." });
+  return res.status(200).json({
+    signed: customer?.serviceAgreement?.status === "signed",
+    customer: {
+      name: customer?.contact || customer?.name || "",
+      businessName: customer?.name || "",
+      email: access.email,
+      phone: customer?.phone || "",
+      address: customer?.sites?.[0] || "",
+    },
+    standardRate: access.standardRate || 0,
+    nightRate: access.nightRate || 0,
+    minimumHours: access.minimumHours || 2,
+  });
+}
+
+async function getAgreementPdfLink(req, res) {
+  await requireAdmin(req);
+  const customerId = String(req.body?.customerId || "").trim();
+  if (!customerId) return res.status(400).json({ error: "A customer is required." });
+  const customerSnapshot = await adminDb.collection("customers").doc(customerId).get();
+  const storagePath = customerSnapshot.data()?.serviceAgreement?.storagePath;
+  if (!storagePath)
+    return res.status(404).json({ error: "No signed agreement is on file for this customer." });
+  const [url] = await adminStorage
+    .file(storagePath)
+    .getSignedUrl({ action: "read", version: "v4", expires: Date.now() + 10 * 60 * 1000 });
+  return res.status(200).json({ url });
+}
+
+async function submitAgreement(req, res) {
+  if (req.body?.company) return res.status(201).json({ success: true });
+  if (isRateLimited(`agreement:${getClientIp(req)}`, Date.now()))
+    return res
+      .status(429)
+      .json({ error: "Please wait a few minutes before submitting again." });
+
+  const rawToken = typeof req.body?.token === "string" ? req.body.token : "";
+  if (!rawToken)
+    return res.status(400).json({ error: "This signing link is missing or invalid." });
+  const hash = tokenHash(rawToken);
+
+  const customerName = String(req.body?.customerName || "").trim().slice(0, 150);
+  const businessName = String(req.body?.businessName || "").trim().slice(0, 150);
+  const phone = String(req.body?.phone || "").trim().slice(0, 40);
+  const address = String(req.body?.address || "").trim().slice(0, 300);
+  const completedAt = String(req.body?.completedAt || new Date().toISOString());
+  const fileName = String(req.body?.fileName || "signed-agreement.pdf")
+    .slice(0, 150)
+    .replace(/[^a-zA-Z0-9._-]/g, "-");
+  const pdfBase64 = typeof req.body?.pdfBase64 === "string" ? req.body.pdfBase64 : "";
+
+  if (!customerName || !address)
+    return res.status(400).json({ error: "Please provide your name and address." });
+  if (!pdfBase64 || pdfBase64.length > 15 * 1024 * 1024)
+    return res.status(422).json({ error: "The signed agreement could not be read." });
+
+  let pdfBuffer;
+  try {
+    pdfBuffer = Buffer.from(pdfBase64, "base64");
+  } catch {
+    return res.status(422).json({ error: "The signed agreement could not be read." });
+  }
+  if (pdfBuffer.length < 1000)
+    return res.status(422).json({ error: "The signed agreement appears to be empty." });
+
+  const tokenRef = adminDb.collection("customer_document_tokens").doc(hash);
+  const tokenSnapshot = await tokenRef.get();
+  const access = tokenSnapshot.data();
+  if (!tokenSnapshot.exists || access?.type !== "agreement" || access.expiresAt < new Date().toISOString())
+    return res.status(410).json({ error: "This signing link is invalid or has expired." });
+  if (access.usedAt)
+    return res.status(409).json({ error: "This agreement has already been signed." });
+  const customerRef = adminDb.collection("customers").doc(access.customerId);
+  const customerSnapshot = await customerRef.get();
+  if (!customerSnapshot.exists)
+    return res.status(404).json({ error: "The customer record could not be found." });
+  if (customerSnapshot.data()?.serviceAgreement?.tokenHash !== hash)
+    return res.status(410).json({ error: "A newer signing link has replaced this one." });
+  const email = access.email;
+
+  const record = adminDb.collection("signed_agreements").doc();
+  const storagePath = `signed-agreements/${access.customerId}/${record.id}-${fileName}`;
+
+  try {
+    await adminStorage
+      .file(storagePath)
+      .save(pdfBuffer, { metadata: { contentType: "application/pdf" } });
+  } catch (error) {
+    console.error("Could not archive signed agreement to storage:", error);
+  }
+
+  await adminDb.runTransaction(async (transaction) => {
+    const freshToken = await transaction.get(tokenRef);
+    if (!freshToken.exists || freshToken.data()?.usedAt)
+      throw Object.assign(new Error("This agreement has already been signed."), { statusCode: 409 });
+    transaction.set(record, {
+      customerId: access.customerId,
+      customerName,
+      businessName,
+      email,
+      phone,
+      address,
+      standardRate: access.standardRate,
+      nightRate: access.nightRate,
+      minimumHours: access.minimumHours,
+      completedAt,
+      storagePath,
+      fileName,
+      clientIp: getClientIp(req),
+      createdAt: new Date().toISOString(),
+    });
+    transaction.set(
+      customerRef,
+      {
+        serviceAgreement: {
+          status: "signed",
+          email,
+          sentAt: access.createdAt,
+          expiresAt: access.expiresAt,
+          tokenHash: hash,
+          signedAt: completedAt,
+          signerName: customerName,
+          storagePath,
+          fileName,
+        },
+        // Authoritative source for auto-filling a new job's customer bill
+        // rates in the CRM (see CreateRecordModal / JobDetailModal) -- only
+        // ever written here, on a completed signature, never from an
+        // unsigned proposal.
+        rateAgreement: {
+          standardRate: access.standardRate,
+          nightRate: access.nightRate,
+          minimumHours: access.minimumHours,
+          agreedAt: completedAt,
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    transaction.set(tokenRef, { usedAt: new Date().toISOString() }, { merge: true });
+  });
+
+  await writeAudit({ actor: { email }, action: "signed", entityType: "customer", entityId: access.customerId, summary: "Customer signed service agreement", details: { email, storagePath }, source: "customer-agreement" });
+
+  const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+  if (process.env.RESEND_API_KEY) {
+    const attachments = [{ filename: fileName, content: pdfBase64 }];
+    const customerLabel = businessName || customerName;
+    const sendEmail = (to, subject, html, text) =>
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from: sender, reply_to: supportEmail, to: [to], subject, html, text, attachments }),
+      });
+    try {
+      await sendEmail(
+        email,
+        "Your signed TechSavvy service agreement",
+        `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">FIELD SERVICES</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hi ${escapeHtml(customerName)},</p><p>Thanks for signing your TechSavvy service agreement. Your signed copy is attached to this email as a PDF.</p><p style="font-size:12px;color:#64748b">Questions? Reply to this email or call (707) 653-6702.</p></div></div>`,
+        `Hi ${customerName},\n\nThanks for signing your TechSavvy service agreement. Your signed copy is attached to this email.\n\nQuestions? Reply to this email or call (707) 653-6702.`,
+      );
+      await sendEmail(
+        supportEmail,
+        `Signed agreement: ${customerLabel}`,
+        `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#17201a;line-height:1.55"><p><strong>${escapeHtml(customerLabel)}</strong> signed a service agreement.</p><table style="font-size:13px;color:#334155"><tr><td style="padding:2px 12px 2px 0;color:#64748b">Email</td><td>${escapeHtml(email)}</td></tr><tr><td style="padding:2px 12px 2px 0;color:#64748b">Phone</td><td>${escapeHtml(phone || "-")}</td></tr><tr><td style="padding:2px 12px 2px 0;color:#64748b">Address</td><td>${escapeHtml(address)}</td></tr><tr><td style="padding:2px 12px 2px 0;color:#64748b">Standard rate</td><td>$${access.standardRate}/hr</td></tr><tr><td style="padding:2px 12px 2px 0;color:#64748b">Night rate</td><td>$${access.nightRate}/hr</td></tr><tr><td style="padding:2px 12px 2px 0;color:#64748b">Minimum hours</td><td>${access.minimumHours}</td></tr></table><p style="font-size:12px;color:#64748b">These rates are now on file for this customer and will auto-fill on new jobs. Signed PDF attached. Also archived at storage path: ${escapeHtml(storagePath)}</p></div>`,
+        `${customerLabel} signed a service agreement.\nEmail: ${email}\nPhone: ${phone || "-"}\nAddress: ${address}\nStandard rate: $${access.standardRate}/hr\nNight rate: $${access.nightRate}/hr\nMinimum hours: ${access.minimumHours}\n\nThese rates are now on file for this customer and will auto-fill on new jobs. Signed PDF attached. Archived at: ${storagePath}`,
+      );
+    } catch (error) {
+      console.error("Agreement confirmation email failed:", error);
+    }
+  }
+
+  return res.status(201).json({ success: true, id: record.id });
+}
+
 export default async function handler(req, res) {
   const integration = String(req.query?.integration || '');
   await ensureBody(req, integration);
@@ -729,6 +996,25 @@ export default async function handler(req, res) {
   if (req.query?.operation === 'quote-decision' && req.method === 'POST') {
     try { return await respondToQuote(req, res); }
     catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The quote decision could not be saved.' }); }
+  }
+  if (req.query?.operation === 'submit-agreement' && req.method === 'POST') {
+    try { return await submitAgreement(req, res); }
+    catch (error) {
+      console.error('Agreement submission failed:', error);
+      return res.status(error.statusCode || 500).json({ error: error.message || 'The agreement could not be submitted.' });
+    }
+  }
+  if (req.query?.operation === 'send-customer-agreement' && req.method === 'POST') {
+    try { return await sendCustomerAgreement(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Agreement delivery failed.' }); }
+  }
+  if (req.query?.operation === 'customer-agreement' && req.method === 'GET') {
+    try { return await loadCustomerAgreement(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The agreement could not be loaded.' }); }
+  }
+  if (req.query?.operation === 'agreement-pdf-link' && req.method === 'POST') {
+    try { return await getAgreementPdfLink(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The signed agreement could not be opened.' }); }
   }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

@@ -192,6 +192,8 @@ type LiveCustomer = {
   assets?: number;
   lifetimeValue?: number;
   portalDelivery?: { status: string; email: string; sentAt: string; expiresAt?: string; revokedAt?: string };
+  serviceAgreement?: { status: string; email: string; sentAt: string; expiresAt?: string; signedAt?: string; signerName?: string };
+  rateAgreement?: { standardRate: number; nightRate: number; minimumHours: number; agreedAt: string };
   reminderPreferences?: { enabled?: boolean; appointment?: boolean; quote?: boolean; invoice?: boolean; maintenance?: boolean };
   qboCustomerId?: string;
   personnel?: CustomerPersonnel[];
@@ -220,6 +222,7 @@ type LiveJob = {
   notes?: string;
   hourlyRate?: number;
   customerBillRate?: number;
+  customerNightBillRate?: number;
   estimatedHours?: number;
   actualHours?: number;
   equipment?: { description: string; quantity?: string; unitPrice?: number; providedBy?: string; fulfillmentSource?: string; notes?: string }[];
@@ -947,6 +950,8 @@ function CustomersView({
   const [managing, setManaging] = useState("");
   const [portalDays, setPortalDays] = useState(90);
   const [editingCustomer, setEditingCustomer] = useState<LiveCustomer | null>(null);
+  const [agreementCustomer, setAgreementCustomer] = useState<LiveCustomer | null>(null);
+  const [viewingAgreement, setViewingAgreement] = useState("");
   const [syncingCustomers, setSyncingCustomers] = useState(false);
   const syncFromQuickBooks = async () => {
     setSyncingCustomers(true);
@@ -979,6 +984,24 @@ function CustomersView({
       alert(error instanceof Error ? error.message : "Portal invitation could not be sent.");
     } finally {
       setInviting("");
+    }
+  };
+  const viewAgreement = async (customer: LiveCustomer) => {
+    setViewingAgreement(customer.id);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=agreement-pdf-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerId: customer.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The signed agreement could not be opened.");
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "The signed agreement could not be opened.");
+    } finally {
+      setViewingAgreement("");
     }
   };
   const managePortal = async (customer: LiveCustomer, action: "preview" | "revoke") => {
@@ -1078,6 +1101,22 @@ function CustomersView({
                   <button onClick={() => void managePortal(c, "preview")} disabled={managing === `preview-${c.id}`} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-40">{managing === `preview-${c.id}` ? "Opening…" : "Admin preview"}</button>
                   <button onClick={() => void managePortal(c, "revoke")} disabled={managing === `revoke-${c.id}` || c.portalDelivery?.status !== "sent"} className="rounded border border-crm-error/30 px-2 py-2 text-[8px] font-bold uppercase text-crm-error disabled:opacity-30">{managing === `revoke-${c.id}` ? "Revoking…" : "Revoke access"}</button>
                 </div>
+                <div className="mt-3 flex items-center justify-between rounded bg-crm-surface-soft px-2.5 py-2">
+                  <span className={`text-[8px] font-bold uppercase ${c.serviceAgreement?.status === "signed" ? "text-crm-success" : c.serviceAgreement?.status === "sent" ? "text-crm-warning" : "text-crm-muted"}`}>
+                    {c.serviceAgreement?.status === "signed" ? "Agreement signed" : c.serviceAgreement?.status === "sent" ? "Agreement awaiting signature" : "No service agreement"}
+                  </span>
+                  <span className="text-[8px] text-crm-muted">
+                    {c.serviceAgreement?.status === "signed" && c.serviceAgreement.signedAt ? new Date(c.serviceAgreement.signedAt).toLocaleDateString() : ""}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button onClick={() => setAgreementCustomer(c)} disabled={!c.email} className="rounded border border-crm-hairline bg-crm-surface-card px-2 py-2 text-[8px] font-bold uppercase text-crm-ink disabled:cursor-not-allowed disabled:opacity-40">
+                    {c.serviceAgreement?.status ? "Resend agreement" : "Send agreement"}
+                  </button>
+                  <button onClick={() => void viewAgreement(c)} disabled={viewingAgreement === c.id || c.serviceAgreement?.status !== "signed"} className="rounded border border-crm-hairline px-2 py-2 text-[8px] font-bold uppercase text-crm-body disabled:opacity-30">
+                    {viewingAgreement === c.id ? "Opening…" : "View signed PDF"}
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -1092,7 +1131,115 @@ function CustomersView({
       {editingCustomer && (
         <CustomerEditModal customer={editingCustomer} onClose={() => setEditingCustomer(null)} />
       )}
+      {agreementCustomer && (
+        <SendAgreementModal
+          customer={agreementCustomer}
+          onClose={() => setAgreementCustomer(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function SendAgreementModal({
+  customer,
+  onClose,
+}: {
+  customer: LiveCustomer;
+  onClose: () => void;
+}) {
+  const [standardRate, setStandardRate] = useState(
+    customer.rateAgreement ? String(customer.rateAgreement.standardRate) : "",
+  );
+  const [nightRate, setNightRate] = useState(
+    customer.rateAgreement ? String(customer.rateAgreement.nightRate) : "",
+  );
+  const [minimumHours, setMinimumHours] = useState(
+    customer.rateAgreement ? String(customer.rateAgreement.minimumHours) : "2",
+  );
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const send = async () => {
+    if (!standardRate || !nightRate) {
+      setError("Enter both the standard and night hourly rates before sending.");
+      return;
+    }
+    setSending(true);
+    setError("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=send-customer-agreement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customerId: customer.id,
+          standardRate: Number(standardRate),
+          nightRate: Number(nightRate),
+          minimumHours: Number(minimumHours || 2),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The agreement could not be sent.");
+      alert(`Service agreement sent to ${result.email}.`);
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The agreement could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
+      <div className="w-full max-w-lg rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+        <h2 className="text-sm font-bold text-crm-ink">Send service agreement</h2>
+        <p className="mt-1 text-[10px] text-crm-muted">
+          Sends a secure signing link to {customer.email || "this customer's email"} for a
+          general service agreement (independent contractor status, covering all TechSavvy
+          field services) with the billing rates below. Standard hours are fixed company-wide
+          at 7:00 AM-5:00 PM; anything outside that window bills at the night rate.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Standard rate ($/hr)
+            <input
+              type="number"
+              value={standardRate}
+              onChange={(event) => setStandardRate(event.target.value)}
+              placeholder="e.g. 95"
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase text-crm-muted">
+            Night rate ($/hr)
+            <input
+              type="number"
+              value={nightRate}
+              onChange={(event) => setNightRate(event.target.value)}
+              placeholder="e.g. 140"
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
+          <label className="col-span-2 block text-[10px] font-bold uppercase text-crm-muted">
+            Minimum billable hours per dispatch
+            <input
+              type="number"
+              value={minimumHours}
+              onChange={(event) => setMinimumHours(event.target.value)}
+              className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+            />
+          </label>
+        </div>
+        {error && <p className="mt-3 text-[10px] font-bold text-crm-error">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} disabled={sending} className="rounded px-4 py-2 text-xs font-bold text-crm-muted hover:bg-crm-surface-soft">
+            Cancel
+          </button>
+          <button onClick={() => void send()} disabled={sending} className="rounded bg-crm-success px-4 py-2 text-xs font-bold text-white disabled:opacity-60">
+            {sending ? "Sending…" : "Send for signature"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2830,6 +2977,7 @@ function JobDetailModal({
     quotedValue: String(job.quotedValue || ""),
     hourlyRate: String(job.hourlyRate || ""),
     customerBillRate: String(job.customerBillRate || ""),
+    customerNightBillRate: String(job.customerNightBillRate || ""),
     estimatedHours: String(job.estimatedHours || ""),
     workOrderNumber: job.workOrderNumber || "",
     clientReference: job.clientReference || "",
@@ -2920,6 +3068,7 @@ function JobDetailModal({
           quotedValue: quoted,
           hourlyRate: Number(form.hourlyRate || 0),
           customerBillRate: Number(form.customerBillRate || 0),
+          customerNightBillRate: Number(form.customerNightBillRate || 0),
           workOrderNumber: form.workOrderNumber.trim(),
           clientReference: form.clientReference.trim(),
           clientProjectManager: form.clientProjectManager.trim(),
@@ -3000,7 +3149,19 @@ function JobDetailModal({
             onChange={(v) => setForm({ ...form, name: v })}
             required
           />
-          <label className="text-xs">Customer<select required value={form.customer} onChange={(event) => setForm({ ...form, customer: event.target.value })} className="mt-1 w-full rounded border p-2"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.name}>{customer.name}</option>)}</select></label>
+          <label className="text-xs">Customer<select required value={form.customer} onChange={(event) => {
+            const name = event.target.value;
+            const rates = customers.find((c) => c.name === name)?.rateAgreement;
+            setForm((current) => ({
+              ...current,
+              customer: name,
+              // Only auto-fill from the customer's agreed rates when this job
+              // doesn't already have rates set (new job, or an unrelated
+              // customer change) -- never clobber a rate an admin already typed.
+              customerBillRate: rates && !current.customerBillRate ? String(rates.standardRate) : current.customerBillRate,
+              customerNightBillRate: rates && !current.customerNightBillRate ? String(rates.nightRate) : current.customerNightBillRate,
+            }));
+          }} className="mt-1 w-full rounded border p-2"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.name}>{customer.name}</option>)}</select></label>
           <div className="sm:col-span-2">
             <Field
               label="Site address"
@@ -3041,9 +3202,15 @@ function JobDetailModal({
             type="number"
           />
           <Field
-            label="Customer bill rate (per hour)"
+            label="Customer bill rate (per hour, standard 7am-5pm)"
             value={form.customerBillRate}
             onChange={(v) => setForm({ ...form, customerBillRate: v })}
+            type="number"
+          />
+          <Field
+            label="Customer night bill rate (per hour, after 5pm/before 7am)"
+            value={form.customerNightBillRate}
+            onChange={(v) => setForm({ ...form, customerNightBillRate: v })}
             type="number"
           />
           <Field
@@ -5648,6 +5815,8 @@ function CreateRecordModal({
     address: "",
     due: "",
     value: "",
+    customerBillRate: "",
+    customerNightBillRate: "",
   });
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -5678,6 +5847,8 @@ function CreateRecordModal({
           targetCompletion: job.due,
           status: "New",
           quotedValue: Number(job.value || 0),
+          customerBillRate: Number(job.customerBillRate || 0),
+          customerNightBillRate: Number(job.customerNightBillRate || 0),
           assignedTechIds: ["ALL"],
           actorUid: auth.currentUser?.uid || "",
         });
@@ -5753,7 +5924,16 @@ function CreateRecordModal({
                 <select
                   required
                   value={job.customer}
-                  onChange={(e) => setJob({ ...job, customer: e.target.value })}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const rates = records.find((c) => c.name === name)?.rateAgreement;
+                    setJob((current) => ({
+                      ...current,
+                      customer: name,
+                      customerBillRate: rates ? String(rates.standardRate) : current.customerBillRate,
+                      customerNightBillRate: rates ? String(rates.nightRate) : current.customerNightBillRate,
+                    }));
+                  }}
                   className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
                 >
                   <option value="">Select customer</option>
@@ -5762,6 +5942,24 @@ function CreateRecordModal({
                   ))}
                 </select>
               </label>
+              {job.customer && !records.find((c) => c.name === job.customer)?.rateAgreement && (
+                <p className="sm:col-span-2 -mt-1 text-[9px] font-semibold text-crm-warning">
+                  This customer has no signed service agreement on file — set bill rates
+                  manually below, or send them an agreement first from Customers &amp; Sites.
+                </p>
+              )}
+              <Field
+                label="Customer bill rate (per hour, standard 7am-5pm)"
+                value={job.customerBillRate}
+                onChange={(v) => setJob({ ...job, customerBillRate: v })}
+                type="number"
+              />
+              <Field
+                label="Customer night bill rate (per hour, after 5pm/before 7am)"
+                value={job.customerNightBillRate}
+                onChange={(v) => setJob({ ...job, customerNightBillRate: v })}
+                type="number"
+              />
               <div className="sm:col-span-2">
                 <Field
                   label="Job description"

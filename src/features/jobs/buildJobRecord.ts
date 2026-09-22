@@ -57,6 +57,9 @@ export function buildJobRecord(
     // without anyone noticing. Left at 0 (not undefined, so it never reads
     // as "unset" ambiguously) until an admin explicitly sets it.
     customerBillRate: Number(input.customerBillRate ?? existing.customerBillRate ?? 0),
+    // Same deliberate no-fallback rule as customerBillRate above, for work
+    // performed outside standard business hours (7:00 AM-5:00 PM).
+    customerNightBillRate: Number(input.customerNightBillRate ?? existing.customerNightBillRate ?? 0),
     travelRate: Number(input.travelRate ?? existing.travelRate ?? 0),
     equipment: input.equipment ?? existing.equipment ?? [],
     scopeTasks: input.scopeTasks ?? existing.scopeTasks ?? [],
