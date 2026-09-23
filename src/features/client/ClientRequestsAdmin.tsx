@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 import { ClientCompanyEditor } from "./ClientCompanyEditor";
+import { CrmButton, CrmModalShell } from "../crm/ui";
 
 type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
 type RequestFilter = "all" | "requested" | "clarification_needed";
@@ -69,6 +70,12 @@ export function ClientRequestsAdmin({
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<ClientTab>("requests");
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
+  const [noteDialog, setNoteDialog] = useState<{
+    request: RequestRecord;
+    status: "clarification_needed" | "declined";
+    note: string;
+  } | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
   const [showFailures, setShowFailures] = useState(false);
   const [convert, setConvert] = useState({
     requestId: "",
@@ -494,15 +501,13 @@ export function ClientRequestsAdmin({
                   Reviewing
                 </button>
                 <button
-                  onClick={() => {
-                    const note = window.prompt("What clarification is needed?");
-                    if (note)
-                      void post("request-status", {
-                        requestId: request.id,
-                        status: "clarification_needed",
-                        reviewNote: note,
-                      });
-                  }}
+                  onClick={() =>
+                    setNoteDialog({
+                      request,
+                      status: "clarification_needed",
+                      note: "",
+                    })
+                  }
                   className="rounded-lg border border-crm-warning/30 px-3 py-2 text-[10px] font-bold text-crm-warning"
                 >
                   Request clarification
@@ -519,15 +524,9 @@ export function ClientRequestsAdmin({
                     : "Convert to work order"}
                 </button>
                 <button
-                  onClick={() => {
-                    const note = window.prompt("Reason for declining");
-                    if (note)
-                      void post("request-status", {
-                        requestId: request.id,
-                        status: "declined",
-                        reviewNote: note,
-                      });
-                  }}
+                  onClick={() =>
+                    setNoteDialog({ request, status: "declined", note: "" })
+                  }
                   className="rounded-lg border border-crm-error/30 px-3 py-2 text-[10px] font-bold text-crm-error"
                 >
                   Decline
@@ -764,6 +763,66 @@ export function ClientRequestsAdmin({
           contractors={contractors}
           post={post}
         />
+      )}
+      {noteDialog && (
+        <CrmModalShell
+          title={
+            noteDialog.status === "declined"
+              ? "Decline request"
+              : "Request clarification"
+          }
+          onClose={() => setNoteDialog(null)}
+        >
+          <p className="text-xs text-crm-muted">
+            {noteDialog.request.requestNumber} · {noteDialog.request.siteName}
+          </p>
+          <label className="mt-4 block text-xs font-semibold text-crm-ink">
+            {noteDialog.status === "declined"
+              ? "Reason for declining"
+              : "What clarification is needed?"}
+            <textarea
+              autoFocus
+              rows={4}
+              value={noteDialog.note}
+              onChange={(e) =>
+                setNoteDialog((d) => (d ? { ...d, note: e.target.value } : d))
+              }
+              className="mt-1 w-full rounded-lg border border-crm-hairline bg-crm-canvas p-3 text-sm font-normal text-crm-ink outline-none focus:border-crm-ink"
+            />
+          </label>
+          <p className="mt-2 text-[11px] text-crm-muted">
+            This note is emailed to the requester
+            {noteDialog.request.requesterEmail
+              ? ` (${noteDialog.request.requesterEmail})`
+              : ""}
+            .
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <CrmButton variant="secondary" onClick={() => setNoteDialog(null)}>
+              Cancel
+            </CrmButton>
+            <CrmButton
+              variant={noteDialog.status === "declined" ? "destructive" : "primary"}
+              disabled={!noteDialog.note.trim() || savingNote}
+              onClick={async () => {
+                setSavingNote(true);
+                const result = await post("request-status", {
+                  requestId: noteDialog.request.id,
+                  status: noteDialog.status,
+                  reviewNote: noteDialog.note.trim(),
+                });
+                setSavingNote(false);
+                if (result.ok) setNoteDialog(null);
+              }}
+            >
+              {savingNote
+                ? "Sending…"
+                : noteDialog.status === "declined"
+                  ? "Decline & notify"
+                  : "Send request"}
+            </CrmButton>
+          </div>
+        </CrmModalShell>
       )}
     </div>
   );
