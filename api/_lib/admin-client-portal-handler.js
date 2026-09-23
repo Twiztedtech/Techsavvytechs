@@ -1,4 +1,5 @@
 import { adminDb, requireStaffRole } from "./firebase-admin.js";
+import { writeAudit } from "./audit.js";
 import {
   CLIENT_ROLES,
   alertRecipients,
@@ -692,6 +693,67 @@ async function sendSampleApprovalEmail(req, res) {
   return res.status(200).json({ success: true, sentTo: emails });
 }
 
+// TechSavvy staff manage any portal user's access: change their role (the only
+// place Company Administrator can be granted after approval), pause or restore
+// them. Every change is written to the audit log.
+async function updateMemberAccess(req, res, admin) {
+  const uid = clean(req.body?.uid, 128);
+  const ref = adminDb.collection("client_users").doc(uid);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) return res.status(404).json({ error: "Portal user not found." });
+  const member = snapshot.data();
+  const change = clean(req.body?.change, 20);
+  let patch;
+  let summary;
+  if (change === "roles") {
+    const roles = (Array.isArray(req.body?.roles) ? req.body.roles : []).filter((role) =>
+      CLIENT_ROLES.includes(role),
+    );
+    if (!roles.length) return res.status(422).json({ error: "Choose a role." });
+    patch = { roles };
+    summary = `Changed portal access for ${member.email} to ${roles.join(", ")}`;
+  } else if (change === "suspend" && member.status === "active") {
+    patch = { status: "suspended", suspendedAt: nowIso(), suspendedByUid: admin.uid };
+    summary = `Paused portal access for ${member.email}`;
+  } else if (change === "restore" && member.status === "suspended") {
+    patch = { status: "active", restoredAt: nowIso(), restoredByUid: admin.uid };
+    summary = `Restored portal access for ${member.email}`;
+  } else {
+    return res.status(409).json({ error: "That change is not available for this user right now." });
+  }
+  await ref.set({ ...patch, updatedAt: nowIso() }, { merge: true });
+  await writeAudit({
+    actor: admin,
+    action: `portal-user-${change}`,
+    entityType: "client_user",
+    entityId: uid,
+    summary,
+    details: { email: member.email, customerId: member.customerId, previousRoles: member.roles || [], ...patch },
+    source: "api",
+  });
+  return res.status(200).json({ success: true });
+}
+
+async function resendWelcome(req, res, admin) {
+  const uid = clean(req.body?.uid, 128);
+  const snapshot = await adminDb.collection("client_users").doc(uid).get();
+  if (!snapshot.exists) return res.status(404).json({ error: "Portal user not found." });
+  const member = snapshot.data();
+  if (member.status !== "active")
+    return res.status(409).json({ error: "Only active users can be sent the welcome message." });
+  await notifyMembershipApproved(member);
+  await writeAudit({
+    actor: admin,
+    action: "portal-user-welcome-resent",
+    entityType: "client_user",
+    entityId: uid,
+    summary: `Resent the portal welcome message to ${member.email}`,
+    details: { email: member.email },
+    source: "api",
+  });
+  return res.status(200).json({ success: true, email: member.email });
+}
+
 async function dismissNotifications(req, res, admin) {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
     .map((id) => clean(id, 100))
@@ -746,6 +808,10 @@ export default async function handler(req, res) {
       return await saveSettings(req, res, admin);
     if (req.method === "POST" && action === "dismiss-notifications")
       return await dismissNotifications(req, res, admin);
+    if (req.method === "POST" && action === "update-member-access")
+      return await updateMemberAccess(req, res, admin);
+    if (req.method === "POST" && action === "resend-welcome")
+      return await resendWelcome(req, res, admin);
     if (req.method === "POST" && action === "test-alert")
       return await sendTestAlert(req, res, admin);
     if (req.method === "POST" && action === "sample-approval-email")

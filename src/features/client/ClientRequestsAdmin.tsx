@@ -80,6 +80,7 @@ export function ClientRequestsAdmin({
   const [tab, setTab] = useState<ClientTab>("requests");
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
   const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
+  const [accessDraft, setAccessDraft] = useState<Record<string, string>>({});
   const [noteDialog, setNoteDialog] = useState<{
     request: RequestRecord;
     status: "clarification_needed" | "declined";
@@ -141,6 +142,13 @@ export function ClientRequestsAdmin({
   const pendingUsers = data.users.filter(
     (user: any) => (user.status || "pending") === "pending",
   );
+  const activeUsers = data.users.filter(
+    (user: any) => user.status === "active" || user.status === "suspended",
+  );
+  const sendWelcome = async (user: any) => {
+    const result = await post("resend-welcome", { uid: user.id });
+    return result.ok;
+  };
   const roleFor = (user: any) =>
     approvalRoles[user.id] ||
     user.suggestedRoles?.[0] ||
@@ -785,6 +793,103 @@ export function ClientRequestsAdmin({
                 </div>
               </div>
             ))
+          )}
+        </section>
+      )}
+      {tab === "approvals" && (
+        <section className="rounded-xl border border-crm-hairline bg-crm-canvas p-5">
+          <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-crm-ink">
+            <UserPlus className="h-4 w-4 text-crm-muted" />
+            Active portal users
+          </h3>
+          <p className="mb-4 text-[11px] text-crm-muted">
+            Everyone who can sign in to the client portal. Change what someone can see, pause their
+            access, or resend the welcome message (sign-in link and what they can do).
+          </p>
+          {activeUsers.length === 0 ? (
+            <p className="text-xs text-crm-muted">No active portal users yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {activeUsers.map((user: any) => {
+                const company =
+                  data.organizations.find((org: any) => org.id === user.customerId)?.name || "Unknown company";
+                const current = user.roles?.[0] || "project_viewer";
+                const draft = accessDraft[user.id] ?? current;
+                const paused = user.status === "suspended";
+                const label = user.displayName || user.email;
+                return (
+                  <div
+                    key={user.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-crm-hairline bg-crm-surface-soft p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-crm-ink">
+                        {label}
+                        {paused && (
+                          <span className="ml-2 rounded bg-crm-error/10 px-1.5 py-0.5 text-[9px] font-bold text-crm-error">
+                            ACCESS PAUSED
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-crm-muted">
+                        {user.email} · {company}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        aria-label={`Access level for ${label}`}
+                        value={draft}
+                        onChange={(event) =>
+                          setAccessDraft((currentDraft) => ({ ...currentDraft, [user.id]: event.target.value }))
+                        }
+                        className="max-w-[240px] rounded-lg border border-crm-hairline bg-crm-canvas px-2 py-1.5 text-[10px] text-crm-ink"
+                      >
+                        {ACCESS_ROLE_OPTIONS.map(([value, roleLabel]) => (
+                          <option key={value} value={value}>{roleLabel}</option>
+                        ))}
+                      </select>
+                      {draft !== current && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await post("update-member-access", { uid: user.id, change: "roles", roles: [draft] });
+                            if (result.ok) {
+                              setAccessDraft((d) => { const next = { ...d }; delete next[user.id]; return next; });
+                              setNotice(`${label} is now: ${draft.replace(/_/g, " ")}.`);
+                            }
+                          }}
+                          className="rounded-lg bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active"
+                        >
+                          Save role
+                        </button>
+                      )}
+                      {!paused && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await sendWelcome(user);
+                            if (result) setNotice(`Welcome message sent to ${user.email}.`);
+                          }}
+                          className="rounded-lg border border-crm-hairline px-3 py-1.5 text-[10px] font-bold text-crm-ink hover:bg-crm-canvas"
+                        >
+                          Resend welcome
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const result = await post("update-member-access", { uid: user.id, change: paused ? "restore" : "suspend" });
+                          if (result.ok) setNotice(paused ? `${label}'s access was restored.` : `${label}'s access was paused.`);
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-[10px] font-bold ${paused ? "border-crm-hairline text-crm-ink" : "border-crm-error/30 text-crm-error"}`}
+                      >
+                        {paused ? "Restore access" : "Pause access"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
       )}
