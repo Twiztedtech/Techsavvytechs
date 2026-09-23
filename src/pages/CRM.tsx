@@ -1480,7 +1480,7 @@ function DocumentEmailModal({
   const validRecipient = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.trim());
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
         <h2 className="text-sm font-bold text-crm-ink">
           {sent ? "Email sent" : `Email ${type} ${label}`}
         </h2>
@@ -1502,7 +1502,7 @@ function DocumentEmailModal({
         ) : !preview ? (
           <p className="mt-4 text-xs text-crm-muted">Building the preview…</p>
         ) : (
-          <div className="mt-3 flex min-h-0 flex-col gap-3">
+          <div className="mt-3 flex flex-col gap-3">
             <p className="text-[10px] text-crm-muted">
               This is exactly what the customer receives. Nothing is sent until you click Send.
             </p>
@@ -1538,7 +1538,7 @@ function DocumentEmailModal({
               title="Email preview"
               sandbox=""
               srcDoc={preview.html}
-              className="h-[340px] w-full flex-1 rounded border border-crm-hairline bg-white"
+              className="h-[440px] w-full shrink-0 rounded border border-crm-hairline bg-white"
             />
             <p className="text-[10px] text-crm-muted">
               The secure link in the real email is unique to this send and expires automatically.
