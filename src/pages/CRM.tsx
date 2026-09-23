@@ -1383,34 +1383,34 @@ function DeleteCustomerModal({
   );
 }
 
-const PORTAL_INVITE_DEFAULT_SUBJECT = "You're invited to the TechSavvy Client Portal pilot";
+const PORTAL_INVITE_DEFAULT_SUBJECT = "Next steps to get started with TechSavvy";
 const PORTAL_SIGNUP_LINK = "https://techsavvytechs.com/client";
-const buildPortalInviteDefaultMessage = (companyName: string) =>
-  `Hi [contact name],
+const buildPortalInviteDefaultMessage = (companyName: string, contactName = "") => {
+  const firstName = contactName.trim().split(/\s+/)[0];
+  return `Hi ${firstName || "there"},
 
-We'd like to invite ${companyName} to participate in our TechSavvy Client Portal pilot program.
+Welcome to TechSavvy. To get ${companyName} set up, please complete these steps:
 
-The portal provides a secure and organized way to submit and manage service requests instead of relying solely on email. Through the portal, you'll be able to:
+1. Create your portal login
+- Go to ${PORTAL_SIGNUP_LINK} and choose "Create account."
+- Use your ${companyName} business email address and choose a password, then verify your email from the message we send.
+- Enter your mobile number and verify it by text code, or choose to continue with email only.
+- We'll approve your access and send you a confirmation email (and a text, if you opted in). Then sign in at the same link.
 
-- Submit new service and installation requests
-- Provide the scope of work and individual scope tasks
-- Add required deliverables
-- Enter site contacts, addresses, and requested service dates
-- Identify client-provided and TechSavvy-provided equipment or materials
-- Upload supporting documents, diagrams, photos, and site files
-- Include a PO, work-order, or invoicing reference number
-- Review upcoming jobs, job history, status updates, and completed-job reports
+2. Submit your job requests
+- In the portal, open "Book a job." Enter the full site address, your preferred date and time, the site contact, the scope of work and tasks, and the equipment (mark what is already on site). Attach any diagrams or files.
+- To send several jobs at once, use "Bulk import" and its spreadsheet template.
+- We review every request before confirming an appointment.
 
-For security purposes, you'll need to create your own account using your ${companyName} business email address. The ${companyName} company profile is already set up, so the system should connect your account with ${companyName} after registration.
+3. Review and sign the service agreement
+- You will receive a separate email, "Please review & sign your TechSavvy service agreement." Open the link, initial each section, then sign and date. A signed PDF copy is emailed to you.
 
-Please use the following secure portal link:
-${PORTAL_SIGNUP_LINK}
-
-This is currently a pilot program, so your feedback about the signup and request-submission process would be greatly appreciated. Please let me know if you encounter any issues.
+Questions or trouble signing in? Reply to this email or call (707) 653-6702.
 
 Thank you,
 Will Jackson
 TechSavvy LLC`;
+};
 
 type DocumentEmailPreview = {
   to: string;
@@ -1579,7 +1579,7 @@ function PortalInviteModal({
 }) {
   const [recipientEmail, setRecipientEmail] = useState(customer.email || "");
   const [subject, setSubject] = useState(PORTAL_INVITE_DEFAULT_SUBJECT);
-  const [message, setMessage] = useState(() => buildPortalInviteDefaultMessage(customer.name));
+  const [message, setMessage] = useState(() => buildPortalInviteDefaultMessage(customer.name, customer.contact || ""));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const send = async () => {
