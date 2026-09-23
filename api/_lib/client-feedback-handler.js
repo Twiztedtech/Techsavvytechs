@@ -1,10 +1,10 @@
-import { adminDb } from "./_lib/firebase-admin.js";
-import { clean, escapeHtml, normalizeEmail, nowIso, optionalUser, rateLimited, sendEmail } from "./_lib/client-portal.js";
+import { adminDb } from "./firebase-admin.js";
+import { clean, escapeHtml, normalizeEmail, nowIso, optionalUser, rateLimited, sendEmail } from "./client-portal.js";
 
 const allowed = (value, choices) => choices.includes(value) ? value : "";
 const list = (value, choices) => Array.isArray(value) ? [...new Set(value.filter((item) => choices.includes(item)))].slice(0, choices.length) : [];
 
-export default async function handler(req, res) {
+export async function submitClientFeedback(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed." });
   if (rateLimited(req, "client-feedback", 3, 60 * 60 * 1000)) return res.status(429).json({ error: "Thank you. Please wait before submitting another response." });
   if (clean(req.body?.website, 200)) return res.status(202).json({ success: true });
@@ -76,3 +76,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Your feedback could not be saved. Please try again." });
   }
 }
+

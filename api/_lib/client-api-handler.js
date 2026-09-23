@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { prepareUpload, verifyUpload } from "./booking-uploads.js";
+import { submitClientFeedback } from "./client-feedback-handler.js";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
 import {
   CLIENT_ROLES,
@@ -1394,6 +1395,8 @@ export default async function handler(req, res) {
     const action = clean(req.query?.action, 60);
     if (req.method === "POST" && action === "request")
       return await createRequest(req, res);
+    if (req.method === "POST" && action === "feedback")
+      return await submitClientFeedback(req, res);
     if (req.method === "POST" && action === "request-file")
       return await uploadRequestFile(req, res);
     if (req.method === "POST" && action === "bulk-import-preview")
