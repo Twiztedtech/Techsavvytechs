@@ -37,6 +37,23 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
       setTesting(false);
     }
   };
+  const [sampling, setSampling] = useState(false);
+  const [sampleMessage, setSampleMessage] = useState('');
+  const sendSampleApproval = async () => {
+    setSampling(true);
+    setSampleMessage('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/client-portal?action=sample-approval-email', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The sample could not be sent.');
+      setSampleMessage(`Sample sent to ${(result.sentTo || []).join(', ')}.`);
+    } catch (error) {
+      setSampleMessage(error instanceof Error ? error.message : 'The sample could not be sent.');
+    } finally {
+      setSampling(false);
+    }
+  };
   const saveAlertRecipients = async () => {
     setSavingAlerts(true);
     try {
@@ -88,6 +105,10 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
           <CrmButton variant="secondary" onClick={() => void sendTestAlert()} className="w-full" disabled={testing}>
             {testing ? 'Sending test…' : 'Send test alert to saved recipients'}
           </CrmButton>
+          <button type="button" onClick={() => void sendSampleApproval()} disabled={sampling} className="w-full text-center text-[11px] font-semibold text-crm-body underline underline-offset-2 disabled:opacity-50">
+            {sampling ? 'Sending sample…' : 'Email me a sample of the "you’re approved" message'}
+          </button>
+          {sampleMessage && <p className="text-[11px] text-crm-muted">{sampleMessage}</p>}
           {testError && <p className="text-[11px] font-semibold text-crm-error">{testError}</p>}
           {testResult && (
             <ul className="space-y-1 text-[11px]">

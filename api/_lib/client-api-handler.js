@@ -13,6 +13,7 @@ import {
   ipFor,
   normalizeEmail,
   normalizePhone,
+  notifyMembershipApproved,
   notifyNewRequest,
   nowIso,
   opaqueToken,
@@ -1384,6 +1385,7 @@ async function approveCompanyMember(req, res) {
     },
     { merge: true },
   );
+  await notifyMembershipApproved(target.data());
   return res.status(200).json({ success: true });
 }
 

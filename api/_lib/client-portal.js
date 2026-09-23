@@ -200,6 +200,7 @@ export async function sendEmail({
   text,
   html,
   replyTo,
+  from,
   jobId = "",
   type = "email",
 }) {
@@ -216,6 +217,7 @@ export async function sendEmail({
     },
     body: JSON.stringify({
       from:
+        from ||
         process.env.EMAIL_FROM ||
         "TechSavvy Portal <support@techsavvytechs.com>",
       to: recipients,
@@ -241,6 +243,56 @@ export async function sendEmail({
       detail: body.message || `Email provider returned ${response.status}.`,
     });
   return body;
+}
+
+// Tells a newly approved client user they can sign in. Used by both approval
+// paths (TechSavvy staff in the CRM, and a company administrator approving a
+// colleague). Never throws: a notification problem must not undo an approval.
+export async function notifyMembershipApproved(profile, { sample = false } = {}) {
+  try {
+    const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+    const signInUrl = `${appUrl}/client`;
+    const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+    const supportPhone = process.env.SUPPORT_PHONE || "(707) 653-6702";
+    const fromAddress = (process.env.EMAIL_FROM || "").match(/<([^>]+)>/)?.[1] || supportEmail;
+    const company =
+      profile.companyName ||
+      (profile.customerId
+        ? (await adminDb.collection("customers").doc(profile.customerId).get()).data()?.name || ""
+        : "");
+    const firstName = String(profile.displayName || "").split(/[\s@]/)[0];
+    const greeting = firstName ? `Hi ${firstName},` : "Hello,";
+    const forCompany = company ? ` for ${company}` : "";
+    const capabilities = [
+      "Request a job or service visit",
+      "Upload a spreadsheet of many jobs at once (Bulk import)",
+      "Track confirmed visits, technicians, and progress",
+      "Message TechSavvy and download closeout documents",
+    ];
+    const text = `${greeting}\n\nYour TechSavvy Client Portal access${forCompany} has been approved. You can sign in now:\n${signInUrl}\n\nWhat you can do:\n${capabilities.map((c) => `- ${c}`).join("\n")}\n\nQuestions? Reply to this email, write ${supportEmail}, or call ${supportPhone}.`;
+    const html = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">CLIENT PORTAL</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p style="font-size:18px;font-weight:700;margin-top:0">You're approved</p><p>${escapeHtml(greeting)}</p><p>Your TechSavvy Client Portal access${escapeHtml(forCompany)} has been approved. You can sign in now.</p><p style="margin:22px 0"><a href="${escapeHtml(signInUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 22px;border-radius:5px;text-decoration:none;font-weight:700">Sign in to the portal</a></p><p style="margin-bottom:6px"><strong>What you can do</strong></p><ul style="margin-top:0;padding-left:20px">${capabilities.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul><p style="font-size:12px;color:#64748b">Questions? Reply to this email, write ${escapeHtml(supportEmail)}, or call ${escapeHtml(supportPhone)}.</p></div></div>`;
+    await Promise.allSettled([
+      sendEmail({
+        to: profile.email,
+        subject: `${sample ? "[SAMPLE] " : ""}Your TechSavvy client portal access is approved`,
+        text,
+        html,
+        replyTo: supportEmail,
+        from: `TechSavvy Client Portal <${fromAddress}>`,
+        type: "membership_approved",
+      }),
+      !sample && profile.smsConsent?.optedIn === true && profile.phone
+        ? sendSms({
+            to: profile.phone,
+            body: `TechSavvy: your Client Portal access${forCompany} is approved. Sign in: ${signInUrl} Reply STOP to opt out.`,
+            type: "membership_approved",
+            important: true,
+          })
+        : Promise.resolve(),
+    ]);
+  } catch (error) {
+    console.error("Membership approval notification failed:", error);
+  }
 }
 
 export async function sendSms({

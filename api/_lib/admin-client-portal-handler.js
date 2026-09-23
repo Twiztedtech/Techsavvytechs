@@ -3,6 +3,7 @@ import {
   alertRecipients,
   clean,
   hashValue,
+  notifyMembershipApproved,
   nowIso,
   opaqueToken,
   recordEvent,
@@ -178,13 +179,7 @@ async function approveMember(req, res, admin) {
     },
     { merge: true },
   );
-  await sendEmail({
-    to: profile.data().email,
-    subject: "Your TechSavvy client portal access is approved",
-    text: "Your company membership is active. You may now sign in to the TechSavvy Client Portal.",
-    html: "<h1>Client portal access approved</h1><p>Your company membership is active. You may now sign in.</p>",
-    type: "membership_approved",
-  }).catch(() => null);
+  await notifyMembershipApproved(profile.data());
   return res.status(200).json({ success: true });
 }
 
@@ -676,6 +671,21 @@ async function sendTestAlert(req, res, admin) {
   return res.status(200).json({ success: true, ...results });
 }
 
+async function sendSampleApprovalEmail(req, res) {
+  const { emails } = await alertRecipients();
+  if (!emails.length)
+    return res.status(422).json({ error: "Save at least one alert email first." });
+  await Promise.all(
+    emails.map((email) =>
+      notifyMembershipApproved(
+        { email, displayName: "Alex Example", companyName: "Example Company", smsConsent: { optedIn: false } },
+        { sample: true },
+      ),
+    ),
+  );
+  return res.status(200).json({ success: true, sentTo: emails });
+}
+
 async function dismissNotifications(req, res, admin) {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
     .map((id) => clean(id, 100))
@@ -732,6 +742,8 @@ export default async function handler(req, res) {
       return await dismissNotifications(req, res, admin);
     if (req.method === "POST" && action === "test-alert")
       return await sendTestAlert(req, res, admin);
+    if (req.method === "POST" && action === "sample-approval-email")
+      return await sendSampleApprovalEmail(req, res);
     return res
       .status(404)
       .json({ error: "Admin client-portal operation not found." });
