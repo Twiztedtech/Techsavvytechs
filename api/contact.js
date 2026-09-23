@@ -80,6 +80,18 @@ function isRateLimited(ip, now) {
   return false;
 }
 
+// Customers see this as the sender name, so invoices come from "TechSavvy
+// Billing" (not the internal "Contractor Portal" display name in EMAIL_FROM).
+function documentSender(type) {
+  if (type === "invoice") {
+    const billing = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
+    return `TechSavvy Billing <${billing}>`;
+  }
+  const configured = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const address = configured.match(/<([^>]+)>/)?.[1] || configured;
+  return `TechSavvy <${address}>`;
+}
+
 function documentReplyTo(type) {
   return type === "invoice"
     ? process.env.BILLING_EMAIL || "billing@techsavvytechs.com"
@@ -158,7 +170,7 @@ async function previewCustomerDocument(req, res) {
   return res.status(200).json({
     to: email,
     validRecipient: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
-    from: process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>",
+    from: documentSender(type),
     replyTo: documentReplyTo(type),
     subject,
     html,
@@ -236,8 +248,7 @@ async function sendCustomerDocument(req, res) {
     style: "currency",
     currency: "USD",
   });
-  const sender =
-    process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const sender = documentSender(type);
   const replyTo = documentReplyTo(type);
   const attachment = type === "invoice" ? tryInvoicePdf(document) : null;
   const { subject, text, html } = renderCustomerDocumentEmail({
@@ -569,7 +580,7 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
       urgent: `Payment required — TechSavvy invoice ${number}`,
     };
     const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: type === "invoice" ? invoiceSubjectByStage[invoiceEscalation] : "", maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
-    const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+    const sender = type === "invoice" ? documentSender("invoice") : process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
     const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
     const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
     // Once an invoice is seriously overdue, loop the office in on every
