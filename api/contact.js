@@ -152,6 +152,10 @@ async function sendCustomerDocument(req, res) {
     process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
   const supportEmail =
     process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+  const replyTo =
+    type === "invoice"
+      ? process.env.BILLING_EMAIL || "billing@techsavvytechs.com"
+      : supportEmail;
   // Some customers' AP departments require this in the invoice itself, not
   // just reachable via a link, to process payment (invoice #, service date,
   // PO/project reference, project manager). Include whatever is on file.
@@ -174,7 +178,7 @@ async function sendCustomerDocument(req, res) {
     },
     body: JSON.stringify({
       from: sender,
-      reply_to: supportEmail,
+      reply_to: replyTo,
       to: [email],
       subject:
         type === "quote"
@@ -489,13 +493,14 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
     const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: type === "invoice" ? invoiceSubjectByStage[invoiceEscalation] : "", maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
     const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
     const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+    const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
     // Once an invoice is seriously overdue, loop the office in on every
     // escalation email so a human knows to step in and follow up directly.
     const ccAddresses = invoiceEscalation === "urgent" ? (process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") || [supportEmail]) : undefined;
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `techsavvy-${deliveryId}`, "User-Agent": "TechSavvy-CRM/1.0" },
-      body: JSON.stringify({ from: sender, reply_to: supportEmail, to: [email], ...(ccAddresses ? { cc: ccAddresses } : {}), subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
+      body: JSON.stringify({ from: sender, reply_to: type === "invoice" ? billingEmail : supportEmail, to: [email], ...(ccAddresses ? { cc: ccAddresses } : {}), subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
     });
     if (!response.ok) throw new Error("Reminder email failed: " + (await response.text()));
     const result = await response.json();
