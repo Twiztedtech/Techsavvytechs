@@ -194,6 +194,16 @@ export async function recordEvent({
   });
 }
 
+// EMAIL_FROM carries the internal "Contractor Portal" display name; anything
+// that reaches a client should say "Client Portal" instead.
+function clientPortalSender() {
+  const address =
+    (process.env.EMAIL_FROM || "").match(/<([^>]+)>/)?.[1] ||
+    process.env.SUPPORT_EMAIL ||
+    "support@techsavvytechs.com";
+  return `TechSavvy Client Portal <${address}>`;
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -216,10 +226,7 @@ export async function sendEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from:
-        from ||
-        process.env.EMAIL_FROM ||
-        "TechSavvy Portal <support@techsavvytechs.com>",
+      from: from || clientPortalSender(),
       to: recipients,
       reply_to: replyTo,
       subject,

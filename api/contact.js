@@ -82,14 +82,18 @@ function isRateLimited(ip, now) {
 
 // Customers see this as the sender name, so invoices come from "TechSavvy
 // Billing" (not the internal "Contractor Portal" display name in EMAIL_FROM).
+function customerSender() {
+  const configured = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const address = configured.match(/<([^>]+)>/)?.[1] || configured;
+  return `TechSavvy <${address}>`;
+}
+
 function documentSender(type) {
   if (type === "invoice") {
     const billing = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
     return `TechSavvy Billing <${billing}>`;
   }
-  const configured = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
-  const address = configured.match(/<([^>]+)>/)?.[1] || configured;
-  return `TechSavvy <${address}>`;
+  return customerSender();
 }
 
 function documentReplyTo(type) {
@@ -348,7 +352,7 @@ async function sendCustomerPortal(req, res) {
     return res.status(503).json({ error: "Customer email delivery is not configured." });
 
   const createdAt = new Date().toISOString();
-  const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const sender = customerSender();
   const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
   const defaultSubject = "Your TechSavvy customer portal";
   const defaultMessage =
@@ -623,7 +627,7 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
       urgent: `Payment required — TechSavvy invoice ${number}`,
     };
     const subjects = { appointment: `TechSavvy appointment reminder — ${number}`, quote: `Reminder: TechSavvy quote ${number} needs your review`, invoice: type === "invoice" ? invoiceSubjectByStage[invoiceEscalation] : "", maintenance: `TechSavvy maintenance reminder — ${entity.name || number}` };
-    const sender = type === "invoice" ? documentSender("invoice") : process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+    const sender = type === "invoice" ? documentSender("invoice") : customerSender();
     const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
     const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
     // Once an invoice is seriously overdue, loop the office in on every
@@ -868,7 +872,7 @@ async function sendCustomerAgreement(req, res) {
   });
   const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
   const link = `${appUrl}/agreement?token=${encodeURIComponent(rawToken)}`;
-  const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const sender = customerSender();
   const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
   const delivery = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -1063,7 +1067,7 @@ async function submitAgreement(req, res) {
 
   await writeAudit({ actor: { email }, action: "signed", entityType: "customer", entityId: access.customerId, summary: "Customer signed service agreement", details: { email, storagePath }, source: "customer-agreement" });
 
-  const sender = process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
+  const sender = customerSender();
   const supportEmail = process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
   if (process.env.RESEND_API_KEY) {
     const attachments = [{ filename: fileName, content: pdfBase64 }];
