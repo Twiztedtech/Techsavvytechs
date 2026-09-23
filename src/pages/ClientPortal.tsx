@@ -12,6 +12,7 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  FileSpreadsheet,
   FileText,
   History,
   LayoutDashboard,
@@ -37,6 +38,7 @@ import {
   userHasMfa,
 } from "../features/client/ClientMfa";
 import BookJob from "./BookJob";
+import { BulkJobImport } from "../features/client/BulkJobImport";
 
 const roleOptions: Array<{ value: ClientRole; label: string }> = [
   { value: "dispatcher", label: "Dispatcher / Requester" },
@@ -74,7 +76,7 @@ export default function ClientPortal() {
   const [members, setMembers] = useState<any[]>([]);
   const [jobs, setJobs] = useState<ClientJobSummary[]>([]);
   const [portalView, setPortalView] = useState<
-    "upcoming" | "book" | "history" | "reports"
+    "upcoming" | "book" | "bulk" | "history" | "reports"
   >("upcoming");
   const [selected, setSelected] = useState<ClientJobDetail | null>(null);
   const [registration, setRegistration] = useState({
@@ -698,6 +700,7 @@ export default function ClientPortal() {
   const navItems = [
     { id: "upcoming" as const, label: "Upcoming jobs", icon: LayoutDashboard },
     { id: "book" as const, label: "Book a job", icon: PlusCircle },
+    { id: "bulk" as const, label: "Bulk import", icon: FileSpreadsheet },
     { id: "history" as const, label: "Job history", icon: History },
     { id: "reports" as const, label: "Reports", icon: FileText },
   ];
@@ -729,7 +732,7 @@ export default function ClientPortal() {
         </div>
         <nav
           aria-label="Client portal sections"
-          className="mb-6 grid gap-2 rounded border border-white/10 bg-white/5 p-2 sm:grid-cols-4"
+          className="mb-6 grid gap-2 rounded border border-white/10 bg-white/5 p-2 sm:grid-cols-5"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -771,6 +774,8 @@ export default function ClientPortal() {
             }}
             onSubmitted={() => void load()}
           />
+        ) : portalView === "bulk" ? (
+          <BulkJobImport />
         ) : (
           <>
             <div className="mb-6 grid gap-4 sm:grid-cols-3">

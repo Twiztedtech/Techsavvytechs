@@ -300,6 +300,331 @@ async function createRequest(req, res) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Bulk job import (spreadsheet upload) -- lets a logged-in client submit many
+// job requests at once instead of filling the form one at a time. A "Jobs"
+// row is required per job; "Equipment" and "Packages" rows are optional and
+// link back to a job by its Job Code. Every row still goes through the same
+// field limits/shape as a single web-form submission (see createRequest
+// above) so nothing downstream (admin review, conversion to a work order)
+// needs to know a request came from a spreadsheet instead of the form.
+const BULK_IMPORT_MAX_ROWS = 200;
+// Kept well under the platform's ~4.5 MB request body ceiling once base64
+// encoded (raw bytes * ~1.37 for base64 overhead) -- a 200-row text-only
+// spreadsheet is realistically well under 1 MB, so this still leaves room.
+const BULK_IMPORT_MAX_BYTES = 2.5 * 1024 * 1024;
+const SERVICE_TYPE_LABELS = {
+  "low-voltage": "low-voltage",
+  network: "network",
+  "msp support": "msp",
+  "cellular enhancement": "cell-boosting",
+  "site survey": "survey",
+  other: "other",
+};
+
+function cellText(value) {
+  if (value === undefined || value === null) return "";
+  if (value instanceof Date) return value.toISOString();
+  return String(value).trim();
+}
+
+function splitLines(value) {
+  return cellText(value)
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseDateCell(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text = cellText(value);
+  const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (match) {
+    const [, month, day, year] = match;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  const isoMatch = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return isoMatch ? isoMatch[0] : "";
+}
+
+function parseTimeCell(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+  }
+  const text = cellText(value);
+  const ampm = text.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+  if (ampm) {
+    let hours = Number(ampm[1]) % 12;
+    if (/p/i.test(ampm[3])) hours += 12;
+    return `${String(hours).padStart(2, "0")}:${ampm[2]}`;
+  }
+  const plain = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (plain) return `${plain[1].padStart(2, "0")}:${plain[2]}`;
+  return "";
+}
+
+function normalizeServiceType(value) {
+  const key = cellText(value).toLowerCase();
+  return SERVICE_TYPE_LABELS[key] || "other";
+}
+
+async function parseBulkImportWorkbook(buffer) {
+  const XLSX = (await import("xlsx")).default;
+  let workbook;
+  try {
+    workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  } catch {
+    throw Object.assign(new Error("That file could not be read. Please use the provided .xlsx template."), {
+      statusCode: 422,
+    });
+  }
+  const jobsSheet = workbook.Sheets["Jobs"];
+  if (!jobsSheet)
+    throw Object.assign(new Error('This file has no "Jobs" tab. Please use the provided template.'), {
+      statusCode: 422,
+    });
+  const jobRows = XLSX.utils.sheet_to_json(jobsSheet, { defval: "" });
+  const equipmentRows = workbook.Sheets["Equipment"]
+    ? XLSX.utils.sheet_to_json(workbook.Sheets["Equipment"], { defval: "" })
+    : [];
+  const packageRows = workbook.Sheets["Packages"]
+    ? XLSX.utils.sheet_to_json(workbook.Sheets["Packages"], { defval: "" })
+    : [];
+
+  const filledJobRows = jobRows.filter((row) => cellText(row["Job Code"]));
+  if (filledJobRows.length === 0)
+    throw Object.assign(new Error('No job rows found. Fill in the "Jobs" tab and try again.'), {
+      statusCode: 422,
+    });
+  if (filledJobRows.length > BULK_IMPORT_MAX_ROWS)
+    throw Object.assign(
+      new Error(`This file has ${filledJobRows.length} jobs -- please split it into batches of ${BULK_IMPORT_MAX_ROWS} or fewer.`),
+      { statusCode: 422 },
+    );
+
+  const equipmentByJob = new Map();
+  for (const row of equipmentRows) {
+    const jobCode = cellText(row["Job Code"]);
+    const description = clean(row["Description"], 300);
+    if (!jobCode || !description) continue;
+    const list = equipmentByJob.get(jobCode) || [];
+    list.push({
+      description,
+      quantity: clean(row["Qty"], 50),
+      upc: clean(row["UPC"], 60),
+      serial: clean(row["Serial #"], 60),
+      notes: clean(row["Notes"], 300),
+      providedBy: cellText(row["Provided By"]).toLowerCase() === "techsavvy" ? "techsavvy" : "client",
+    });
+    equipmentByJob.set(jobCode, list.slice(0, 30));
+  }
+
+  const packagesByJob = new Map();
+  for (const row of packageRows) {
+    const jobCode = cellText(row["Job Code"]);
+    const trackingNumber = clean(row["Tracking Number"], 120);
+    const description = clean(row["Description"], 300);
+    if (!jobCode || (!trackingNumber && !description)) continue;
+    const list = packagesByJob.get(jobCode) || [];
+    list.push({
+      carrier: clean(row["Carrier"], 80),
+      trackingNumber,
+      destination: cellText(row["Destination"]).toLowerCase() === "office" ? "office" : "site",
+      description,
+    });
+    packagesByJob.set(jobCode, list.slice(0, 30));
+  }
+
+  const seenCodes = new Set();
+  return filledJobRows.map((row) => {
+    const jobCode = cellText(row["Job Code"]).slice(0, 40);
+    const errors = [];
+    if (seenCodes.has(jobCode)) errors.push(`Job Code "${jobCode}" is used more than once.`);
+    seenCodes.add(jobCode);
+
+    const siteName = clean(row["Site Name"], 160);
+    const address = clean(row["Full Site Address"], 300);
+    const scopeSummary = clean(row["Scope Summary"], 5000);
+    if (!siteName) errors.push("Site Name is required.");
+    if (!address) errors.push("Full Site Address is required.");
+    if (!scopeSummary) errors.push("Scope Summary is required.");
+
+    const preferredDate = parseDateCell(row["Preferred Date"]);
+    const preferredStart = parseTimeCell(row["Preferred Start"]);
+    const preferredEnd = parseTimeCell(row["Preferred End"]);
+    const alternateDate = parseDateCell(row["Alternate Date"]);
+    const alternateStart = parseTimeCell(row["Alternate Start"]);
+    const alternateEnd = parseTimeCell(row["Alternate End"]);
+    if (!preferredDate || !preferredStart || !preferredEnd)
+      errors.push("Preferred Date, Preferred Start, and Preferred End are required.");
+
+    const rawWindows = [
+      { date: preferredDate, start: preferredStart, end: preferredEnd },
+      ...(alternateDate ? [{ date: alternateDate, start: alternateStart, end: alternateEnd }] : []),
+    ];
+    const windows = requestedWindows(rawWindows);
+    if (preferredDate && windows.length === 0)
+      errors.push("Requested windows must be on a weekday with the end time after the start time.");
+
+    return {
+      jobCode,
+      siteName,
+      address,
+      siteContact: clean(row["Site Contact (name, phone, email)"], 200),
+      serviceType: normalizeServiceType(row["Service Type"]),
+      scopeSummary,
+      scopeTasks: splitLines(row["Scope Tasks (one per line)"]).slice(0, 30),
+      deliverables: splitLines(row["Required Deliverables (one per line)"]).slice(0, 30),
+      accessInstructions: clean(row["Access / Check-in Instructions"], 2000),
+      safetyRequirements: clean(row["Safety Requirements"], 2000),
+      clientReference: clean(row["PO / Project Reference #"], 80),
+      equipment: equipmentByJob.get(jobCode) || [],
+      packages: packagesByJob.get(jobCode) || [],
+      requestedWindows: windows,
+      urgent: isUrgent(windows),
+      valid: errors.length === 0,
+      errors,
+    };
+  });
+}
+
+async function resolveClientOrganization(req) {
+  const { profile } = await requireClient(req);
+  const orgSnapshot = await adminDb.collection("customers").doc(profile.customerId).get();
+  if (!orgSnapshot.exists)
+    throw Object.assign(new Error("Your client company is no longer available."), { statusCode: 422 });
+  return { profile, organization: { id: orgSnapshot.id, ...orgSnapshot.data() } };
+}
+
+function readUploadedFile(req) {
+  const base64 = typeof req.body?.fileBase64 === "string" ? req.body.fileBase64 : "";
+  if (!base64)
+    throw Object.assign(new Error("Choose a completed template file to upload."), { statusCode: 422 });
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length === 0 || buffer.length > BULK_IMPORT_MAX_BYTES)
+    throw Object.assign(new Error("The file must be between 1 byte and 2.5 MB."), { statusCode: 422 });
+  return buffer;
+}
+
+async function bulkImportPreview(req, res) {
+  const { organization } = await resolveClientOrganization(req);
+  const buffer = readUploadedFile(req);
+  const jobs = await parseBulkImportWorkbook(buffer);
+  const approvedPrefixes = Array.isArray(organization.referencePrefixes) ? organization.referencePrefixes : [];
+  for (const job of jobs) {
+    if (!job.valid || !job.clientReference) continue;
+    const prefix = approvedPrefixes.find((value) => job.clientReference.startsWith(value)) || "";
+    const duplicate = await adminDb
+      .collection("vendor_requests")
+      .where("customerId", "==", organization.id)
+      .where("clientReference", "==", `${prefix}${job.clientReference}`)
+      .limit(1)
+      .get();
+    if (!duplicate.empty) {
+      job.valid = false;
+      job.errors.push(`Reference "${job.clientReference}" is already used by this company.`);
+    }
+  }
+  return res.status(200).json({
+    jobs,
+    validCount: jobs.filter((job) => job.valid).length,
+    invalidCount: jobs.filter((job) => !job.valid).length,
+  });
+}
+
+async function bulkImportSubmit(req, res) {
+  if (rateLimited(req, "bulk-import-submit", 5, 60 * 60 * 1000))
+    return res.status(429).json({ error: "Please wait before submitting another bulk import." });
+  const { profile, organization } = await resolveClientOrganization(req);
+  const buffer = readUploadedFile(req);
+  const jobs = await parseBulkImportWorkbook(buffer);
+  const approvedPrefixes = Array.isArray(organization.referencePrefixes) ? organization.referencePrefixes : [];
+  const created = [];
+  const skipped = [];
+  for (const job of jobs) {
+    if (!job.valid) {
+      skipped.push({ jobCode: job.jobCode, errors: job.errors });
+      continue;
+    }
+    const sequence = `${Date.now().toString().slice(-7)}${created.length}`;
+    const requestNumber = `TS-${new Date().getUTCFullYear()}-${sequence}`;
+    const prefix = job.clientReference
+      ? approvedPrefixes.find((value) => job.clientReference.startsWith(value)) || approvedPrefixes[0] || ""
+      : approvedPrefixes[0] || "";
+    const clientReference = job.clientReference ? `${prefix}${job.clientReference}` : `${prefix || "REQ-"}${sequence}`;
+    const duplicate = await adminDb
+      .collection("vendor_requests")
+      .where("customerId", "==", organization.id)
+      .where("clientReference", "==", clientReference)
+      .limit(1)
+      .get();
+    if (!duplicate.empty) {
+      skipped.push({ jobCode: job.jobCode, errors: [`Reference "${clientReference}" is already used by this company.`] });
+      continue;
+    }
+    const createdAt = nowIso();
+    const statusToken = opaqueToken();
+    const ref = adminDb.collection("vendor_requests").doc();
+    const record = {
+      requestNumber,
+      companyName: organization.name,
+      customerId: organization.id,
+      createdByClientUid: profile.id,
+      requesterName: clean(profile.displayName, 120),
+      requesterEmail: normalizeEmail(profile.email),
+      requesterPhone: normalizePhone(profile.phone),
+      clientReference,
+      clientProjectManager: "",
+      siteName: job.siteName,
+      address: job.address,
+      siteContact: job.siteContact,
+      accessInstructions: job.accessInstructions,
+      serviceType: job.serviceType,
+      scopeSummary: job.scopeSummary,
+      scopeTasks: job.scopeTasks,
+      equipment: job.equipment,
+      packages: job.packages,
+      deliverables: job.deliverables,
+      safetyRequirements: job.safetyRequirements,
+      requestedWindows: job.requestedWindows,
+      urgent: job.urgent,
+      status: "requested",
+      directContactRequested: false,
+      directContactDecision: "techsavvy_only",
+      smsConsent: { optedIn: false },
+      attachments: [],
+      statusTokenHash: hashValue(statusToken),
+      source: "bulk_import",
+      createdAt,
+      updatedAt: createdAt,
+    };
+    await ref.set(record);
+    await recordEvent({
+      requestId: ref.id,
+      type: "request_created",
+      actorUid: profile.id,
+      actorRole: "client",
+      visibility: "client",
+      message: "Job request submitted via bulk import.",
+    });
+    await notifyNewRequest({ id: ref.id, ...record });
+    created.push({ jobCode: job.jobCode, requestId: ref.id, requestNumber });
+  }
+  if (created.length) {
+    const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+    await sendEmail({
+      to: normalizeEmail(profile.email),
+      subject: `We received ${created.length} job request${created.length === 1 ? "" : "s"}`,
+      text: `Your bulk job import is complete.\n\nCreated: ${created.map((job) => `${job.jobCode} -> ${job.requestNumber}`).join(", ")}\n${skipped.length ? `Skipped (see errors): ${skipped.map((job) => job.jobCode).join(", ")}\n` : ""}\nTrack these in the client portal: ${appUrl}/client`,
+      html: `<h1>Bulk import complete</h1><p>${created.length} job request${created.length === 1 ? "" : "s"} created${skipped.length ? `, ${skipped.length} skipped` : ""}.</p><p><a href="${appUrl}/client">Open the client portal</a></p>`,
+      type: "bulk_import_receipt",
+    }).catch(() => null);
+  }
+  return res.status(201).json({ success: true, created, skipped });
+}
+
 async function uploadRequestFile(req, res) {
   if (rateLimited(req, "request-file", 60))
     return res.status(429).json({
@@ -1051,6 +1376,10 @@ export default async function handler(req, res) {
       return await createRequest(req, res);
     if (req.method === "POST" && action === "request-file")
       return await uploadRequestFile(req, res);
+    if (req.method === "POST" && action === "bulk-import-preview")
+      return await bulkImportPreview(req, res);
+    if (req.method === "POST" && action === "bulk-import-submit")
+      return await bulkImportSubmit(req, res);
     if (["GET", "POST"].includes(req.method) && action === "request-status")
       return await publicRequestStatus(req, res);
     if (req.method === "POST" && action === "register")
