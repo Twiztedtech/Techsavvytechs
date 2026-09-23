@@ -659,9 +659,9 @@ export default function CRM() {
         </button>
         <div className="flex items-center gap-3 border-r border-crm-hairline pr-4">
           <img
-            src={crmTheme === "dark" ? "/logo-email.png" : "/logo-light.png"}
+            src={crmTheme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
             alt="TechSavvy LLC"
-            className={crmTheme === "dark" ? "h-11 w-auto rounded-lg" : "h-11 w-auto"}
+            className="h-11 w-auto"
           />
           <p className="hidden text-[10px] uppercase tracking-[.18em] text-crm-muted sm:block">
             Field Operations

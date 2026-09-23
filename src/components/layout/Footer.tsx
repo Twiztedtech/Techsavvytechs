@@ -9,7 +9,7 @@ export const Footer = () => {
       
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-16">
         <div className="col-span-2">
-          <img src="/logo-techsavvy.svg" alt="TechSavvy LLC" className="mb-8 h-14 w-auto rounded-sm" />
+          <img src="/logo-dark.png" alt="TechSavvy LLC — Wired for What's Next." className="mb-8 h-20 w-auto" />
           <p className="text-slate-500 text-sm max-w-sm leading-relaxed mb-10 font-light">
             Providing high-performance technical infrastructure for Sacramento and Bay Area businesses. 
             From the data center to the device, we ensure your tech is an asset, not a burden.
