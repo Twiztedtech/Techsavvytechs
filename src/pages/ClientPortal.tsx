@@ -39,6 +39,8 @@ import {
 } from "../features/client/ClientMfa";
 import BookJob from "./BookJob";
 import { BulkJobImport } from "../features/client/BulkJobImport";
+import { JobDetailsEditor } from "../features/client/JobDetailsEditor";
+import { TeamPanel } from "../features/client/TeamPanel";
 
 const roleOptions: Array<{ value: ClientRole; label: string }> = [
   { value: "dispatcher", label: "Dispatcher / Requester" },
@@ -916,6 +918,14 @@ export default function ClientPortal() {
                         </button>
                       </div>
                     </section>
+                    <div key={`${selected.job.id}-${selected.job.address}-${selected.job.siteContact}-${selected.job.targetCompletion}`}>
+                      <JobDetailsEditor
+                        job={selected.job}
+                        api={api}
+                        onSaved={() => openJob(selected.job.id)}
+                        notify={(tone, text) => setNotice({ tone, text })}
+                      />
+                    </div>
                     {portalView === "reports" && (
                       <section className="glass-card p-6">
                         <h3 className="flex items-center gap-2 text-sm font-bold text-white">
@@ -1182,48 +1192,13 @@ export default function ClientPortal() {
           </>
         )}
         {profile.roles.includes("company_admin") && (
-          <section className="mt-8 glass-card p-6">
-            <h2 className="text-sm font-bold text-white">
-              Company access requests
-            </h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {members
-                .filter((member) => member.status !== "active")
-                .map((member) => (
-                  <div key={member.id} className="rounded bg-white/5 p-3">
-                    <p className="text-sm font-bold text-white">
-                      {member.displayName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {member.email} ·{" "}
-                      {(member.requestedRoles || [])
-                        .join(", ")
-                        .replace(/_/g, " ")}
-                    </p>
-                    <button
-                      disabled={
-                        !member.emailVerified ||
-                        (!member.phoneVerified &&
-                          !member.phoneVerificationDeferred)
-                      }
-                      onClick={async () => {
-                        await api("/api/client?action=approve-member", {
-                          method: "POST",
-                          body: JSON.stringify({
-                            uid: member.id,
-                            roles: member.requestedRoles,
-                          }),
-                        });
-                        await load();
-                      }}
-                      className="mt-2 rounded bg-tech-green px-3 py-1.5 text-xs font-bold text-brand-black disabled:opacity-30"
-                    >
-                      Approve member
-                    </button>
-                  </div>
-                ))}
-            </div>
-          </section>
+          <TeamPanel
+            members={members}
+            selfId={profile.id}
+            api={api}
+            onChanged={load}
+            notify={(tone, text) => setNotice({ tone, text })}
+          />
         )}
       </div>
     </PortalFrame>

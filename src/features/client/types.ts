@@ -40,8 +40,20 @@ export interface ClientJobSummary {
   reportCount?: number;
 }
 
+export interface ClientEquipmentLine {
+  description: string;
+  quantity: string | number;
+  upc: string;
+  serial: string;
+  notes: string;
+  providedBy: "client" | "techsavvy";
+}
+
 export interface ClientJobDetail {
   job: ClientJobSummary & {
+    siteContact?: string;
+    equipment?: ClientEquipmentLine[];
+    editable?: { allowed: boolean; reason: string };
     notes: string;
     scopeTasks: string[];
     qaChecklist: string[];

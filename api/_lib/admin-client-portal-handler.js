@@ -1,5 +1,6 @@
 import { adminDb, requireStaffRole } from "./firebase-admin.js";
 import {
+  CLIENT_ROLES,
   alertRecipients,
   clean,
   hashValue,
@@ -166,9 +167,14 @@ async function approveMember(req, res, admin) {
       .json({
         error: "The user must verify email and either verify or defer phone verification before approval.",
       });
-  const roles = Array.isArray(req.body?.roles)
-    ? req.body.roles
-    : profile.data().requestedRoles;
+  const chosen = (Array.isArray(req.body?.roles) ? req.body.roles : []).filter(
+    (role) => CLIENT_ROLES.includes(role),
+  );
+  const roles = chosen.length
+    ? chosen
+    : profile.data().requestedRoles?.length
+      ? profile.data().requestedRoles
+      : ["project_viewer"];
   await ref.set(
     {
       status: "active",

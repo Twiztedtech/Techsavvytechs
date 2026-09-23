@@ -17,6 +17,15 @@ import { CrmButton, CrmModalShell } from "../crm/ui";
 type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
 type RequestFilter = "all" | "requested" | "clarification_needed";
 
+const ACCESS_ROLE_OPTIONS: [string, string][] = [
+  ["company_admin", "Company administrator (sees all company jobs, manages their team)"],
+  ["billing", "Billing (sees invoices and billing documents)"],
+  ["dispatcher", "Dispatcher"],
+  ["sales", "Sales"],
+  ["site_contact", "Site contact"],
+  ["project_viewer", "Viewer (their own jobs only)"],
+];
+
 function failureReason(raw: unknown) {
   const text = String(raw || "");
   try {
@@ -70,6 +79,7 @@ export function ClientRequestsAdmin({
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<ClientTab>("requests");
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
+  const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
   const [noteDialog, setNoteDialog] = useState<{
     request: RequestRecord;
     status: "clarification_needed" | "declined";
@@ -129,8 +139,13 @@ export function ClientRequestsAdmin({
       </div>
     );
   const pendingUsers = data.users.filter(
-    (user: any) => user.status !== "active",
+    (user: any) => (user.status || "pending") === "pending",
   );
+  const roleFor = (user: any) =>
+    approvalRoles[user.id] ||
+    user.suggestedRoles?.[0] ||
+    user.requestedRoles?.[0] ||
+    "project_viewer";
   const openRequests = data.requests.filter(
     (request: RequestRecord) => !["declined"].includes(request.status),
   );
@@ -734,21 +749,40 @@ export function ClientRequestsAdmin({
                         : "—"}
                   </p>
                 </div>
-                <button
-                  disabled={
-                    !user.emailVerified ||
-                    (!user.phoneVerified && !user.phoneVerificationDeferred)
-                  }
-                  onClick={() =>
-                    post("approve-member", {
-                      uid: user.id,
-                      roles: user.requestedRoles,
-                    })
-                  }
-                  className="rounded-lg bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-30"
-                >
-                  Approve
-                </button>
+                <div className="flex flex-col items-end gap-1.5">
+                  <select
+                    aria-label={`Access level for ${user.displayName}`}
+                    value={roleFor(user)}
+                    onChange={(event) =>
+                      setApprovalRoles((current) => ({ ...current, [user.id]: event.target.value }))
+                    }
+                    className="max-w-[260px] rounded-lg border border-crm-hairline bg-crm-canvas px-2 py-1.5 text-[10px] text-crm-ink"
+                  >
+                    {ACCESS_ROLE_OPTIONS.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  {user.suggestedRoles?.[0] === "company_admin" && (
+                    <span className="text-[10px] font-semibold text-crm-warning">
+                      Listed as this company's primary contact
+                    </span>
+                  )}
+                  <button
+                    disabled={
+                      !user.emailVerified ||
+                      (!user.phoneVerified && !user.phoneVerificationDeferred)
+                    }
+                    onClick={() =>
+                      post("approve-member", {
+                        uid: user.id,
+                        roles: [roleFor(user)],
+                      })
+                    }
+                    className="rounded-lg bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-30"
+                  >
+                    Approve
+                  </button>
+                </div>
               </div>
             ))
           )}

@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { prepareUpload, verifyUpload } from "./booking-uploads.js";
 import { submitClientFeedback } from "./client-feedback-handler.js";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
+import { jobEditState } from "./job-access.js";
 import {
   CLIENT_ROLES,
   addBusinessDays,
@@ -760,6 +761,15 @@ async function registerMembership(req, res) {
         (role) => CLIENT_ROLES.includes(role) && role !== "company_admin",
       )
     : [];
+  // If TechSavvy already lists this person as the company's primary contact or
+  // owner, suggest Company Administrator on the approval screen. It is only a
+  // suggestion: nobody becomes an administrator without a human approving it.
+  const listedContact = (org.data().personnel || []).find(
+    (person) =>
+      person.active !== false &&
+      normalizeEmail(person.email) === email &&
+      ["primary_contact", "owner"].includes(person.role),
+  );
   await adminDb
     .collection("client_users")
     .doc(user.uid)
@@ -771,6 +781,7 @@ async function registerMembership(req, res) {
         phone,
         roles: requestedRoles.length ? requestedRoles : ["project_viewer"],
         requestedRoles,
+        suggestedRoles: listedContact ? ["company_admin"] : [],
         status: "pending",
         emailVerified: true,
         phoneVerified: false,
@@ -1176,6 +1187,9 @@ async function getJob(req, res) {
       id: jobDoc.id,
       name: data.name,
       address: data.address,
+      siteContact: data.siteContact || "",
+      equipment: (data.equipment || []).map(clientEquipmentView),
+      editable: jobEditState(profile, data),
       notes: data.clientVisibleNotes || "",
       workOrderNumber: data.workOrderNumber,
       clientReference: data.clientReference,
@@ -1353,6 +1367,147 @@ async function requestScopeChange(req, res) {
   return res.status(201).json({ success: true, scopeVersionId: ref.id });
 }
 
+// Clients see and edit descriptive fields only. Staff-only fields on the same
+// record (unit cost, billing, internal notes) never leave the server.
+const clientEquipmentView = (item) => ({
+  description: item.description || "",
+  quantity: item.quantity ?? "",
+  upc: item.upc || "",
+  serial: item.serial || "",
+  notes: item.notes || "",
+  providedBy:
+    item.providedBy === "techsavvy" || item.fulfillmentSource === "techsavvy_supplied"
+      ? "techsavvy"
+      : "client",
+});
+
+async function updateJob(req, res) {
+  const { profile } = await requireClient(req);
+  const jobId = clean(req.body?.jobId, 120);
+  if (!jobId || !(await canAccessJob(profile, jobId)))
+    return res.status(404).json({ error: "Job not found." });
+  const ref = adminDb.collection("jobs").doc(jobId);
+  const snapshot = await ref.get();
+  const job = snapshot.data();
+  const state = jobEditState(profile, job);
+  if (!state.allowed) return res.status(409).json({ error: state.reason });
+
+  const changes = req.body?.changes || {};
+  const patch = {};
+  const changed = [];
+  const setIfChanged = (field, label, value, current) => {
+    if (JSON.stringify(value) === JSON.stringify(current)) return;
+    patch[field] = value;
+    changed.push(label);
+  };
+  if ("address" in changes) {
+    const address = clean(changes.address, 300);
+    if (!address) return res.status(422).json({ error: "Enter the site address." });
+    setIfChanged("address", "site address", address, job.address || "");
+  }
+  if ("siteContact" in changes)
+    setIfChanged("siteContact", "site contact", clean(changes.siteContact, 300), job.siteContact || "");
+  if ("notes" in changes)
+    setIfChanged("clientVisibleNotes", "scope summary", clean(changes.notes, 5000), job.clientVisibleNotes || "");
+  if ("targetCompletion" in changes) {
+    const date = clean(changes.targetCompletion, 20);
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return res.status(422).json({ error: "Enter the requested date as YYYY-MM-DD." });
+    setIfChanged("targetCompletion", "requested date", date, job.targetCompletion || "");
+  }
+  if (Array.isArray(changes.scopeTasks))
+    setIfChanged(
+      "scopeTasks",
+      "scope tasks",
+      changes.scopeTasks.map((task) => clean(task, 500)).filter(Boolean).slice(0, 40),
+      job.scopeTasks || [],
+    );
+  if (Array.isArray(changes.equipment)) {
+    const existing = Array.isArray(job.equipment) ? job.equipment : [];
+    const next = changes.equipment
+      .slice(0, 60)
+      .map((item, index) => ({
+        ...(existing[index] || {}),
+        description: clean(item?.description, 300),
+        quantity: clean(item?.quantity, 20),
+        upc: clean(item?.upc, 40),
+        serial: clean(item?.serial, 80),
+        notes: clean(item?.notes, 500),
+        providedBy: item?.providedBy === "techsavvy" ? "techsavvy" : "client",
+      }))
+      .filter((item) => item.description);
+    const before = existing.map(clientEquipmentView);
+    const after = next.map(clientEquipmentView);
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      patch.equipment = next;
+      changed.push("equipment and materials");
+    }
+  }
+  if (!changed.length) return res.status(200).json({ success: true, changed: [] });
+
+  patch.updatedAt = nowIso();
+  patch.lastClientEditAt = nowIso();
+  patch.lastClientEditByUid = profile.id;
+  await ref.set(patch, { merge: true });
+  const workOrder = job.workOrderNumber || jobId;
+  await recordEvent({
+    jobId,
+    type: "client_job_edited",
+    actorUid: profile.id,
+    actorRole: "client",
+    visibility: "client",
+    message: `${profile.displayName || "A client user"} updated: ${changed.join(", ")}.`,
+    metadata: { changed },
+  });
+  const { emails } = await alertRecipients();
+  await sendEmail({
+    to: emails,
+    subject: `Client updated job ${workOrder}`,
+    text: `${profile.displayName || profile.email} (${job.vendorName || "client"}) updated ${changed.join(", ")} on ${workOrder}. Review it in the CRM: ${(process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "")}/crm?module=jobs`,
+    html: `<p><strong>${escapeHtml(profile.displayName || profile.email)}</strong> (${escapeHtml(job.vendorName || "client")}) updated <strong>${escapeHtml(changed.join(", "))}</strong> on ${escapeHtml(workOrder)}.</p><p><a href="${escapeHtml((process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, ""))}/crm?module=jobs">Review in the CRM</a></p>`,
+    type: "client_job_edited",
+    jobId,
+  }).catch(() => null);
+  return res.status(200).json({ success: true, changed });
+}
+
+// A company administrator manages their own company's people. They can change
+// roles, pause or restore access, and decline requests, but never grant or
+// alter Company Administrator (only TechSavvy does), and never their own access.
+async function updateCompanyMember(req, res) {
+  const { profile } = await requireClient(req);
+  if (!hasRole(profile, "company_admin"))
+    return res.status(403).json({ error: "Company Administrator role required." });
+  const uid = clean(req.body?.uid, 128);
+  const target = await adminDb.collection("client_users").doc(uid).get();
+  if (!target.exists || target.data().customerId !== profile.customerId)
+    return res.status(404).json({ error: "Team member not found." });
+  if (uid === profile.id)
+    return res.status(409).json({ error: "You cannot change your own access." });
+  const member = target.data();
+  if (hasRole(member, "company_admin"))
+    return res.status(403).json({ error: "Only TechSavvy can change a Company Administrator." });
+  const change = clean(req.body?.change, 20);
+  let patch;
+  if (change === "roles") {
+    const roles = (Array.isArray(req.body?.roles) ? req.body.roles : []).filter(
+      (role) => CLIENT_ROLES.includes(role) && role !== "company_admin",
+    );
+    if (!roles.length) return res.status(422).json({ error: "Choose a role." });
+    patch = { roles };
+  } else if (change === "suspend" && member.status === "active") {
+    patch = { status: "suspended", suspendedAt: nowIso(), suspendedByUid: profile.id };
+  } else if (change === "restore" && member.status === "suspended") {
+    patch = { status: "active", restoredAt: nowIso(), restoredByUid: profile.id };
+  } else if (change === "decline" && member.status === "pending") {
+    patch = { status: "rejected", rejectedAt: nowIso(), rejectedByUid: profile.id };
+  } else {
+    return res.status(409).json({ error: "That change is not available for this person right now." });
+  }
+  await target.ref.set({ ...patch, updatedAt: nowIso() }, { merge: true });
+  return res.status(200).json({ success: true });
+}
+
 async function approveCompanyMember(req, res) {
   const { profile } = await requireClient(req);
   if (!hasRole(profile, "company_admin"))
@@ -1427,6 +1582,10 @@ export default async function handler(req, res) {
       return await acceptCloseout(req, res);
     if (req.method === "POST" && action === "scope-change")
       return await requestScopeChange(req, res);
+    if (req.method === "POST" && action === "update-job")
+      return await updateJob(req, res);
+    if (req.method === "POST" && action === "update-member")
+      return await updateCompanyMember(req, res);
     if (req.method === "POST" && action === "approve-member")
       return await approveCompanyMember(req, res);
     return res

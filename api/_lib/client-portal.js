@@ -10,6 +10,7 @@ import { FieldPath } from "firebase-admin/firestore";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
 import { customerNotifiable, technicianNotifiable } from "./notification-eligibility.js";
 import { normalizePhone } from "./phone.js";
+import { jobAccessDecision } from "./job-access.js";
 
 export { normalizePhone };
 
@@ -128,15 +129,12 @@ export function hasRole(profile, ...roles) {
 }
 
 export async function canAccessJob(profile, jobId) {
-  if (hasRole(profile, "company_admin")) return true;
-  const participantId = `${jobId}_${profile.id}`;
+  if (!jobId || !profile?.customerId) return false;
   const [job, participant] = await Promise.all([
     adminDb.collection("jobs").doc(jobId).get(),
-    adminDb.collection("job_participants").doc(participantId).get(),
+    adminDb.collection("job_participants").doc(`${jobId}_${profile.id}`).get(),
   ]);
-  if (!job.exists || job.data().customerId !== profile.customerId)
-    return false;
-  return job.data().createdByClientUid === profile.id || participant.exists;
+  return jobAccessDecision(profile, job.exists ? job.data() : null, participant.exists);
 }
 
 export function publicTechnician(contractor, appointment = {}) {
