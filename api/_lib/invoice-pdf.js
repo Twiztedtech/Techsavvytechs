@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { INVOICE_LOGO_PNG_BASE64, INVOICE_LOGO_RATIO } from "./invoice-logo.js";
 
 const money = (value = 0) =>
   Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -13,45 +14,54 @@ export function buildInvoicePdf(invoice) {
   const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
 
-  pdf.setFillColor(11, 15, 12);
-  pdf.rect(0, 0, 210, 32, "F");
-  pdf.setTextColor(34, 197, 94);
-  pdf.setFontSize(18);
-  pdf.text("TECHSAVVY", 16, 18);
-  pdf.setFontSize(9);
-  pdf.setTextColor(220, 225, 221);
-  pdf.text("FIELD SERVICES INVOICE", 16, 25);
-
-  pdf.setTextColor(20, 25, 22);
-  pdf.setFontSize(18);
-  pdf.text("INVOICE", 155, 52);
+  // Brand header: black band carrying the full logo, green accent rule, invoice number at right.
+  pdf.setFillColor(0, 0, 0);
+  pdf.rect(0, 0, 210, 44, "F");
+  const logoH = 38;
+  try {
+    pdf.addImage(`data:image/png;base64,${INVOICE_LOGO_PNG_BASE64}`, "PNG", 10, 3, logoH / INVOICE_LOGO_RATIO, logoH);
+  } catch {
+    pdf.setTextColor(34, 197, 94);
+    pdf.setFontSize(20);
+    pdf.text("TECHSAVVY", 16, 24);
+  }
+  pdf.setFillColor(102, 220, 20);
+  pdf.rect(0, 44, 210, 1.6, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(22);
+  pdf.text("INVOICE", 194, 20, { align: "right" });
   pdf.setFontSize(10);
-  pdf.text(String(invoice.invoiceNumber || invoice.id || ""), 155, 60);
+  pdf.setTextColor(120, 230, 40);
+  pdf.text(String(invoice.invoiceNumber || invoice.id || ""), 194, 28, { align: "right" });
+  pdf.setFontSize(8);
+  pdf.setTextColor(200, 205, 201);
+  pdf.text("Fairfield, CA  |  (707) 653-6702  |  techsavvytechs.com", 194, 37, { align: "right" });
+
   pdf.setFontSize(9);
   pdf.setTextColor(90, 100, 94);
-  pdf.text(`Issue: ${invoice.issueDate || ""}`, 155, 67);
-  pdf.text(`Due: ${invoice.dueDate || ""}`, 155, 73);
-  if (invoice.serviceDate) pdf.text(`Service: ${invoice.serviceDate}`, 155, 79);
+  pdf.text(`Issue: ${invoice.issueDate || ""}`, 155, 63);
+  pdf.text(`Due: ${invoice.dueDate || ""}`, 155, 69);
+  if (invoice.serviceDate) pdf.text(`Service: ${invoice.serviceDate}`, 155, 75);
 
   pdf.setTextColor(20, 25, 22);
   pdf.setFontSize(11);
-  pdf.text("Bill To", 16, 48);
+  pdf.text("BILL TO", 16, 58);
   pdf.setFontSize(10);
-  pdf.text(String(invoice.customer || ""), 16, 57);
+  pdf.text(String(invoice.customer || ""), 16, 65);
   pdf.setTextColor(90, 100, 94);
-  pdf.text(String(invoice.site || "Address on file"), 16, 64, { maxWidth: 100 });
+  pdf.text(String(invoice.site || "Address on file"), 16, 71, { maxWidth: 100 });
   const reference = [
     invoice.clientReference ? `PO / project ref: ${invoice.clientReference}` : "",
     invoice.clientProjectManager ? `Project manager: ${invoice.clientProjectManager}` : "",
   ].filter(Boolean);
-  reference.forEach((line, index) => pdf.text(line, 16, 74 + index * 6));
+  reference.forEach((line, index) => pdf.text(line, 16, 81 + index * 6));
 
-  let y = 92;
+  let y = 100;
   const header = () => {
-    pdf.setFillColor(235, 240, 236);
+    pdf.setFillColor(15, 20, 16);
     pdf.rect(16, y - 7, 178, 9, "F");
     pdf.setFontSize(10);
-    pdf.setTextColor(40, 50, 43);
+    pdf.setTextColor(255, 255, 255);
     pdf.text("Description", 19, y);
     pdf.text("Qty", 135, y);
     pdf.text("Rate", 153, y);
@@ -101,9 +111,11 @@ export function buildInvoicePdf(invoice) {
   pdf.text("Total", 145, y);
   pdf.text(money(invoice.total), 174, y);
   y += 8;
-  pdf.setTextColor(21, 128, 61);
-  pdf.text("Balance Due", 135, y);
-  pdf.text(money(invoice.balance ?? invoice.total), 174, y);
+  pdf.setFillColor(102, 220, 20);
+  pdf.rect(125, y - 6, 69, 10, "F");
+  pdf.setTextColor(0, 0, 0);
+  pdf.text("Balance Due", 128, y + 1);
+  pdf.text(money(invoice.balance ?? invoice.total), 191, y + 1, { align: "right" });
 
   if (invoice.customerMessage) {
     y += 14;
