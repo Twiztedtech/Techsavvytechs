@@ -200,6 +200,11 @@ export default function ClientPortal() {
       <div className="min-h-screen px-6 py-20">
         <div className="mx-auto grid min-h-[70vh] max-w-5xl items-center gap-12 lg:grid-cols-2">
           <div>
+            <img
+              src="/logo-dark.png"
+              alt="TechSavvy LLC — Wired for What's Next."
+              className="mb-8 h-24 w-auto"
+            />
             <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.4em] text-tech-green">
               Secure company access
             </p>

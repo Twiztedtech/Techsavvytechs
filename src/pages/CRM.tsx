@@ -6105,9 +6105,12 @@ function AccessGate({
   return (
     <div className="grid min-h-screen place-items-center bg-[#0b0f0c] p-5 text-white">
       <div className="w-full max-w-md rounded border border-white/10 bg-[#151916] p-7 shadow-2xl">
-        <span className="grid h-11 w-11 place-items-center rounded bg-crm-primary text-crm-on-primary">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
+        <img
+          src="/logo-dark.png"
+          alt="TechSavvy LLC — Wired for What's Next."
+          className="mx-auto h-24 w-auto"
+        />
+        <div className="mt-4 h-0.5 bg-[#66dc14]" />
         <p className="mt-6 text-[10px] font-mono uppercase tracking-[.25em] text-crm-ink">
           Protected workspace
         </p>

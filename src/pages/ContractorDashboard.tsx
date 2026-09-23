@@ -581,9 +581,7 @@ export default function ContractorDashboard() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6">
           <div className="text-center space-y-2">
-            <div className="inline-block bg-amber-500 text-slate-950 font-black px-3 py-1 rounded text-sm tracking-tight mb-2">
-              TECH SAVVY TECHS
-            </div>
+            <img src="/logo-dark.png" alt="TechSavvy LLC — Wired for What's Next." className="mx-auto mb-2 h-24 w-auto" />
             <h1 className="text-2xl font-black text-white">Log in to your account</h1>
             <p className="text-xs text-slate-400">Use your work email or a connected sign-in provider.</p>
           </div>
