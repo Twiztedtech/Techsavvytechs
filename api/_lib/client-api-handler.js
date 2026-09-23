@@ -644,6 +644,33 @@ async function verifyCode(req, res) {
   return res.status(200).json({ success: true, status: "pending_approval" });
 }
 
+async function deferPhoneVerification(req, res) {
+  const user = await requireUser(req);
+  const profileRef = adminDb.collection("client_users").doc(user.uid);
+  const profile = await profileRef.get();
+  if (!profile.exists)
+    return res
+      .status(404)
+      .json({ error: "Submit a company membership request first." });
+  if (profile.data().emailVerified !== true)
+    return res
+      .status(403)
+      .json({ error: "Verify your email before continuing." });
+  await profileRef.set(
+    {
+      phoneVerified: false,
+      phoneVerificationDeferred: true,
+      phoneVerificationDeferredAt: nowIso(),
+      verificationCodeHash: "",
+      verificationExpiresAt: "",
+      smsConsent: { optedIn: false },
+      updatedAt: nowIso(),
+    },
+    { merge: true },
+  );
+  return res.status(200).json({ success: true, status: "pending_approval" });
+}
+
 async function getMe(req, res) {
   const user = await requireUser(req);
   const profile = await adminDb.collection("client_users").doc(user.uid).get();
@@ -993,7 +1020,8 @@ async function approveCompanyMember(req, res) {
     return res.status(404).json({ error: "Membership request not found." });
   if (
     target.data().emailVerified !== true ||
-    target.data().phoneVerified !== true
+    (target.data().phoneVerified !== true &&
+      target.data().phoneVerificationDeferred !== true)
   )
     return res
       .status(409)
@@ -1033,6 +1061,8 @@ export default async function handler(req, res) {
       return await sendVerificationCode(req, res);
     if (req.method === "POST" && action === "verify-code")
       return await verifyCode(req, res);
+    if (req.method === "POST" && action === "defer-phone-verification")
+      return await deferPhoneVerification(req, res);
     if (req.method === "GET" && action === "me") return await getMe(req, res);
     if (req.method === "GET" && action === "jobs")
       return await listJobs(req, res);

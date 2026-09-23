@@ -110,7 +110,7 @@ export async function requireClient(req) {
   if (
     data.status !== "active" ||
     data.emailVerified !== true ||
-    data.phoneVerified !== true
+    (data.phoneVerified !== true && data.phoneVerificationDeferred !== true)
   ) {
     throw Object.assign(
       new Error("Client membership is awaiting verification or approval."),
