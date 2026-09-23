@@ -379,7 +379,14 @@ async function recordAudit(action: string, entityType: string, entityId: string,
 
 export default function CRM() {
   const { theme: crmTheme, toggle: toggleCrmTheme } = useCrmTheme();
-  const [module, setModule] = useState<Module>("dashboard");
+  const [module, setModule] = useState<Module>(() => {
+    // Lets a notification email/redirect (e.g. "new client request", "new
+    // portal access request") deep-link straight to the relevant module
+    // instead of always landing on the dashboard.
+    const requested = new URLSearchParams(window.location.search).get("module");
+    const match = modules.find((item) => item.id === requested);
+    return match ? match.id : "dashboard";
+  });
   const [mobileNav, setMobileNav] = useState(false);
   const [query, setQuery] = useState("");
   const [access, setAccess] = useState<Access>("checking");
@@ -676,7 +683,7 @@ export default function CRM() {
               <Plus className="h-3.5 w-3.5" /> {createActionByModule[module]!.label}
             </button>
           )}
-          <a href="/contractor/dashboard?adminTab=jobs" title="Back to admin dashboard" aria-label="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
+          <a href="/crm" title="Back to admin dashboard" aria-label="Back to admin dashboard" className="rounded-lg p-2 text-crm-muted hover:bg-crm-surface-soft">
             <Settings className="h-4 w-4" />
           </a>
           <CrmThemeToggle theme={crmTheme} onToggle={toggleCrmTheme} />

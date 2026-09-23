@@ -4,11 +4,13 @@ import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
 import {
   CLIENT_ROLES,
   addBusinessDays,
+  alertRecipients,
   canAccessJob,
   clean,
   emailDomain,
   hasRole,
   hashValue,
+  ipFor,
   normalizeEmail,
   normalizePhone,
   notifyNewRequest,
@@ -824,16 +826,26 @@ async function registerMembership(req, res) {
       );
     }
   }
-  const adminUrl = `${(process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "")}/contractor/dashboard?adminTab=requests`;
-  await sendEmail({
-    to:
-      process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") ||
-      process.env.SUPPORT_EMAIL,
-    subject: `New client portal access request — ${org.data().name}`,
-    text: `${clean(req.body?.displayName || user.name || email, 120)} (${email}) requested access to ${org.data().name}. Review the pending membership here: ${adminUrl}`,
-    html: `<h1>New client portal access request</h1><p><strong>${escapeHtml(clean(req.body?.displayName || user.name || email, 120))}</strong> (${escapeHtml(email)}) requested access to <strong>${escapeHtml(org.data().name)}</strong>.</p><p><a href="${escapeHtml(adminUrl)}">Review pending membership</a></p>`,
-    type: "membership_requested",
-  }).catch(() => null);
+  const adminUrl = `${(process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "")}/crm?module=requests`;
+  const requesterLabel = clean(req.body?.displayName || user.name || email, 120);
+  const { emails: alertEmails, phones: alertPhones } = await alertRecipients();
+  await Promise.allSettled([
+    sendEmail({
+      to: alertEmails,
+      subject: `New client portal access request — ${org.data().name}`,
+      text: `${requesterLabel} (${email}) requested access to ${org.data().name}. Review the pending membership here: ${adminUrl}`,
+      html: `<h1>New client portal access request</h1><p><strong>${escapeHtml(requesterLabel)}</strong> (${escapeHtml(email)}) requested access to <strong>${escapeHtml(org.data().name)}</strong>.</p><p><a href="${escapeHtml(adminUrl)}">Review pending membership</a></p>`,
+      type: "membership_requested",
+    }).catch(() => null),
+    ...alertPhones.map((phone) =>
+      sendSms({
+        to: phone,
+        body: `New client portal access request: ${requesterLabel} (${org.data().name}). Review: ${adminUrl}`,
+        type: "membership_requested",
+        important: true,
+      }).catch(() => null),
+    ),
+  ]);
   return res.status(202).json({
     success: true,
     organization: { id: org.id, name: org.data().name },

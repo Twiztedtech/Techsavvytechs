@@ -65,7 +65,7 @@ export function safeEqual(left, right) {
 }
 
 const requestLimit = new Map();
-function ipFor(req) {
+export function ipFor(req) {
   return String(
     req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
   )
@@ -397,24 +397,38 @@ export async function completionRecipients(job) {
   };
 }
 
+// Who gets pinged for a new job request or a new portal-access request that
+// needs a human to look at it. Recipients configured in the CRM (Client
+// Requests > Portal rollout & integrations) take priority; the
+// CLIENT_REQUEST_ALERT_EMAILS/PHONES env vars remain as a fallback default
+// so this still works before anyone has set anything in the UI.
+export async function alertRecipients() {
+  const settingsDoc = await adminDb.collection("settings").doc("client_portal").get();
+  const settings = settingsDoc.exists ? settingsDoc.data() : {};
+  const emails =
+    Array.isArray(settings.alertEmails) && settings.alertEmails.length
+      ? settings.alertEmails
+      : (process.env.CLIENT_REQUEST_ALERT_EMAILS || process.env.SUPPORT_EMAIL || "")
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean);
+  const phones =
+    Array.isArray(settings.alertPhones) && settings.alertPhones.length
+      ? settings.alertPhones
+      : (process.env.CLIENT_REQUEST_ALERT_PHONES || "")
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean);
+  return { emails, phones };
+}
+
 export async function notifyNewRequest(request) {
   const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(
     /\/$/,
     "",
   );
-  const reviewUrl = `${appUrl}/contractor/dashboard?adminTab=requests`;
-  const emails = (
-    process.env.CLIENT_REQUEST_ALERT_EMAILS ||
-    process.env.SUPPORT_EMAIL ||
-    ""
-  )
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-  const phones = (process.env.CLIENT_REQUEST_ALERT_PHONES || "")
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
+  const reviewUrl = `${appUrl}/crm?module=requests`;
+  const { emails, phones } = await alertRecipients();
   const summary = `${request.requestNumber}: ${request.companyName} — ${request.siteName}, ${request.requestedWindows?.[0]?.date || "date pending"}${request.urgent ? " (URGENT)" : ""}`;
   await Promise.allSettled([
     sendEmail({

@@ -603,19 +603,25 @@ async function saveTechnicianPublicProfile(req, res, admin) {
   return res.status(200).json({ success: true });
 }
 
+function cleanRecipientList(value, max) {
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  return values.map((v) => clean(v, 200)).filter(Boolean).slice(0, max);
+}
+
 async function saveSettings(req, res, admin) {
-  await adminDb
-    .collection("settings")
-    .doc("client_portal")
-    .set(
-      {
-        enabled: req.body?.enabled !== false,
-        pilotOnly: req.body?.pilotOnly === true,
-        updatedAt: nowIso(),
-        updatedByUid: admin.uid,
-      },
-      { merge: true },
-    );
+  const patch = {
+    enabled: req.body?.enabled !== false,
+    pilotOnly: req.body?.pilotOnly === true,
+    updatedAt: nowIso(),
+    updatedByUid: admin.uid,
+  };
+  // Who gets emailed/texted for a new job request or a new portal-access
+  // request that needs review -- omit the key entirely (rather than writing
+  // an empty array) when the field wasn't part of this save, so toggling
+  // "enabled"/"pilotOnly" alone never wipes out recipients set earlier.
+  if (req.body?.alertEmails !== undefined) patch.alertEmails = cleanRecipientList(req.body.alertEmails, 20);
+  if (req.body?.alertPhones !== undefined) patch.alertPhones = cleanRecipientList(req.body.alertPhones, 20);
+  await adminDb.collection("settings").doc("client_portal").set(patch, { merge: true });
   return res.status(200).json({ success: true });
 }
 

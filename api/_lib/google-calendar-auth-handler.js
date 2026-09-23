@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       if (!response.ok || !data.refresh_token) return res.status(502).send('Google Calendar did not return a reusable authorization.');
       await adminDb.collection('settings').doc('google_calendar').set({ encryptedRefreshToken: encryptSecret(data.refresh_token), connectedAt: nowIso(), connectedByUid: uid, status: 'connected' }, { merge: true });
       await renewGoogleCalendarWatch();
-      return res.redirect(302, `${appUrl()}/contractor/dashboard?adminTab=requests&calendar=connected`);
+      return res.redirect(302, `${appUrl()}/crm?module=requests&calendar=connected`);
     }
     return res.status(404).json({ error: 'Calendar operation not found.' });
   } catch (error) {

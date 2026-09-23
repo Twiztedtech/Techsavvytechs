@@ -10,6 +10,21 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
   const selected = contractors.find((item) => item.id === contractorId);
   const [profile, setProfile] = useState({ publicDisplayName: '', specialty: '', profilePhotoUrl: '', showPhotoToClients: false, allowDirectClientContact: false, businessPhone: '', businessEmail: '', contactHours: '' });
   useEffect(() => { if (selected) setProfile({ publicDisplayName: selected.publicDisplayName || selected.name || '', specialty: selected.specialty || '', profilePhotoUrl: selected.profilePhotoUrl || '', showPhotoToClients: selected.showPhotoToClients === true, allowDirectClientContact: selected.allowDirectClientContact === true, businessPhone: selected.businessPhone || '', businessEmail: selected.businessEmail || '', contactHours: selected.contactHours || '' }); }, [selected?.id]);
+  const [alertEmails, setAlertEmails] = useState('');
+  const [alertPhones, setAlertPhones] = useState('');
+  const [savingAlerts, setSavingAlerts] = useState(false);
+  useEffect(() => {
+    setAlertEmails((data.settings?.alertEmails || []).join(', '));
+    setAlertPhones((data.settings?.alertPhones || []).join(', '));
+  }, [data.settings?.alertEmails, data.settings?.alertPhones]);
+  const saveAlertRecipients = async () => {
+    setSavingAlerts(true);
+    try {
+      await post('settings', { ...data.settings, alertEmails, alertPhones });
+    } finally {
+      setSavingAlerts(false);
+    }
+  };
 
   const connectCalendar = async () => {
     const token = await auth.currentUser?.getIdToken();
@@ -33,6 +48,23 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
             <input type="checkbox" checked={data.settings?.pilotOnly === true} onChange={(event) => void post('settings', { ...data.settings, pilotOnly: event.target.checked })} className="accent-crm-primary" />
           </label>
           <CrmButton variant="secondary" onClick={() => void connectCalendar()} className="w-full">Connect / refresh Google Calendar</CrmButton>
+        </div>
+        <h4 className="mt-6 text-xs font-semibold text-crm-body">New request &amp; approval alerts</h4>
+        <p className="mt-1 text-[11px] text-crm-muted">
+          Who gets emailed/texted when a new job request or portal-access request comes in and needs a look.
+        </p>
+        <div className="mt-2 space-y-2">
+          <label className="block text-[11px] text-crm-muted">
+            Alert emails (comma separated)
+            <CrmInput value={alertEmails} onChange={(e) => setAlertEmails(e.target.value)} placeholder="you@techsavvytechs.com, ops@techsavvytechs.com" />
+          </label>
+          <label className="block text-[11px] text-crm-muted">
+            Alert phone numbers (comma separated)
+            <CrmInput value={alertPhones} onChange={(e) => setAlertPhones(e.target.value)} placeholder="+17075550100" />
+          </label>
+          <CrmButton onClick={() => void saveAlertRecipients()} className="w-full" disabled={savingAlerts}>
+            {savingAlerts ? 'Saving…' : 'Save alert recipients'}
+          </CrmButton>
         </div>
         <h4 className="mt-6 text-xs font-semibold text-crm-body">Pending scope changes</h4>
         {(data.scopeChanges || []).length === 0 ? (
