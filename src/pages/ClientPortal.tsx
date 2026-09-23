@@ -1243,12 +1243,7 @@ function PortalFrame({
         <Link to="/" className="font-display text-lg font-bold tracking-wider">
           TECH<span className="text-tech-green">SAVVY</span>
         </Link>
-        <button
-          onClick={onSignOut}
-          className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"
-        >
-          <LogOut className="h-4 w-4" /> Sign out
-        </button>
+        <div className="flex items-center gap-4"><Link to="/client-feedback" className="text-xs font-bold text-tech-green hover:text-white">Give feedback</Link><button onClick={onSignOut} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"><LogOut className="h-4 w-4" /> Sign out</button></div>
       </header>
       {children}
     </div>
