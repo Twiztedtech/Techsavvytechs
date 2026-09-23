@@ -1220,8 +1220,8 @@ function PortalFrame({
   return (
     <div className="min-h-screen bg-slate-950 px-5 py-8 text-white">
       <header className="mx-auto mb-10 flex max-w-7xl items-center justify-between border-b border-white/10 pb-5">
-        <Link to="/" className="font-display text-lg font-bold tracking-wider">
-          TECH<span className="text-tech-green">SAVVY</span>
+        <Link to="/" aria-label="TechSavvy LLC home">
+          <img src="/logo-dark.png" alt="TechSavvy LLC" className="-mb-2 -mt-3 h-16 w-auto" />
         </Link>
         <div className="flex items-center gap-4"><Link to="/client-feedback" className="text-xs font-bold text-tech-green hover:text-white">Give feedback</Link><button onClick={onSignOut} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"><LogOut className="h-4 w-4" /> Sign out</button></div>
       </header>
