@@ -109,22 +109,20 @@ export default function CustomerDocument() {
   return (
     <div className="min-h-screen bg-[#eef2ef] px-4 py-10 text-slate-900">
       <main className="mx-auto max-w-3xl overflow-hidden rounded border border-slate-200 bg-white shadow-xl">
-        <header className="flex flex-col justify-between gap-5 bg-[#0b0f0c] p-7 text-white sm:flex-row sm:items-center">
-          <div>
-            <p className="font-display text-xl uppercase text-tech-green">
-              TechSavvy
-            </p>
-            <p className="text-[9px] uppercase tracking-[.24em] text-slate-400">
-              Field Services
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="text-[9px] uppercase tracking-wider text-slate-500">
+        <header className="flex flex-col items-center justify-between gap-3 bg-black px-5 py-4 text-white sm:flex-row">
+          <img
+            src="/logo-email.png"
+            alt="TechSavvy LLC — Wired for What's Next."
+            className="h-24 w-auto max-w-full"
+          />
+          <div className="text-center sm:text-right">
+            <p className="text-2xl font-bold uppercase tracking-wide">
               {type}
             </p>
-            <p className="mt-1 font-mono text-sm">{document.number}</p>
+            <p className="mt-1 font-mono text-sm text-[#66dc14]">{document.number}</p>
           </div>
         </header>
+        <div className="h-1.5 bg-[#66dc14]" />
         <section className="p-6 sm:p-8">
           <div className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-6 sm:flex-row">
             <div>
@@ -162,7 +160,7 @@ export default function CustomerDocument() {
           </div>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full min-w-[520px] text-left">
-              <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+              <thead className="bg-black text-[10px] uppercase tracking-wider text-white">
                 <tr>
                   <th className="px-3 py-2">Product or service</th>
                   <th className="px-3 py-2 text-right">Qty</th>
@@ -210,7 +208,7 @@ export default function CustomerDocument() {
               <b>{money(document.total)}</b>
             </div>
             {type === "invoice" && (
-              <div className="flex justify-between text-tech-green-deep">
+              <div className="-mx-2 flex justify-between rounded bg-[#66dc14] px-3 py-2 text-sm font-bold text-black">
                 <span>Balance due</span>
                 <b>{money(document.balance)}</b>
               </div>
@@ -275,8 +273,8 @@ export default function CustomerDocument() {
           {type === "invoice" && document.balance > 0 && (
             <div className="mt-7 border-t border-slate-200 pt-6">
               {document.paymentLink ? (
-                <a href={document.paymentLink} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded bg-tech-green px-5 py-3 text-xs font-bold text-brand-black">
-                  Pay securely with QuickBooks
+                <a href={document.paymentLink} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded border-2 border-[#66dc14] bg-black px-5 py-4 text-sm font-bold text-[#66dc14] hover:bg-[#0d1a05]">
+                  Pay securely online (card, bank/ACH or Apple Pay)
                 </a>
               ) : (
                 <p className="rounded bg-slate-50 p-4 text-xs text-slate-500">
@@ -285,9 +283,9 @@ export default function CustomerDocument() {
               )}
             </div>
           )}
-          <footer className="mt-8 flex items-center gap-2 border-t border-slate-100 pt-5 text-[10px] text-slate-400">
+          <footer className="mt-8 flex items-center gap-2 border-t-2 border-[#66dc14] pt-5 text-[10px] text-slate-500">
             <ShieldCheck className="h-4 w-4 text-tech-green-deep" /> Secure
-            document provided by TechSavvy · Questions?
+            document provided by TechSavvy LLC · (707) 653-6702 · Questions?
             support@techsavvytechs.com
           </footer>
         </section>
