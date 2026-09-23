@@ -580,11 +580,11 @@ export default function CRM() {
     const overdue = liveInvoices.filter((invoice) => invoice.balance > 0 && invoice.dueDate && new Date(`${invoice.dueDate}T00:00:00`) < today);
     const currency = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
     return [
-      { label: "New requests", value: newJobs.length, icon: Inbox, tone: "sky", sub: `${newJobs.filter(needsDispatch).length} unassigned` },
-      { label: "Quotes pending", value: pendingQuotes.length, icon: FileText, tone: "orange", sub: currency(pendingQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0)) },
-      { label: "Jobs in progress", value: activeJobs.length, icon: HardHat, tone: "green", sub: `${activeJobs.filter((job) => job.schedule?.date).length} scheduled` },
-      { label: "Ready to invoice", value: readyToInvoice.length, icon: ReceiptText, tone: "violet", sub: currency(readyToInvoice.reduce((sum, job) => sum + Number(job.quotedValue || 0), 0)) },
-      { label: "Overdue", value: overdue.length, icon: AlertTriangle, tone: "red", sub: currency(overdue.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0)) },
+      { label: "New requests", target: "jobs" as Module, value: newJobs.length, icon: Inbox, tone: "sky", sub: `${newJobs.filter(needsDispatch).length} unassigned` },
+      { label: "Quotes pending", target: "quotes" as Module, value: pendingQuotes.length, icon: FileText, tone: "orange", sub: currency(pendingQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0)) },
+      { label: "Jobs in progress", target: "jobs" as Module, value: activeJobs.length, icon: HardHat, tone: "green", sub: `${activeJobs.filter((job) => job.schedule?.date).length} scheduled` },
+      { label: "Ready to invoice", target: "invoices" as Module, value: readyToInvoice.length, icon: ReceiptText, tone: "violet", sub: currency(readyToInvoice.reduce((sum, job) => sum + Number(job.quotedValue || 0), 0)) },
+      { label: "Overdue", target: "invoices" as Module, value: overdue.length, icon: AlertTriangle, tone: "red", sub: currency(overdue.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0)) },
     ];
   }, [liveInvoices, liveJobs, liveQuotes]);
   const go = (target: Module) => {
@@ -787,9 +787,11 @@ export default function CRM() {
           </div>
           <div className="space-y-5 p-4 lg:p-6">
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {liveLifecycle.map(({ label, value, icon: Icon, tone, sub }) => (
+              {liveLifecycle.map(({ label, target, value, icon: Icon, tone, sub }) => (
                 <button
                   key={label}
+                  type="button"
+                  onClick={() => setModule(target)}
                   className="rounded border border-crm-hairline bg-crm-canvas p-4 text-left shadow-sm hover:shadow-md"
                 >
                   <div className="flex items-center justify-between">

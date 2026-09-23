@@ -625,6 +625,29 @@ async function saveSettings(req, res, admin) {
   return res.status(200).json({ success: true });
 }
 
+async function dismissNotifications(req, res, admin) {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+    .map((id) => clean(id, 100))
+    .filter(Boolean)
+    .slice(0, 50);
+  if (!ids.length) return res.status(400).json({ error: "No notifications selected." });
+  const refs = ids.map((id) => adminDb.collection("notification_deliveries").doc(id));
+  const snaps = await adminDb.getAll(...refs);
+  const batch = adminDb.batch();
+  let dismissed = 0;
+  for (const snap of snaps) {
+    if (!snap.exists || snap.data().status !== "failed") continue;
+    batch.update(snap.ref, {
+      status: "acknowledged",
+      acknowledgedAt: nowIso(),
+      acknowledgedByUid: admin.uid,
+    });
+    dismissed += 1;
+  }
+  if (dismissed) await batch.commit();
+  return res.status(200).json({ success: true, dismissed });
+}
+
 export default async function handler(req, res) {
   try {
     // Dispatchers get view-only access to the "requests" dashboard; every
@@ -654,6 +677,8 @@ export default async function handler(req, res) {
       return await saveTechnicianPublicProfile(req, res, admin);
     if (req.method === "POST" && action === "settings")
       return await saveSettings(req, res, admin);
+    if (req.method === "POST" && action === "dismiss-notifications")
+      return await dismissNotifications(req, res, admin);
     return res
       .status(404)
       .json({ error: "Admin client-portal operation not found." });

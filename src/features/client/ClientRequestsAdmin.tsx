@@ -14,6 +14,17 @@ import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 import { ClientCompanyEditor } from "./ClientCompanyEditor";
 
 type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
+type RequestFilter = "all" | "requested" | "clarification_needed";
+
+function failureReason(raw: unknown) {
+  const text = String(raw || "");
+  try {
+    const parsed = JSON.parse(text);
+    return parsed.message || text || "No error details recorded.";
+  } catch {
+    return text || "No error details recorded.";
+  }
+}
 
 export type AdminActionResult = { ok: true } | { ok: false; error?: string };
 
@@ -57,6 +68,8 @@ export function ClientRequestsAdmin({
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<ClientTab>("requests");
+  const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
+  const [showFailures, setShowFailures] = useState(false);
   const [convert, setConvert] = useState({
     requestId: "",
     technicianLeadId: "",
@@ -114,6 +127,12 @@ export function ClientRequestsAdmin({
   const openRequests = data.requests.filter(
     (request: RequestRecord) => !["declined"].includes(request.status),
   );
+  const visibleRequests =
+    requestFilter === "all"
+      ? openRequests
+      : openRequests.filter(
+          (request: RequestRecord) => request.status === requestFilter,
+        );
   const tabs: { id: ClientTab; label: string; icon: typeof Inbox; count?: number; urgent?: boolean }[] = [
     { id: "requests", label: "Requests", icon: Inbox, count: openRequests.length },
     { id: "approvals", label: "Approvals", icon: UserPlus, count: pendingUsers.length, urgent: pendingUsers.length > 0 },
@@ -129,18 +148,81 @@ export function ClientRequestsAdmin({
         </div>
       )}
       {data.failedNotifications.length > 0 && (
-        <div className="flex gap-3 rounded-xl border border-crm-error/30 bg-crm-error-soft-bg p-4 text-sm text-crm-error-soft-text">
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <div>
-            <strong>
-              {data.failedNotifications.length} notification deliveries need
-              attention.
-            </strong>
-            <p className="mt-1 text-xs text-crm-error-soft-text/80">
-              Review provider configuration or delivery errors before relying on
-              alerts.
-            </p>
+        <div className="rounded-xl border border-crm-error/30 bg-crm-error-soft-bg p-4 text-sm text-crm-error-soft-text">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <div className="flex-1">
+              <strong>
+                {data.failedNotifications.length} notification deliver
+                {data.failedNotifications.length === 1 ? "y needs" : "ies need"}{" "}
+                attention.
+              </strong>
+              <p className="mt-1 text-xs text-crm-error-soft-text/80">
+                Review provider configuration or delivery errors before relying
+                on alerts.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFailures((v) => !v)}
+              className="rounded-lg border border-crm-error/40 px-3 py-1.5 text-[10px] font-bold"
+            >
+              {showFailures ? "Hide details" : "Show details"}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void post("dismiss-notifications", {
+                  ids: data.failedNotifications.map((f: any) => f.id),
+                })
+              }
+              className="rounded-lg border border-crm-error/40 px-3 py-1.5 text-[10px] font-bold"
+            >
+              Dismiss all
+            </button>
           </div>
+          {showFailures && (
+            <ul className="mt-3 space-y-2">
+              {[...data.failedNotifications]
+                .sort((a: any, b: any) =>
+                  String(b.createdAt).localeCompare(String(a.createdAt)),
+                )
+                .map((item: any) => (
+                  <li
+                    key={item.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-crm-error/20 bg-crm-canvas p-3 text-xs text-crm-body"
+                  >
+                    <div>
+                      <p className="font-bold text-crm-ink">
+                        {item.channel === "sms" ? "Text message" : "Email"} ·{" "}
+                        {String(item.type || "").replace(/_/g, " ")} ·{" "}
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleString()
+                          : ""}
+                      </p>
+                      {Array.isArray(item.recipients) &&
+                        item.recipients.length > 0 && (
+                          <p className="text-[10px] text-crm-muted">
+                            To: {item.recipients.join(", ")}
+                          </p>
+                        )}
+                      <p className="mt-1 text-[11px] text-crm-muted">
+                        {failureReason(item.error)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void post("dismiss-notifications", { ids: [item.id] })
+                      }
+                      className="shrink-0 rounded-lg border border-crm-hairline px-2.5 py-1 text-[10px] font-bold text-crm-ink"
+                    >
+                      Dismiss
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
         </div>
       )}
       {pendingUsers.length > 0 && tab !== "approvals" && (
@@ -160,28 +242,48 @@ export function ClientRequestsAdmin({
         </button>
       )}
       <div className="grid gap-4 md:grid-cols-4">
-        {[
+        {(
           [
-            "New requests",
-            data.requests.filter((r: RequestRecord) => r.status === "requested")
-              .length,
-          ],
-          [
-            "Needs clarification",
-            data.requests.filter(
-              (r: RequestRecord) => r.status === "clarification_needed",
-            ).length,
-          ],
-          ["Pending users", pendingUsers.length],
-          ["Appointments", data.appointments.length],
-        ].map(([label, value]) => {
+            {
+              label: "New requests",
+              value: data.requests.filter(
+                (r: RequestRecord) => r.status === "requested",
+              ).length,
+              tab: "requests" as ClientTab,
+              filter: "requested" as RequestFilter,
+            },
+            {
+              label: "Needs clarification",
+              value: data.requests.filter(
+                (r: RequestRecord) => r.status === "clarification_needed",
+              ).length,
+              tab: "requests" as ClientTab,
+              filter: "clarification_needed" as RequestFilter,
+            },
+            {
+              label: "Pending users",
+              value: pendingUsers.length,
+              tab: "approvals" as ClientTab,
+              filter: "all" as RequestFilter,
+            },
+            {
+              label: "Appointments",
+              value: data.appointments.length,
+              tab: "scheduling" as ClientTab,
+              filter: "all" as RequestFilter,
+            },
+          ]
+        ).map(({ label, value, tab: target, filter }) => {
           const isPendingUsers = label === "Pending users";
           const isUrgent = isPendingUsers && Number(value) > 0;
           return (
             <button
-              key={String(label)}
+              key={label}
               type="button"
-              onClick={() => setTab(isPendingUsers ? "approvals" : "requests")}
+              onClick={() => {
+                setRequestFilter(filter);
+                setTab(target);
+              }}
               className={`rounded-xl border p-4 text-left transition ${
                 isUrgent
                   ? "border-crm-error bg-crm-error/10 hover:bg-crm-error/15"
@@ -210,7 +312,10 @@ export function ClientRequestsAdmin({
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              onClick={() => {
+                setRequestFilter("all");
+                setTab(item.id);
+              }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${
                 active
                   ? "bg-crm-canvas text-crm-ink shadow-sm"
@@ -236,9 +341,25 @@ export function ClientRequestsAdmin({
       </div>
       {tab === "requests" && (
       <section>
-        <h3 className="mb-3 text-sm font-bold text-crm-ink">Job requests</h3>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h3 className="text-sm font-bold text-crm-ink">Job requests</h3>
+          {requestFilter !== "all" && (
+            <button
+              type="button"
+              onClick={() => setRequestFilter("all")}
+              className="rounded-full bg-crm-surface-soft px-3 py-1 text-[10px] font-bold text-crm-body hover:bg-crm-hairline"
+            >
+              Showing:{" "}
+              {requestFilter === "requested" ? "new requests" : "needs clarification"}{" "}
+              ✕ show all
+            </button>
+          )}
+        </div>
+        {visibleRequests.length === 0 && (
+          <p className="text-xs text-crm-muted">Nothing here right now.</p>
+        )}
         <div className="space-y-3">
-          {openRequests.map((request: RequestRecord) => (
+          {visibleRequests.map((request: RequestRecord) => (
             <article
               key={request.id}
               className="rounded-xl border border-crm-hairline bg-crm-canvas p-5"
