@@ -236,7 +236,10 @@ export async function sendEmail({
     error: response.ok ? "" : JSON.stringify(body).slice(0, 1000),
     createdAt: nowIso(),
   });
-  if (!response.ok) throw new Error("Email delivery was rejected.");
+  if (!response.ok)
+    throw Object.assign(new Error("Email delivery was rejected."), {
+      detail: body.message || `Email provider returned ${response.status}.`,
+    });
   return body;
 }
 
@@ -322,7 +325,12 @@ export async function sendSms({
     error: response.ok ? "" : JSON.stringify(result).slice(0, 1000),
     createdAt: nowIso(),
   });
-  if (!response.ok) throw new Error("SMS delivery was rejected.");
+  if (!response.ok)
+    throw Object.assign(new Error("SMS delivery was rejected."), {
+      detail: result.message
+        ? `${result.message}${result.code ? ` (Twilio error ${result.code})` : ""}`
+        : `SMS provider returned ${response.status}.`,
+    });
   return result;
 }
 

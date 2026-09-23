@@ -1,5 +1,6 @@
 import { adminDb, requireStaffRole } from "./firebase-admin.js";
 import {
+  alertRecipients,
   clean,
   hashValue,
   nowIso,
@@ -625,6 +626,56 @@ async function saveSettings(req, res, admin) {
   return res.status(200).json({ success: true });
 }
 
+const maskPhone = (value) => {
+  const digits = String(value).replace(/\D/g, "");
+  return digits.length >= 4 ? `***-***-${digits.slice(-4)}` : "(invalid)";
+};
+
+// Sends one real test email and text to the configured alert recipients and
+// reports what each provider said, so a misconfigured Twilio/Resend setup is
+// visible now instead of silently swallowing the next real alert.
+async function sendTestAlert(req, res, admin) {
+  const { emails, phones } = await alertRecipients();
+  const stamp = new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+  const results = { emails: [], phones: [] };
+  for (const to of emails) {
+    try {
+      const sent = await sendEmail({
+        to,
+        subject: "TechSavvy test alert",
+        text: `This is a test of your new request and approval alerts (${stamp} Pacific). If you can read this, email alerts work.`,
+        html: `<p>This is a test of your new request and approval alerts (${stamp} Pacific).</p><p>If you can read this, email alerts work.</p>`,
+        type: "test_alert",
+      });
+      results.emails.push({ to, ok: !sent?.skipped, error: sent?.skipped ? "Email is not configured (no RESEND_API_KEY)." : "" });
+    } catch (error) {
+      results.emails.push({ to, ok: false, error: error.detail || error.message });
+    }
+  }
+  for (const to of phones) {
+    try {
+      const sent = await sendSms({
+        to,
+        body: `TechSavvy test alert (${stamp} PT). If you got this text, request alerts will reach you.`,
+        type: "test_alert",
+        important: true,
+      });
+      results.phones.push({
+        to: maskPhone(to),
+        ok: !sent?.skipped,
+        error: sent?.skipped
+          ? sent.reason === "opted_out"
+            ? "This number has opted out of texts (they replied STOP)."
+            : "Text messaging is not configured, or the number is not a valid US/E.164 number."
+          : "",
+      });
+    } catch (error) {
+      results.phones.push({ to: maskPhone(to), ok: false, error: error.detail || error.message });
+    }
+  }
+  return res.status(200).json({ success: true, ...results });
+}
+
 async function dismissNotifications(req, res, admin) {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
     .map((id) => clean(id, 100))
@@ -679,6 +730,8 @@ export default async function handler(req, res) {
       return await saveSettings(req, res, admin);
     if (req.method === "POST" && action === "dismiss-notifications")
       return await dismissNotifications(req, res, admin);
+    if (req.method === "POST" && action === "test-alert")
+      return await sendTestAlert(req, res, admin);
     return res
       .status(404)
       .json({ error: "Admin client-portal operation not found." });

@@ -4,6 +4,7 @@ import type { AdminActionResult } from './ClientRequestsAdmin';
 import { CrmButton, CrmCard, CrmInput } from '../crm/ui';
 
 type Contractor = Record<string, any> & { id: string; name: string; email: string };
+type TestRow = { to: string; ok: boolean; error: string };
 
 export function ClientPortalConfiguration({ data, contractors, post }: { data: any; contractors: Contractor[]; post: (action: string, body: unknown) => Promise<AdminActionResult> }) {
   const [contractorId, setContractorId] = useState(contractors[0]?.id || '');
@@ -17,6 +18,25 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
     setAlertEmails((data.settings?.alertEmails || []).join(', '));
     setAlertPhones((data.settings?.alertPhones || []).join(', '));
   }, [data.settings?.alertEmails, data.settings?.alertPhones]);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ emails: TestRow[]; phones: TestRow[] } | null>(null);
+  const [testError, setTestError] = useState('');
+  const sendTestAlert = async () => {
+    setTesting(true);
+    setTestResult(null);
+    setTestError('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/client-portal?action=test-alert', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The test could not be sent.');
+      setTestResult({ emails: result.emails || [], phones: result.phones || [] });
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : 'The test could not be sent.');
+    } finally {
+      setTesting(false);
+    }
+  };
   const saveAlertRecipients = async () => {
     setSavingAlerts(true);
     try {
@@ -65,6 +85,22 @@ export function ClientPortalConfiguration({ data, contractors, post }: { data: a
           <CrmButton onClick={() => void saveAlertRecipients()} className="w-full" disabled={savingAlerts}>
             {savingAlerts ? 'Saving…' : 'Save alert recipients'}
           </CrmButton>
+          <CrmButton variant="secondary" onClick={() => void sendTestAlert()} className="w-full" disabled={testing}>
+            {testing ? 'Sending test…' : 'Send test alert to saved recipients'}
+          </CrmButton>
+          {testError && <p className="text-[11px] font-semibold text-crm-error">{testError}</p>}
+          {testResult && (
+            <ul className="space-y-1 text-[11px]">
+              {[...testResult.emails.map((row) => ({ ...row, kind: 'Email' })), ...testResult.phones.map((row) => ({ ...row, kind: 'Text' }))].map((row) => (
+                <li key={`${row.kind}-${row.to}`} className={row.ok ? 'text-crm-success' : 'text-crm-error'}>
+                  {row.ok ? '✓' : '✗'} {row.kind} to {row.to}: {row.ok ? 'accepted by the provider (check your phone or inbox).' : row.error}
+                </li>
+              ))}
+              {testResult.emails.length + testResult.phones.length === 0 && (
+                <li className="text-crm-muted">No saved recipients yet. Save at least one email or phone first.</li>
+              )}
+            </ul>
+          )}
         </div>
         <h4 className="mt-6 text-xs font-semibold text-crm-body">Pending scope changes</h4>
         {(data.scopeChanges || []).length === 0 ? (
