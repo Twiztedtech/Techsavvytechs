@@ -5,15 +5,94 @@ import { CheckCircle2, MessageSquareText } from "lucide-react";
 import { Link } from "react-router";
 import { auth } from "../lib/firebase";
 
-const ratings = [["very_positive", "Very good"], ["positive", "Good"], ["neutral", "Neutral"], ["negative", "Difficult"], ["very_negative", "Very difficult"]];
-const initial = { stage: "onboarding", name: "", company: "", email: "", accountEase: "", emailIssue: "none", emailIssueDetail: "", instructionsClear: "", expectationsClear: "", onboardingLength: "right", navigationEase: "", foundFeatures: "", missingInformation: "", valuableFeatures: [] as string[], jobFormEase: "not_used", notificationHelpfulness: "not_used", preferredChannels: [] as string[], notificationAmount: "not_sure", satisfaction: "", nps: "", frustration: "", workedWell: "", improvement: "", followUp: false, additionalComments: "", website: "" };
+const ratings = [
+  ["very_positive", "Very good"],
+  ["positive", "Good"],
+  ["neutral", "Neutral"],
+  ["negative", "Difficult"],
+  ["very_negative", "Very difficult"],
+];
+const initial = {
+  stage: "onboarding",
+  name: "",
+  company: "",
+  email: "",
+  accountEase: "",
+  emailIssue: "none",
+  emailIssueDetail: "",
+  instructionsClear: "",
+  expectationsClear: "",
+  onboardingLength: "right",
+  navigationEase: "",
+  foundFeatures: "",
+  missingInformation: "",
+  valuableFeatures: [] as string[],
+  jobFormEase: "not_used",
+  notificationHelpfulness: "not_used",
+  preferredChannels: [] as string[],
+  notificationAmount: "not_sure",
+  satisfaction: "",
+  nps: "",
+  frustration: "",
+  workedWell: "",
+  improvement: "",
+  followUp: false,
+  additionalComments: "",
+  website: "",
+};
 
-function Rating({ name, value, onChange, required = false }: { name: string; value: string; onChange: (value: string) => void; required?: boolean }) {
-  return <div className="grid gap-2 sm:grid-cols-5">{ratings.map(([key, label]) => <label key={key} className={`cursor-pointer rounded-lg border px-3 py-2 text-center text-xs ${value === key ? "border-tech-green bg-tech-green/10 text-tech-green" : "border-white/10 bg-white/5 text-slate-300"}`}><input className="sr-only" type="radio" name={name} value={key} checked={value === key} required={required} onChange={() => onChange(key)} />{label}</label>)}</div>;
+function Rating({
+  name,
+  value,
+  onChange,
+  required = false,
+}: {
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-5">
+      {ratings.map(([key, label]) => (
+        <label
+          key={key}
+          className={`cursor-pointer rounded-lg border px-3 py-2 text-center text-xs ${value === key ? "border-tech-green bg-tech-green/10 text-tech-green" : "border-white/10 bg-white/5 text-slate-300"}`}
+        >
+          <input
+            className="sr-only"
+            type="radio"
+            name={name}
+            value={key}
+            checked={value === key}
+            required={required}
+            onChange={() => onChange(key)}
+          />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
 }
 
-function Question({ number, title, children }: { number: number; title: string; children: ReactNode }) {
-  return <fieldset className="border-b border-white/10 py-6"><legend className="mb-3 text-sm font-bold text-white"><span className="mr-2 text-tech-green">{number}.</span>{title}</legend>{children}</fieldset>;
+function Question({
+  number,
+  title,
+  children,
+}: {
+  number: number;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset className="border-b border-white/10 py-6">
+      <legend className="mb-3 text-sm font-bold text-white">
+        <span className="mr-2 text-tech-green">{number}.</span>
+        {title}
+      </legend>
+      {children}
+    </fieldset>
+  );
 }
 
 export default function ClientFeedback() {
@@ -21,35 +100,493 @@ export default function ClientFeedback() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => onAuthStateChanged(auth, (user) => { if (user) setForm((current) => ({ ...current, name: current.name || user.displayName || "", email: current.email || user.email || "" })); }), []);
-  const update = (key: string, value: unknown) => setForm((current) => ({ ...current, [key]: value }));
-  const toggle = (key: "valuableFeatures" | "preferredChannels", value: string) => setForm((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value] }));
-  const progress = useMemo(() => Math.round(([form.accountEase, form.instructionsClear, form.navigationEase, form.satisfaction, form.improvement, form.nps].filter(Boolean).length / 6) * 100), [form]);
-  const submit = async (event: FormEvent) => { event.preventDefault(); setSubmitting(true); setError(""); try { const token = await auth.currentUser?.getIdToken(); const response = await fetch("/api/client?action=feedback", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ ...form, nps: Number(form.nps) }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not submit feedback."); setSubmitted(true); window.scrollTo(0, 0); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not submit feedback."); } finally { setSubmitting(false); } };
-  const checks = (items: string[][], key: "valuableFeatures" | "preferredChannels") => <div className="grid gap-2 sm:grid-cols-2">{items.map(([value, label]) => <label key={value} className="flex gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-slate-300"><input type="checkbox" checked={form[key].includes(value)} onChange={() => toggle(key, value)} className="accent-green-500" />{label}</label>)}</div>;
-  if (submitted) return <div className="min-h-screen px-6 py-20"><div className="mx-auto grid min-h-[65vh] max-w-xl place-items-center"><section className="glass-card w-full border-t-4 border-tech-green p-9 text-center"><CheckCircle2 className="mx-auto h-16 w-16 text-tech-green" /><h1 className="mt-5 text-3xl font-bold text-white">Thank you</h1><p className="mt-3 text-slate-400">Your feedback was submitted successfully and will help us improve the TechSavvy Client Portal.</p><Link to="/client" className="mt-7 inline-block bg-tech-green px-5 py-3 font-bold text-brand-black">Return to client portal</Link></section></div></div>;
-  return <div className="min-h-screen px-5 py-12"><header className="mx-auto mb-8 flex max-w-3xl items-center justify-between"><Link to="/" className="font-display text-lg font-bold">TECH<span className="text-tech-green">SAVVY</span></Link><Link to="/client" className="text-xs font-bold text-slate-400 hover:text-white">Client portal</Link></header><main className="mx-auto max-w-3xl"><div className="glass-card border-t-4 border-tech-green p-6 sm:p-9"><MessageSquareText className="h-11 w-11 text-tech-green" /><p className="mt-5 font-mono text-[10px] uppercase tracking-[0.3em] text-tech-green">About three minutes</p><h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">Help us improve your experience</h1><p className="mt-3 text-sm text-slate-400">Tell us what worked and what could be easier. Your name and company are optional.</p><div className="mt-6 h-1.5 overflow-hidden rounded bg-white/10"><div className="h-full bg-tech-green transition-all" style={{ width: `${progress}%` }} /></div><form onSubmit={submit} className="mt-4">
-    <section><h2 className="pt-6 text-lg font-bold text-white">About your experience</h2><label className="mt-4 block text-sm font-bold text-slate-300">Which stage are you reviewing?<select value={form.stage} onChange={(e) => update("stage", e.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-white"><option value="onboarding">Account onboarding</option><option value="booking">Booking a job</option><option value="active_job">Active job</option><option value="completed_job">Completed job</option><option value="general">General portal experience</option></select></label><div className="mt-4 grid gap-3 sm:grid-cols-3"><input value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Name (optional)" className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /><input value={form.company} onChange={(e) => update("company", e.target.value)} placeholder="Company (optional)" className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /><input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="Email (optional)" className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /></div></section>
-    <Question number={1} title="How easy was it to create your account? *"><Rating name="accountEase" value={form.accountEase} required onChange={(v) => update("accountEase", v)} /></Question>
-    <Question number={2} title="Did you experience a problem verifying your email?"><select value={form.emailIssue} onChange={(e) => update("emailIssue", e.target.value)} className="w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white"><option value="none">No problem</option><option value="not_received">The email did not arrive</option><option value="invalid_expired">The link appeared invalid or expired</option><option value="other">Another issue</option></select>{form.emailIssue !== "none" && <textarea value={form.emailIssueDetail} onChange={(e) => update("emailIssueDetail", e.target.value)} rows={3} placeholder="Please describe what happened" className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" />}</Question>
-    <Question number={3} title="Were the onboarding instructions clear? *"><Rating name="instructionsClear" value={form.instructionsClear} required onChange={(v) => update("instructionsClear", v)} /></Question>
-    <Question number={4} title="Was it clear what would happen after submitting your information?"><Rating name="expectationsClear" value={form.expectationsClear} onChange={(v) => update("expectationsClear", v)} /></Question>
-    <Question number={5} title="How did the onboarding process feel?"><div className="grid gap-2 sm:grid-cols-3">{[["shorter", "Shorter than expected"], ["right", "About right"], ["longer", "Longer than expected"]].map(([v,l]) => <label key={v} className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-slate-300"><input type="radio" name="length" checked={form.onboardingLength === v} onChange={() => update("onboardingLength", v)} className="mr-2 accent-green-500" />{l}</label>)}</div></Question>
-    <h2 className="pt-8 text-lg font-bold text-white">Using the portal</h2>
-    <Question number={6} title="How easy was the portal to navigate? *"><Rating name="navigationEase" value={form.navigationEase} required onChange={(v) => update("navigationEase", v)} /></Question>
-    <Question number={7} title="Could you find the features you needed?"><Rating name="foundFeatures" value={form.foundFeatures} onChange={(v) => update("foundFeatures", v)} /><textarea value={form.missingInformation} onChange={(e) => update("missingInformation", e.target.value)} rows={3} placeholder="What were you trying to find?" className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /></Question>
-    <Question number={8} title="Which features are most valuable to you?">{checks([["job_request","Submitting a job request"],["job_status","Viewing job status"],["appointments","Scheduled appointments"],["technician","Assigned technician"],["progress","Progress updates"],["messages","Messaging TechSavvy"],["rescheduling","Schedule changes"],["closeout","Closeout documents"],["company_users","Company user management"],["other","Other"]], "valuableFeatures")}</Question>
-    <Question number={9} title="How easy was the job-request form?"><Rating name="jobFormEase" value={form.jobFormEase === "not_used" ? "" : form.jobFormEase} onChange={(v) => update("jobFormEase", v)} /><label className="mt-3 block text-xs text-slate-400"><input type="checkbox" checked={form.jobFormEase === "not_used"} onChange={(e) => update("jobFormEase", e.target.checked ? "not_used" : "")} className="mr-2 accent-green-500" />I have not used it yet</label></Question>
-    <h2 className="pt-8 text-lg font-bold text-white">Communication and overall feedback</h2>
-    <Question number={10} title="Were our emails and text messages helpful?"><Rating name="notificationHelpfulness" value={form.notificationHelpfulness === "not_used" ? "" : form.notificationHelpfulness} onChange={(v) => update("notificationHelpfulness", v)} /></Question>
-    <Question number={11} title="How should we send important updates?">{checks([["email","Email"],["sms","Text message"],["portal","Portal notifications"],["urgent_call","Phone call for urgent matters"]], "preferredChannels")}</Question>
-    <Question number={12} title="How was the number of notifications?"><select value={form.notificationAmount} onChange={(e) => update("notificationAmount", e.target.value)} className="w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white"><option value="too_many">Too many</option><option value="right">About right</option><option value="too_few">Too few</option><option value="not_sure">Not enough experience to decide</option></select></Question>
-    <Question number={13} title="Overall, how satisfied are you with the portal? *"><Rating name="satisfaction" value={form.satisfaction} required onChange={(v) => update("satisfaction", v)} /></Question>
-    <Question number={14} title="How likely are you to recommend TechSavvy's portal and service process? *"><div className="grid grid-cols-6 gap-2 sm:grid-cols-11">{Array.from({length:11},(_,i) => <label key={i} className={`cursor-pointer rounded border p-2 text-center text-xs ${form.nps === String(i) ? "border-tech-green bg-tech-green/10 text-tech-green" : "border-white/10 text-slate-300"}`}><input type="radio" name="nps" required value={i} checked={form.nps === String(i)} onChange={() => update("nps", String(i))} className="sr-only" />{i}</label>)}</div><div className="mt-2 flex justify-between text-[10px] text-slate-500"><span>Not likely</span><span>Very likely</span></div></Question>
-    <Question number={15} title="What was the most frustrating part?"><textarea value={form.frustration} onChange={(e) => update("frustration", e.target.value)} rows={4} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /></Question>
-    <Question number={16} title="What worked especially well?"><textarea value={form.workedWell} onChange={(e) => update("workedWell", e.target.value)} rows={4} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /></Question>
-    <Question number={17} title="What is the one improvement that would make the portal more useful? *"><textarea required value={form.improvement} onChange={(e) => update("improvement", e.target.value)} rows={4} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /></Question>
-    <Question number={18} title="Anything else you would like us to know?"><textarea value={form.additionalComments} onChange={(e) => update("additionalComments", e.target.value)} rows={4} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white" /><label className="mt-4 flex gap-2 text-sm text-slate-300"><input type="checkbox" checked={form.followUp} onChange={(e) => update("followUp", e.target.checked)} className="accent-green-500" />I am willing to participate in a brief follow-up conversation.</label></Question>
-    <input tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => update("website", e.target.value)} className="hidden" aria-hidden="true" />{error && <p role="alert" className="mt-5 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}<button disabled={submitting} className="mt-7 w-full bg-tech-green px-5 py-4 font-bold text-brand-black disabled:opacity-60">{submitting ? "Submitting…" : "Submit feedback"}</button><p className="mt-3 text-center text-[10px] text-slate-500">Your responses are used to improve TechSavvy services and the Client Portal.</p>
-  </form></div></main></div>;
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (user) => {
+        if (user)
+          setForm((current) => ({
+            ...current,
+            name: current.name || user.displayName || "",
+            email: current.email || user.email || "",
+          }));
+      }),
+    [],
+  );
+  const update = (key: string, value: unknown) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  const toggle = (
+    key: "valuableFeatures" | "preferredChannels",
+    value: string,
+  ) =>
+    setForm((current) => ({
+      ...current,
+      [key]: current[key].includes(value)
+        ? current[key].filter((item) => item !== value)
+        : [...current[key], value],
+    }));
+  const progress = useMemo(
+    () =>
+      Math.round(
+        ([
+          form.accountEase,
+          form.instructionsClear,
+          form.navigationEase,
+          form.satisfaction,
+          form.improvement,
+          form.nps,
+        ].filter(Boolean).length /
+          6) *
+          100,
+      ),
+    [form],
+  );
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/client?action=feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ ...form, nps: Number(form.nps) }),
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Could not submit feedback.");
+      setSubmitted(true);
+      window.scrollTo(0, 0);
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Could not submit feedback.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const checks = (
+    items: string[][],
+    key: "valuableFeatures" | "preferredChannels",
+  ) => (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {items.map(([value, label]) => (
+        <label
+          key={value}
+          className="flex gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-slate-300"
+        >
+          <input
+            type="checkbox"
+            checked={form[key].includes(value)}
+            onChange={() => toggle(key, value)}
+            className="accent-green-500"
+          />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
+  if (submitted)
+    return (
+      <div className="min-h-screen px-6 py-20">
+        <div className="mx-auto grid min-h-[65vh] max-w-xl place-items-center">
+          <section className="glass-card w-full border-t-4 border-tech-green p-9 text-center">
+            <CheckCircle2 className="mx-auto h-16 w-16 text-tech-green" />
+            <h1 className="mt-5 text-3xl font-bold text-white">Thank you</h1>
+            <p className="mt-3 text-slate-400">
+              Your feedback was submitted successfully and will help us improve
+              the TechSavvy Client Portal.
+            </p>
+            <Link
+              to="/client"
+              className="mt-7 inline-block bg-tech-green px-5 py-3 font-bold text-brand-black"
+            >
+              Return to client portal
+            </Link>
+          </section>
+        </div>
+      </div>
+    );
+  return (
+    <div className="min-h-screen px-5 py-12">
+      <header className="mx-auto mb-8 flex max-w-3xl items-center justify-between">
+        <Link to="/" className="font-display text-lg font-bold">
+          TECH<span className="text-tech-green">SAVVY</span>
+        </Link>
+        <Link
+          to="/client"
+          className="text-xs font-bold text-slate-400 hover:text-white"
+        >
+          Client portal
+        </Link>
+      </header>
+      <main className="mx-auto max-w-3xl">
+        <div className="glass-card border-t-4 border-tech-green p-6 sm:p-9">
+          <MessageSquareText className="h-11 w-11 text-tech-green" />
+          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.3em] text-tech-green">
+            About three minutes
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
+            Help us improve your experience
+          </h1>
+          <p className="mt-3 text-sm text-slate-400">
+            Tell us what worked and what could be easier. Your name and company
+            are optional.
+          </p>
+          <div className="mt-6 h-1.5 overflow-hidden rounded bg-white/10">
+            <div
+              className="h-full bg-tech-green transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <form onSubmit={submit} className="mt-4">
+            <section>
+              <h2 className="pt-6 text-lg font-bold text-white">
+                About your experience
+              </h2>
+              <label className="mt-4 block text-sm font-bold text-slate-300">
+                Which stage are you reviewing?
+                <select
+                  value={form.stage}
+                  onChange={(e) => update("stage", e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-white"
+                >
+                  <option value="onboarding">Account onboarding</option>
+                  <option value="booking">Booking a job</option>
+                  <option value="active_job">Active job</option>
+                  <option value="completed_job">Completed job</option>
+                  <option value="general">General portal experience</option>
+                </select>
+              </label>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <input
+                  value={form.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  placeholder="Name (optional)"
+                  className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+                />
+                <input
+                  value={form.company}
+                  onChange={(e) => update("company", e.target.value)}
+                  placeholder="Company (optional)"
+                  className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+                />
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => update("email", e.target.value)}
+                  placeholder="Email (optional)"
+                  className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+                />
+              </div>
+            </section>
+            <Question
+              number={1}
+              title="How easy was it to create your account? *"
+            >
+              <Rating
+                name="accountEase"
+                value={form.accountEase}
+                required
+                onChange={(v) => update("accountEase", v)}
+              />
+            </Question>
+            <Question
+              number={2}
+              title="Did you experience a problem verifying your email?"
+            >
+              <select
+                value={form.emailIssue}
+                onChange={(e) => update("emailIssue", e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white"
+              >
+                <option value="none">No problem</option>
+                <option value="not_received">The email did not arrive</option>
+                <option value="invalid_expired">
+                  The link appeared invalid or expired
+                </option>
+                <option value="other">Another issue</option>
+              </select>
+              {form.emailIssue !== "none" && (
+                <textarea
+                  value={form.emailIssueDetail}
+                  onChange={(e) => update("emailIssueDetail", e.target.value)}
+                  rows={3}
+                  placeholder="Please describe what happened"
+                  className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+                />
+              )}
+            </Question>
+            <Question
+              number={3}
+              title="Were the onboarding instructions clear? *"
+            >
+              <Rating
+                name="instructionsClear"
+                value={form.instructionsClear}
+                required
+                onChange={(v) => update("instructionsClear", v)}
+              />
+            </Question>
+            <Question
+              number={4}
+              title="Was it clear what would happen after submitting your information?"
+            >
+              <Rating
+                name="expectationsClear"
+                value={form.expectationsClear}
+                onChange={(v) => update("expectationsClear", v)}
+              />
+            </Question>
+            <Question number={5} title="How did the onboarding process feel?">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  ["shorter", "Shorter than expected"],
+                  ["right", "About right"],
+                  ["longer", "Longer than expected"],
+                ].map(([v, l]) => (
+                  <label
+                    key={v}
+                    className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-slate-300"
+                  >
+                    <input
+                      type="radio"
+                      name="length"
+                      checked={form.onboardingLength === v}
+                      onChange={() => update("onboardingLength", v)}
+                      className="mr-2 accent-green-500"
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </Question>
+            <h2 className="pt-8 text-lg font-bold text-white">
+              Using the portal
+            </h2>
+            <Question number={6} title="How easy was the portal to navigate? *">
+              <Rating
+                name="navigationEase"
+                value={form.navigationEase}
+                required
+                onChange={(v) => update("navigationEase", v)}
+              />
+            </Question>
+            <Question
+              number={7}
+              title="Could you find the features you needed?"
+            >
+              <Rating
+                name="foundFeatures"
+                value={form.foundFeatures}
+                onChange={(v) => update("foundFeatures", v)}
+              />
+              <textarea
+                value={form.missingInformation}
+                onChange={(e) => update("missingInformation", e.target.value)}
+                rows={3}
+                placeholder="What were you trying to find?"
+                className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+            </Question>
+            <Question
+              number={8}
+              title="Which features are most valuable to you?"
+            >
+              {checks(
+                [
+                  ["job_request", "Submitting a job request"],
+                  ["job_status", "Viewing job status"],
+                  ["appointments", "Scheduled appointments"],
+                  ["technician", "Assigned technician"],
+                  ["progress", "Progress updates"],
+                  ["messages", "Messaging TechSavvy"],
+                  ["rescheduling", "Schedule changes"],
+                  ["closeout", "Closeout documents"],
+                  ["company_users", "Company user management"],
+                  ["other", "Other"],
+                ],
+                "valuableFeatures",
+              )}
+            </Question>
+            <Question number={9} title="How easy was the job-request form?">
+              <Rating
+                name="jobFormEase"
+                value={form.jobFormEase === "not_used" ? "" : form.jobFormEase}
+                onChange={(v) => update("jobFormEase", v)}
+              />
+              <label className="mt-3 block text-xs text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={form.jobFormEase === "not_used"}
+                  onChange={(e) =>
+                    update("jobFormEase", e.target.checked ? "not_used" : "")
+                  }
+                  className="mr-2 accent-green-500"
+                />
+                I have not used it yet
+              </label>
+            </Question>
+            <h2 className="pt-8 text-lg font-bold text-white">
+              Communication and overall feedback
+            </h2>
+            <Question
+              number={10}
+              title="Were our emails and text messages helpful?"
+            >
+              <Rating
+                name="notificationHelpfulness"
+                value={
+                  form.notificationHelpfulness === "not_used"
+                    ? ""
+                    : form.notificationHelpfulness
+                }
+                onChange={(v) => update("notificationHelpfulness", v)}
+              />
+            </Question>
+            <Question number={11} title="How should we send important updates?">
+              {checks(
+                [
+                  ["email", "Email"],
+                  ["sms", "Text message"],
+                  ["portal", "Portal notifications"],
+                  ["urgent_call", "Phone call for urgent matters"],
+                ],
+                "preferredChannels",
+              )}
+            </Question>
+            <Question number={12} title="How was the number of notifications?">
+              <select
+                value={form.notificationAmount}
+                onChange={(e) => update("notificationAmount", e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white"
+              >
+                <option value="too_many">Too many</option>
+                <option value="right">About right</option>
+                <option value="too_few">Too few</option>
+                <option value="not_sure">
+                  Not enough experience to decide
+                </option>
+              </select>
+            </Question>
+            <Question
+              number={13}
+              title="Overall, how satisfied are you with the portal? *"
+            >
+              <Rating
+                name="satisfaction"
+                value={form.satisfaction}
+                required
+                onChange={(v) => update("satisfaction", v)}
+              />
+            </Question>
+            <Question
+              number={14}
+              title="How likely are you to recommend TechSavvy's portal and service process? *"
+            >
+              <div className="grid grid-cols-6 gap-2 sm:grid-cols-11">
+                {Array.from({ length: 11 }, (_, i) => (
+                  <label
+                    key={i}
+                    className={`cursor-pointer rounded border p-2 text-center text-xs ${form.nps === String(i) ? "border-tech-green bg-tech-green/10 text-tech-green" : "border-white/10 text-slate-300"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="nps"
+                      required
+                      value={i}
+                      checked={form.nps === String(i)}
+                      onChange={() => update("nps", String(i))}
+                      className="sr-only"
+                    />
+                    {i}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+                <span>Not likely</span>
+                <span>Very likely</span>
+              </div>
+            </Question>
+            <Question number={15} title="What was the most frustrating part?">
+              <textarea
+                value={form.frustration}
+                onChange={(e) => update("frustration", e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+            </Question>
+            <Question number={16} title="What worked especially well?">
+              <textarea
+                value={form.workedWell}
+                onChange={(e) => update("workedWell", e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+            </Question>
+            <Question
+              number={17}
+              title="What is the one improvement that would make the portal more useful? *"
+            >
+              <textarea
+                required
+                value={form.improvement}
+                onChange={(e) => update("improvement", e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+            </Question>
+            <Question
+              number={18}
+              title="Anything else you would like us to know?"
+            >
+              <textarea
+                value={form.additionalComments}
+                onChange={(e) => update("additionalComments", e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+              <label className="mt-4 flex gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={form.followUp}
+                  onChange={(e) => update("followUp", e.target.checked)}
+                  className="accent-green-500"
+                />
+                I am willing to participate in a brief follow-up conversation.
+              </label>
+            </Question>
+            <input
+              tabIndex={-1}
+              autoComplete="off"
+              value={form.website}
+              onChange={(e) => update("website", e.target.value)}
+              className="hidden"
+              aria-hidden="true"
+            />
+            {error && (
+              <p
+                role="alert"
+                className="mt-5 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200"
+              >
+                {error}
+              </p>
+            )}
+            <button
+              disabled={submitting}
+              className="mt-7 w-full bg-tech-green px-5 py-4 font-bold text-brand-black disabled:opacity-60"
+            >
+              {submitting ? "Submitting…" : "Submit feedback"}
+            </button>
+            <p className="mt-3 text-center text-[10px] text-slate-500">
+              Your responses are used to improve TechSavvy services and the
+              Client Portal.
+            </p>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
 }
