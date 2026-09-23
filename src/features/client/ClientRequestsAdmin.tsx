@@ -2,13 +2,18 @@ import { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import {
   AlertTriangle,
+  Building2,
   CalendarClock,
+  Inbox,
   Paperclip,
   RefreshCw,
+  Settings as SettingsIcon,
   UserPlus,
 } from "lucide-react";
 import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 import { ClientCompanyEditor } from "./ClientCompanyEditor";
+
+type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
 
 export type AdminActionResult = { ok: true } | { ok: false; error?: string };
 
@@ -51,6 +56,7 @@ export function ClientRequestsAdmin({
   });
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [tab, setTab] = useState<ClientTab>("requests");
   const [convert, setConvert] = useState({
     requestId: "",
     technicianLeadId: "",
@@ -108,6 +114,13 @@ export function ClientRequestsAdmin({
   const openRequests = data.requests.filter(
     (request: RequestRecord) => !["declined"].includes(request.status),
   );
+  const tabs: { id: ClientTab; label: string; icon: typeof Inbox; count?: number; urgent?: boolean }[] = [
+    { id: "requests", label: "Requests", icon: Inbox, count: openRequests.length },
+    { id: "approvals", label: "Approvals", icon: UserPlus, count: pendingUsers.length, urgent: pendingUsers.length > 0 },
+    { id: "scheduling", label: "Scheduling", icon: CalendarClock, count: data.appointments.length },
+    { id: "organizations", label: "Organizations", icon: Building2 },
+    { id: "settings", label: "Settings", icon: SettingsIcon },
+  ];
   return (
     <div className="space-y-6">
       {notice && (
@@ -130,6 +143,22 @@ export function ClientRequestsAdmin({
           </div>
         </div>
       )}
+      {pendingUsers.length > 0 && tab !== "approvals" && (
+        <button
+          type="button"
+          onClick={() => setTab("approvals")}
+          className="flex w-full items-center gap-3 rounded-xl border-2 border-crm-error bg-crm-error/10 p-4 text-left text-sm font-bold text-crm-error hover:bg-crm-error/15"
+        >
+          <UserPlus className="h-5 w-5 shrink-0" />
+          <span>
+            {pendingUsers.length} portal access request
+            {pendingUsers.length === 1 ? "" : "s"} waiting on your approval
+          </span>
+          <span className="ml-auto text-xs font-bold underline underline-offset-2">
+            Review now →
+          </span>
+        </button>
+      )}
       <div className="grid gap-4 md:grid-cols-4">
         {[
           [
@@ -145,18 +174,67 @@ export function ClientRequestsAdmin({
           ],
           ["Pending users", pendingUsers.length],
           ["Appointments", data.appointments.length],
-        ].map(([label, value]) => (
-          <div
-            key={String(label)}
-            className="rounded-xl border border-crm-hairline bg-crm-canvas p-4"
-          >
-            <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">
-              {label}
-            </p>
-            <p className="crm-display-md mt-2 text-crm-ink">{value}</p>
-          </div>
-        ))}
+        ].map(([label, value]) => {
+          const isPendingUsers = label === "Pending users";
+          const isUrgent = isPendingUsers && Number(value) > 0;
+          return (
+            <button
+              key={String(label)}
+              type="button"
+              onClick={() => setTab(isPendingUsers ? "approvals" : "requests")}
+              className={`rounded-xl border p-4 text-left transition ${
+                isUrgent
+                  ? "border-crm-error bg-crm-error/10 hover:bg-crm-error/15"
+                  : "border-crm-hairline bg-crm-canvas hover:bg-crm-surface-soft"
+              }`}
+            >
+              <p
+                className={`text-[10px] font-bold uppercase tracking-wider ${
+                  isUrgent ? "text-crm-error" : "text-crm-muted"
+                }`}
+              >
+                {label}
+              </p>
+              <p className={`crm-display-md mt-2 ${isUrgent ? "text-crm-error" : "text-crm-ink"}`}>
+                {value}
+              </p>
+            </button>
+          );
+        })}
       </div>
+      <div className="flex flex-wrap gap-1 rounded-xl border border-crm-hairline bg-crm-surface-soft p-1">
+        {tabs.map((item) => {
+          const Icon = item.icon;
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${
+                active
+                  ? "bg-crm-canvas text-crm-ink shadow-sm"
+                  : "text-crm-muted hover:text-crm-ink"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {item.label}
+              {typeof item.count === "number" && item.count > 0 && (
+                <span
+                  className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+                    item.urgent
+                      ? "bg-crm-error text-white"
+                      : "bg-crm-hairline text-crm-muted"
+                  }`}
+                >
+                  {item.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {tab === "requests" && (
       <section>
         <h3 className="mb-3 text-sm font-bold text-crm-ink">Job requests</h3>
         <div className="space-y-3">
@@ -403,6 +481,8 @@ export function ClientRequestsAdmin({
           ))}
         </div>
       </section>
+      )}
+      {tab === "scheduling" && (
       <section>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-crm-ink">
           <CalendarClock className="h-4 w-4 text-crm-muted" /> Scheduling
@@ -490,11 +570,27 @@ export function ClientRequestsAdmin({
           ))}
         </div>
       </section>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-crm-hairline bg-crm-canvas p-5">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-crm-ink">
-            <UserPlus className="h-4 w-4 text-crm-muted" />
+      )}
+      {tab === "approvals" && (
+        <section
+          className={`rounded-xl border p-5 ${
+            pendingUsers.length > 0
+              ? "border-crm-error bg-crm-error/5"
+              : "border-crm-hairline bg-crm-canvas"
+          }`}
+        >
+          <h3
+            className={`mb-4 flex items-center gap-2 text-sm font-bold ${
+              pendingUsers.length > 0 ? "text-crm-error" : "text-crm-ink"
+            }`}
+          >
+            <UserPlus className="h-4 w-4" />
             Pending memberships
+            {pendingUsers.length > 0 && (
+              <span className="rounded-full bg-crm-error px-2 py-0.5 text-[10px] text-white">
+                {pendingUsers.length} waiting
+              </span>
+            )}
           </h3>
           {pendingUsers.length === 0 ? (
             <p className="text-xs text-crm-muted">No pending memberships.</p>
@@ -502,7 +598,7 @@ export function ClientRequestsAdmin({
             pendingUsers.map((user: any) => (
               <div
                 key={user.id}
-                className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-crm-hairline bg-crm-surface-soft p-3"
+                className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-crm-error/30 bg-crm-canvas p-3"
               >
                 <div>
                   <p className="text-xs font-bold text-crm-ink">
@@ -537,13 +633,17 @@ export function ClientRequestsAdmin({
             ))
           )}
         </section>
+      )}
+      {tab === "organizations" && (
         <ClientCompanyEditor organizations={data.organizations} post={post} />
-      </div>
-      <ClientPortalConfiguration
-        data={data}
-        contractors={contractors}
-        post={post}
-      />
+      )}
+      {tab === "settings" && (
+        <ClientPortalConfiguration
+          data={data}
+          contractors={contractors}
+          post={post}
+        />
+      )}
     </div>
   );
 }
