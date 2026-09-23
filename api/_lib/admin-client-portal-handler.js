@@ -734,6 +734,65 @@ async function updateMemberAccess(req, res, admin) {
   return res.status(200).json({ success: true });
 }
 
+// Collections whose records carry a customerId that ties them to a company.
+const RELINK_COLLECTIONS = [
+  "client_users",
+  "vendor_requests",
+  "jobs",
+  "job_participants",
+  "job_messages",
+  "scope_versions",
+  "conversation_tokens",
+  "appointments",
+];
+
+// Re-points everything that references a company record that no longer exists
+// (e.g. removed while merging duplicate customers) at the company it should
+// belong to. It refuses to run when the "from" company still exists, so it can
+// never pull records away from a real company. dryRun only counts.
+async function relinkCompany(req, res, admin) {
+  const fromId = clean(req.body?.fromCustomerId, 120);
+  const toId = clean(req.body?.toCustomerId, 120);
+  if (!fromId || !toId || fromId === toId)
+    return res.status(400).json({ error: "Choose the company to move these records to." });
+  const [from, to] = await Promise.all([
+    adminDb.collection("customers").doc(fromId).get(),
+    adminDb.collection("customers").doc(toId).get(),
+  ]);
+  if (!to.exists) return res.status(404).json({ error: "The target company was not found." });
+  if (from.exists)
+    return res.status(409).json({
+      error: "The current company still exists. Only records pointing at a missing company can be moved.",
+    });
+  const counts = {};
+  const docs = [];
+  for (const name of RELINK_COLLECTIONS) {
+    const snap = await adminDb.collection(name).where("customerId", "==", fromId).limit(500).get();
+    counts[name] = snap.size;
+    docs.push(...snap.docs);
+  }
+  const total = docs.length;
+  if (req.body?.dryRun === true)
+    return res.status(200).json({ success: true, dryRun: true, counts, total, targetName: to.data().name || "" });
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = adminDb.batch();
+    docs.slice(i, i + 400).forEach((snap) =>
+      batch.update(snap.ref, { customerId: toId, previousCustomerId: fromId, relinkedAt: nowIso() }),
+    );
+    await batch.commit();
+  }
+  await writeAudit({
+    actor: admin,
+    action: "company-relinked",
+    entityType: "customer",
+    entityId: toId,
+    summary: `Moved ${total} record${total === 1 ? "" : "s"} from missing company ${fromId} to ${to.data().name || toId}`,
+    details: { fromCustomerId: fromId, toCustomerId: toId, counts },
+    source: "api",
+  });
+  return res.status(200).json({ success: true, counts, total, targetName: to.data().name || "" });
+}
+
 async function resendWelcome(req, res, admin) {
   const uid = clean(req.body?.uid, 128);
   const snapshot = await adminDb.collection("client_users").doc(uid).get();
@@ -810,6 +869,8 @@ export default async function handler(req, res) {
       return await dismissNotifications(req, res, admin);
     if (req.method === "POST" && action === "update-member-access")
       return await updateMemberAccess(req, res, admin);
+    if (req.method === "POST" && action === "relink-company")
+      return await relinkCompany(req, res, admin);
     if (req.method === "POST" && action === "resend-welcome")
       return await resendWelcome(req, res, admin);
     if (req.method === "POST" && action === "test-alert")

@@ -81,6 +81,7 @@ export function ClientRequestsAdmin({
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
   const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
   const [accessDraft, setAccessDraft] = useState<Record<string, string>>({});
+  const [relink, setRelink] = useState<Record<string, { to: string; preview?: { targetName: string; summary: string } }>>({});
   const [noteDialog, setNoteDialog] = useState<{
     request: RequestRecord;
     status: "clarification_needed" | "declined";
@@ -145,6 +146,46 @@ export function ClientRequestsAdmin({
   const activeUsers = data.users.filter(
     (user: any) => user.status === "active" || user.status === "suspended",
   );
+  const RELINK_LABELS: Record<string, string> = {
+    client_users: "portal user",
+    vendor_requests: "job request",
+    jobs: "job",
+    job_participants: "job participant record",
+    job_messages: "job message",
+    scope_versions: "scope record",
+    conversation_tokens: "email reply link",
+    appointments: "appointment",
+  };
+  const describeRelink = (counts: Record<string, number>) => {
+    const parts = Object.entries(counts)
+      .filter(([, count]) => count > 0)
+      .map(([name, count]) => `${count} ${RELINK_LABELS[name] || name}${count === 1 ? "" : "s"}`);
+    return parts.length ? parts.join(", ") : "nothing else";
+  };
+  const previewRelink = async (user: any) => {
+    try {
+      const result = await adminApi("relink-company", {
+        method: "POST",
+        body: JSON.stringify({ fromCustomerId: user.customerId, toCustomerId: relink[user.id]?.to, dryRun: true }),
+      });
+      setRelink((current) => ({
+        ...current,
+        [user.id]: {
+          to: current[user.id]?.to || "",
+          preview: { targetName: result.targetName, summary: describeRelink(result.counts) },
+        },
+      }));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not preview the move.");
+    }
+  };
+  const confirmRelink = async (user: any) => {
+    const result = await post("relink-company", { fromCustomerId: user.customerId, toCustomerId: relink[user.id]?.to });
+    if (result.ok) {
+      setRelink((current) => { const next = { ...current }; delete next[user.id]; return next; });
+      setNotice(`${user.displayName || user.email} is now linked to the correct company.`);
+    }
+  };
   const sendWelcome = async (user: any) => {
     const result = await post("resend-welcome", { uid: user.id });
     return result.ok;
@@ -886,6 +927,55 @@ export function ClientRequestsAdmin({
                         {paused ? "Restore access" : "Pause access"}
                       </button>
                     </div>
+                    {!data.organizations.some((org: any) => org.id === user.customerId) && (
+                      <div className="basis-full rounded-lg border border-crm-warning/40 bg-crm-warning-soft-bg p-3 text-[11px] text-crm-warning-soft-text">
+                        <p className="font-bold">This user's company record no longer exists.</p>
+                        <p className="mt-0.5">
+                          They can sign in but cannot book jobs or bulk import (“Your client company is no longer
+                          available”). Link them to the right company; requests and jobs that point at the missing
+                          record move with them.
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <select
+                            aria-label={`Company for ${label}`}
+                            value={relink[user.id]?.to || ""}
+                            onChange={(event) =>
+                              setRelink((current) => ({ ...current, [user.id]: { to: event.target.value } }))
+                            }
+                            className="max-w-[260px] rounded-lg border border-crm-hairline bg-crm-canvas px-2 py-1.5 text-[10px] text-crm-ink"
+                          >
+                            <option value="">Choose the company…</option>
+                            {data.organizations.map((org: any) => (
+                              <option key={org.id} value={org.id}>{org.name}</option>
+                            ))}
+                          </select>
+                          {relink[user.id]?.to && !relink[user.id]?.preview && (
+                            <button
+                              type="button"
+                              onClick={() => void previewRelink(user)}
+                              className="rounded-lg border border-crm-hairline bg-crm-canvas px-3 py-1.5 text-[10px] font-bold text-crm-ink"
+                            >
+                              Preview
+                            </button>
+                          )}
+                          {relink[user.id]?.preview && (
+                            <>
+                              <span>
+                                Will link to <strong>{relink[user.id]!.preview!.targetName}</strong> and move{" "}
+                                {relink[user.id]!.preview!.summary}.
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => void confirmRelink(user)}
+                                className="rounded-lg bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active"
+                              >
+                                Confirm and link
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
