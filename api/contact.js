@@ -5,6 +5,7 @@ import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
 import { reportOperationalError, runOperationalHealthCheck } from './_lib/monitoring.js';
 import { uploadInlineFiles } from './_lib/client-portal.js';
+import { buildInvoicePdf, invoicePdfFileName } from './_lib/invoice-pdf.js';
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
 import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
@@ -79,6 +80,94 @@ function isRateLimited(ip, now) {
   return false;
 }
 
+function documentReplyTo(type) {
+  return type === "invoice"
+    ? process.env.BILLING_EMAIL || "billing@techsavvytechs.com"
+    : process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
+}
+
+// A PDF problem must never block an invoice from going out, so a failure
+// sends the email without the attachment (and the caller reports that).
+function tryInvoicePdf(document) {
+  try {
+    return {
+      filename: invoicePdfFileName(document),
+      content: buildInvoicePdf(document).toString("base64"),
+    };
+  } catch (error) {
+    console.error("Invoice PDF generation failed:", error);
+    return null;
+  }
+}
+
+function renderCustomerDocumentEmail({ type, document, number, total, link, expiresAt, hasPdf }) {
+  const action = type === "quote" ? "Review and approve quote" : "View invoice";
+  // Some customers' AP departments require this in the invoice itself, not
+  // just reachable via a link, to process payment (invoice #, service date,
+  // PO/project reference, project manager). Include whatever is on file.
+  const apDetails = [
+    ["Invoice #", number],
+    ["Date of service", document.serviceDate || ""],
+    ["PO / project reference", document.clientReference || ""],
+    ["Project manager", document.clientProjectManager || ""],
+  ].filter(([, value]) => value);
+  const apDetailsText = apDetails.map(([label, value]) => `${label}: ${value}`).join("\n");
+  const apDetailsHtml = apDetails.length
+    ? `<table style="margin-top:14px;font-size:13px;color:#334155">${apDetails.map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#64748b">${escapeHtml(label)}</td><td style="font-weight:600">${escapeHtml(value)}</td></tr>`).join("")}</table>`
+    : "";
+  const pdfNoteText = hasPdf ? "\nA PDF copy of this invoice is attached.\n" : "";
+  const pdfNoteHtml = hasPdf
+    ? `<p style="font-size:12px;color:#64748b">A PDF copy of this invoice is attached.</p>`
+    : "";
+  return {
+    subject:
+      type === "quote"
+        ? `TechSavvy quote ${number} — approval requested`
+        : `TechSavvy invoice ${number}`,
+    text: `Hello,\n\n${type === "quote" ? "Please review the proposed work" : "Your invoice is ready"} from TechSavvy.\n${number} · ${total}\n${apDetailsText ? `\n${apDetailsText}\n` : ""}\n${action}: ${link}\n${pdfNoteText}\nThis secure link expires ${expiresAt.slice(0, 10)}. Questions? Reply to this email.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">FIELD SERVICES</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>${type === "quote" ? "A quote is ready for your review and approval." : "Your invoice is ready to view."}</p><p><strong>${escapeHtml(number)}</strong><br><span style="font-size:26px">${escapeHtml(total)}</span></p>${apDetailsHtml}<p style="margin-top:18px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${action}</a></p>${pdfNoteHtml}<p style="font-size:12px;color:#64748b">This secure link expires ${escapeHtml(expiresAt.slice(0, 10))}. If you have questions, reply to this email.</p></div></div>`,
+  };
+}
+
+async function previewCustomerDocument(req, res) {
+  await requireAdmin(req);
+  const type = req.body?.type === "invoice" ? "invoice" : req.body?.type === "quote" ? "quote" : "";
+  const documentId = typeof req.body?.documentId === "string" ? req.body.documentId : "";
+  if (!type || !documentId)
+    return res.status(400).json({ error: "A quote or invoice is required." });
+  const snapshot = await adminDb.collection(type === "quote" ? "quotes" : "invoices").doc(documentId).get();
+  if (!snapshot.exists)
+    return res.status(404).json({ error: `The ${type} was not found.` });
+  const document = snapshot.data();
+  const customerSnapshot = await adminDb.collection("customers").where("name", "==", document.customer).limit(1).get();
+  const email = String(req.body?.email || customerSnapshot.docs[0]?.data()?.email || "").trim().toLowerCase();
+  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+  const expiresAt = new Date(Date.now() + (type === "quote" ? 30 : 60) * 86400000).toISOString();
+  const number = type === "quote" ? document.quoteNumber || documentId : document.invoiceNumber || documentId;
+  const total = Number(document.total || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const attachment = type === "invoice" ? tryInvoicePdf(document) : null;
+  const { subject, html } = renderCustomerDocumentEmail({
+    type,
+    document,
+    number,
+    total,
+    link: `${appUrl}/customer/document?type=${type}&token=your-secure-link`,
+    expiresAt,
+    hasPdf: Boolean(attachment),
+  });
+  return res.status(200).json({
+    to: email,
+    validRecipient: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    from: process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>",
+    replyTo: documentReplyTo(type),
+    subject,
+    html,
+    attachment: attachment
+      ? { filename: attachment.filename, sizeKb: Math.max(1, Math.round((attachment.content.length * 3) / 4 / 1024)) }
+      : null,
+  });
+}
+
 async function sendCustomerDocument(req, res) {
   const user = await requireAdmin(req);
   const type =
@@ -147,28 +236,19 @@ async function sendCustomerDocument(req, res) {
     style: "currency",
     currency: "USD",
   });
-  const action = type === "quote" ? "Review and approve quote" : "View invoice";
   const sender =
     process.env.EMAIL_FROM || "TechSavvy <support@techsavvytechs.com>";
-  const supportEmail =
-    process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
-  const replyTo =
-    type === "invoice"
-      ? process.env.BILLING_EMAIL || "billing@techsavvytechs.com"
-      : supportEmail;
-  // Some customers' AP departments require this in the invoice itself, not
-  // just reachable via a link, to process payment (invoice #, service date,
-  // PO/project reference, project manager). Include whatever is on file.
-  const apDetails = [
-    ["Invoice #", number],
-    ["Date of service", document.serviceDate || ""],
-    ["PO / project reference", document.clientReference || ""],
-    ["Project manager", document.clientProjectManager || ""],
-  ].filter(([, value]) => value);
-  const apDetailsText = apDetails.map(([label, value]) => `${label}: ${value}`).join("\n");
-  const apDetailsHtml = apDetails.length
-    ? `<table style="margin-top:14px;font-size:13px;color:#334155">${apDetails.map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#64748b">${escapeHtml(label)}</td><td style="font-weight:600">${escapeHtml(value)}</td></tr>`).join("")}</table>`
-    : "";
+  const replyTo = documentReplyTo(type);
+  const attachment = type === "invoice" ? tryInvoicePdf(document) : null;
+  const { subject, text, html } = renderCustomerDocumentEmail({
+    type,
+    document,
+    number,
+    total,
+    link,
+    expiresAt,
+    hasPdf: Boolean(attachment),
+  });
   const delivery = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -180,12 +260,10 @@ async function sendCustomerDocument(req, res) {
       from: sender,
       reply_to: replyTo,
       to: [email],
-      subject:
-        type === "quote"
-          ? `TechSavvy quote ${number} — approval requested`
-          : `TechSavvy invoice ${number}`,
-      text: `Hello,\n\n${type === "quote" ? "Please review the proposed work" : "Your invoice is ready"} from TechSavvy.\n${number} · ${total}\n${apDetailsText ? `\n${apDetailsText}\n` : ""}\n${action}: ${link}\n\nThis secure link expires ${expiresAt.slice(0, 10)}. Questions? Reply to this email.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#22c55e;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">FIELD SERVICES</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>${type === "quote" ? "A quote is ready for your review and approval." : "Your invoice is ready to view."}</p><p><strong>${escapeHtml(number)}</strong><br><span style="font-size:26px">${escapeHtml(total)}</span></p>${apDetailsHtml}<p style="margin-top:18px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#22c55e;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${action}</a></p><p style="font-size:12px;color:#64748b">This secure link expires ${escapeHtml(expiresAt.slice(0, 10))}. If you have questions, reply to this email.</p></div></div>`,
+      subject,
+      text,
+      html,
+      ...(attachment ? { attachments: [attachment] } : {}),
     }),
   });
   if (!delivery.ok) {
@@ -208,7 +286,7 @@ async function sendCustomerDocument(req, res) {
     { merge: true },
   );
   await writeAudit({ actor: user, action: "emailed", entityType: type, entityId: documentId, summary: `Emailed ${type} ${number} to ${email}`, details: { email, expiresAt }, source: "api" });
-  return res.status(200).json({ success: true, email, expiresAt });
+  return res.status(200).json({ success: true, email, expiresAt, pdfAttached: Boolean(attachment) });
 }
 
 async function sendCustomerPortal(req, res) {
@@ -1021,6 +1099,10 @@ export default async function handler(req, res) {
   if (req.query?.operation === 'send-customer-document') {
     try { return await sendCustomerDocument(req, res); }
     catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Customer document delivery failed.' }); }
+  }
+  if (req.query?.operation === 'preview-customer-document' && req.method === 'POST') {
+    try { return await previewCustomerDocument(req, res); }
+    catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'Email preview failed.' }); }
   }
   if (req.query?.operation === 'customer-document' && req.method === 'GET') {
     try { return await loadCustomerDocument(req, res); }

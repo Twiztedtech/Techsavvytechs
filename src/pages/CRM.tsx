@@ -1412,6 +1412,164 @@ Thank you,
 Will Jackson
 TechSavvy LLC`;
 
+type DocumentEmailPreview = {
+  to: string;
+  validRecipient: boolean;
+  from: string;
+  replyTo: string;
+  subject: string;
+  html: string;
+  attachment: { filename: string; sizeKb: number } | null;
+};
+
+function DocumentEmailModal({
+  type,
+  documentId,
+  label,
+  onClose,
+}: {
+  type: "invoice" | "quote";
+  documentId: string;
+  label: string;
+  onClose: () => void;
+}) {
+  const [preview, setPreview] = useState<DocumentEmailPreview | null>(null);
+  const [recipient, setRecipient] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sent, setSent] = useState<{ email: string; pdfAttached: boolean } | null>(null);
+  const call = async (operation: string, body: Record<string, unknown>) => {
+    const token = await auth.currentUser?.getIdToken();
+    const response = await fetch(`/api/contact?operation=${operation}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Request failed.");
+    return result;
+  };
+  useEffect(() => {
+    let cancelled = false;
+    call("preview-customer-document", { type, documentId })
+      .then((result) => {
+        if (cancelled) return;
+        setPreview(result);
+        setRecipient(result.to || "");
+      })
+      .catch((reason) => {
+        if (!cancelled) setLoadError(reason instanceof Error ? reason.message : "Could not load the preview.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, documentId]);
+  const send = async () => {
+    setSending(true);
+    setSendError("");
+    try {
+      const result = await call("send-customer-document", { type, documentId, email: recipient });
+      setSent({ email: result.email, pdfAttached: result.pdfAttached === true });
+    } catch (reason) {
+      setSendError(reason instanceof Error ? reason.message : "The email could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  };
+  const validRecipient = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.trim());
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded border border-crm-hairline bg-crm-canvas p-6 shadow-2xl">
+        <h2 className="text-sm font-bold text-crm-ink">
+          {sent ? "Email sent" : `Email ${type} ${label}`}
+        </h2>
+        {sent ? (
+          <div className="mt-4 space-y-2 text-xs text-crm-body">
+            <p>
+              Sent to <strong>{sent.email}</strong>.
+            </p>
+            <p className="text-crm-muted">
+              {type === "invoice"
+                ? sent.pdfAttached
+                  ? "The invoice PDF was attached."
+                  : "The PDF could not be generated this time, so the email went out without it."
+                : "The customer can approve or decline from the link in the email."}
+            </p>
+          </div>
+        ) : loadError ? (
+          <p className="mt-4 rounded border border-crm-error/30 bg-crm-error-soft-bg p-3 text-xs text-crm-error-soft-text">{loadError}</p>
+        ) : !preview ? (
+          <p className="mt-4 text-xs text-crm-muted">Building the preview…</p>
+        ) : (
+          <div className="mt-3 flex min-h-0 flex-col gap-3">
+            <p className="text-[10px] text-crm-muted">
+              This is exactly what the customer receives. Nothing is sent until you click Send.
+            </p>
+            <label className="block text-[10px] font-bold uppercase text-crm-muted">
+              Send to
+              <input
+                type="email"
+                value={recipient}
+                onChange={(event) => setRecipient(event.target.value)}
+                placeholder="name@company.com"
+                className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-xs font-normal normal-case text-crm-body"
+              />
+            </label>
+            <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 text-[11px]">
+              <dt className="font-bold uppercase text-crm-muted">From</dt>
+              <dd className="text-crm-body">{preview.from}</dd>
+              <dt className="font-bold uppercase text-crm-muted">Reply to</dt>
+              <dd className="text-crm-body">{preview.replyTo}</dd>
+              <dt className="font-bold uppercase text-crm-muted">Subject</dt>
+              <dd className="font-semibold text-crm-ink">{preview.subject}</dd>
+              {type === "invoice" && (
+                <>
+                  <dt className="font-bold uppercase text-crm-muted">Attached</dt>
+                  <dd className="text-crm-body">
+                    {preview.attachment
+                      ? `${preview.attachment.filename} (${preview.attachment.sizeKb} KB)`
+                      : "No PDF (it could not be generated)"}
+                  </dd>
+                </>
+              )}
+            </dl>
+            <iframe
+              title="Email preview"
+              sandbox=""
+              srcDoc={preview.html}
+              className="h-[340px] w-full flex-1 rounded border border-crm-hairline bg-white"
+            />
+            <p className="text-[10px] text-crm-muted">
+              The secure link in the real email is unique to this send and expires automatically.
+            </p>
+          </div>
+        )}
+        {sendError && <p className="mt-3 text-xs font-semibold text-crm-error">{sendError}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-crm-hairline px-4 py-2 text-xs font-bold text-crm-ink"
+          >
+            {sent ? "Close" : "Cancel"}
+          </button>
+          {!sent && preview && (
+            <button
+              type="button"
+              disabled={sending || !validRecipient}
+              onClick={() => void send()}
+              className="rounded bg-crm-primary px-4 py-2 text-xs font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-40"
+            >
+              {sending ? "Sending…" : "Send email"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PortalInviteModal({
   customer,
   onClose,
@@ -2120,6 +2278,7 @@ function QuotesView({
   onCreate: () => void;
 }) {
   const [working, setWorking] = useState("");
+  const [emailDoc, setEmailDoc] = useState<{ type: "invoice" | "quote"; id: string; label: string } | null>(null);
   const [editingQuote, setEditingQuote] = useState<LiveQuote | null>(null);
   const [viewingQuote, setViewingQuote] = useState<LiveQuote | null>(null);
   const [editingItemsQuote, setEditingItemsQuote] = useState<LiveQuote | null>(null);
@@ -2134,35 +2293,6 @@ function QuotesView({
       setViewingQuote(null);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not delete this quote.");
-    } finally {
-      setWorking("");
-    }
-  };
-  const emailQuote = async (quote: LiveQuote) => {
-    setWorking(`email-${quote.id}`);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(
-        "/api/contact?operation=send-customer-document",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ type: "quote", documentId: quote.id }),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Quote email could not be sent.");
-      alert(`Quote sent to ${result.email}.`);
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Quote email could not be sent.",
-      );
     } finally {
       setWorking("");
     }
@@ -2271,18 +2401,13 @@ function QuotesView({
                         View
                       </button>
                       <button
-                        disabled={
-                          working === `email-${q.id}` ||
-                          q.status === "Converted"
+                        disabled={q.status === "Converted"}
+                        onClick={() =>
+                          setEmailDoc({ type: "quote", id: q.id, label: q.quoteNumber || q.id })
                         }
-                        onClick={() => void emailQuote(q)}
                         className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold disabled:opacity-40"
                       >
-                        {working === `email-${q.id}`
-                          ? "Sending…"
-                          : q.customerDelivery?.status === "sent"
-                            ? "Resend"
-                            : "Email"}
+                        {q.customerDelivery?.status === "sent" ? "Resend" : "Email"}
                       </button>
                       <button
                         onClick={() => setEditingQuote(q)}
@@ -2334,6 +2459,14 @@ function QuotesView({
           label="No quotes yet"
           detail="Create an itemized estimate and convert it into a work order when accepted."
           onCreate={onCreate}
+        />
+      )}
+      {emailDoc && (
+        <DocumentEmailModal
+          type={emailDoc.type}
+          documentId={emailDoc.id}
+          label={emailDoc.label}
+          onClose={() => setEmailDoc(null)}
         />
       )}
       {editingQuote && (
@@ -3830,7 +3963,7 @@ function InvoicesView({
   const overrideJobs = jobs.filter((job) => job.status !== "Ready to Invoice" && !invoicedJobs.has(job.id));
   const candidates = earlyBilling ? [...billingReadyJobs, ...overrideJobs] : billingReadyJobs;
   const [syncing, setSyncing] = useState("");
-  const [delivering, setDelivering] = useState("");
+  const [emailDoc, setEmailDoc] = useState<{ type: "invoice" | "quote"; id: string; label: string } | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [refreshingReadiness, setRefreshingReadiness] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<LiveInvoice | null>(null);
@@ -3886,35 +4019,6 @@ function InvoicesView({
       );
     } finally {
       setSyncing("");
-    }
-  };
-  const emailInvoice = async (invoice: LiveInvoice) => {
-    setDelivering(invoice.id);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(
-        "/api/contact?operation=send-customer-document",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ type: "invoice", documentId: invoice.id }),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Invoice email could not be sent.");
-      alert(`Invoice sent to ${result.email}.`);
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Invoice email could not be sent.",
-      );
-    } finally {
-      setDelivering("");
     }
   };
   const reconcileInvoices = async () => {
@@ -4110,15 +4214,12 @@ function InvoicesView({
                         View
                       </button>
                       <button
-                        disabled={delivering === invoice.id}
-                        onClick={() => void emailInvoice(invoice)}
-                        className="rounded border border-crm-accent/30 bg-crm-accent-soft-bg px-2 py-1.5 text-[9px] font-bold text-crm-accent disabled:opacity-50"
+                        onClick={() =>
+                          setEmailDoc({ type: "invoice", id: invoice.id, label: invoice.invoiceNumber || invoice.id })
+                        }
+                        className="rounded border border-crm-accent/30 bg-crm-accent-soft-bg px-2 py-1.5 text-[9px] font-bold text-crm-accent"
                       >
-                        {delivering === invoice.id
-                          ? "Sending…"
-                          : invoice.customerDelivery?.status === "sent"
-                            ? "Resend"
-                            : "Email"}
+                        {invoice.customerDelivery?.status === "sent" ? "Resend" : "Email"}
                       </button>
                       <button
                         disabled={
@@ -4184,6 +4285,14 @@ function InvoicesView({
       )}
       {editingInvoice && (
         <InvoiceEditModal invoice={editingInvoice} onClose={() => setEditingInvoice(null)} />
+      )}
+      {emailDoc && (
+        <DocumentEmailModal
+          type={emailDoc.type}
+          documentId={emailDoc.id}
+          label={emailDoc.label}
+          onClose={() => setEmailDoc(null)}
+        />
       )}
     </section>
   );
