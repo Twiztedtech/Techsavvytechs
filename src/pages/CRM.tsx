@@ -1594,7 +1594,16 @@ function PortalInviteModal({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Portal invitation could not be sent.");
-      alert(`Customer portal invite sent to ${result.email}.`);
+      const domainNote = result.approvedDomain
+        ? result.alreadyApproved
+          ? ` @${result.approvedDomain} was already an approved domain.`
+          : ` @${result.approvedDomain} was added to ${customer.name}'s approved domains so they can self-register (you still approve each person).`
+        : result.approvedDomainSkipped === "personal_email"
+          ? " Note: that is a personal email address, so no domain was approved and they cannot self-register with it. Ask them to use a company email, or add their domain under Client Requests > Organizations."
+          : result.approvedDomainSkipped === "other_company"
+            ? " Note: that email domain already belongs to a different company, so it was not added."
+            : "";
+      alert(`Customer portal invite sent to ${result.email}.${domainNote}`);
       onClose();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Portal invitation could not be sent.");
@@ -1610,6 +1619,11 @@ function PortalInviteModal({
           Multiple people at {customer.name} can each get their own invite -- change the
           recipient below to send to someone other than the main contact. Review and edit the
           email before sending -- nothing goes out until you click Send.
+        </p>
+        <p className="mt-1 text-[10px] text-crm-muted">
+          Sending also adds the recipient's email domain to {customer.name}'s approved domains so
+          colleagues can self-register at /client. Every registration still needs your approval.
+          Personal addresses (gmail, yahoo, etc.) are skipped.
         </p>
         <div className="mt-4 space-y-3">
           <label className="block text-[10px] font-bold uppercase text-crm-muted">

@@ -300,6 +300,33 @@ async function sendCustomerDocument(req, res) {
   return res.status(200).json({ success: true, email, expiresAt, pdfAttached: Boolean(attachment) });
 }
 
+// Personal/consumer mailboxes must never become a company's approved domain,
+// or anyone with a gmail address could request access to that company.
+const FREE_MAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "rocketmail.com",
+  "hotmail.com", "outlook.com", "live.com", "msn.com", "aol.com",
+  "icloud.com", "me.com", "mac.com", "proton.me", "protonmail.com",
+  "comcast.net", "att.net", "sbcglobal.net", "verizon.net", "cox.net",
+  "gmx.com", "mail.com", "zoho.com", "pm.me",
+]);
+
+// An invite means an admin has said this person may register, so their email
+// domain becomes one of the company's approved domains (each registration is
+// still approved by hand). Skips personal mailboxes and any domain another
+// company already owns, since a shared domain would match ambiguously.
+async function approvedDomainForInvite(email, customerId) {
+  const domain = email.split("@")[1]?.toLowerCase() || "";
+  if (!domain) return { domain: null, skipped: "invalid" };
+  if (FREE_MAIL_DOMAINS.has(domain)) return { domain: null, skipped: "personal_email" };
+  const owners = await adminDb
+    .collection("customers")
+    .where("approvedDomains", "array-contains", domain)
+    .limit(5)
+    .get();
+  if (owners.docs.some((doc) => doc.id !== customerId)) return { domain: null, skipped: "other_company" };
+  return { domain, skipped: "" };
+}
+
 async function sendCustomerPortal(req, res) {
   const user = await requireAdmin(req);
   const customerId = String(req.body?.customerId || "").trim();
@@ -351,6 +378,7 @@ async function sendCustomerPortal(req, res) {
   // Append-only invite history -- several people at one company can each
   // get their own invite, so this never overwrites a prior recipient's
   // entry the way a single portalDelivery object used to.
+  const domainDecision = await approvedDomainForInvite(email, customerId);
   await customerRef.set({
     portalInvites: FieldValue.arrayUnion({
       email,
@@ -359,10 +387,25 @@ async function sendCustomerPortal(req, res) {
       subject,
       sentByUid: user.uid,
     }),
+    ...(domainDecision.domain ? { approvedDomains: FieldValue.arrayUnion(domainDecision.domain) } : {}),
     updatedAt: createdAt,
   }, { merge: true });
-  await writeAudit({ actor: user, action: "portal-invited", entityType: "customer", entityId: customerId, summary: `Sent customer portal invite to ${email}`, details: { email }, source: "api" });
-  return res.status(200).json({ success: true, email });
+  await writeAudit({
+    actor: user,
+    action: "portal-invited",
+    entityType: "customer",
+    entityId: customerId,
+    summary: `Sent customer portal invite to ${email}${domainDecision.domain ? ` (approved domain ${domainDecision.domain})` : ""}`,
+    details: { email, approvedDomain: domainDecision.domain, approvedDomainSkipped: domainDecision.skipped },
+    source: "api",
+  });
+  return res.status(200).json({
+    success: true,
+    email,
+    approvedDomain: domainDecision.domain,
+    approvedDomainSkipped: domainDecision.skipped,
+    alreadyApproved: Boolean(domainDecision.domain) && (customer.approvedDomains || []).includes(domainDecision.domain),
+  });
 }
 
 async function listClientUsers(req, res) {
