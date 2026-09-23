@@ -871,10 +871,16 @@ async function sendVerificationEmail(req, res) {
     /\/$/,
     "",
   );
-  const verificationLink = await adminAuth.generateEmailVerificationLink(
+  const firebaseVerificationLink = await adminAuth.generateEmailVerificationLink(
     email,
     { url: `${appUrl}/client` },
   );
+  const firebaseAction = new URL(firebaseVerificationLink);
+  const oobCode = firebaseAction.searchParams.get("oobCode");
+  if (!oobCode) throw new Error("Firebase did not return an email verification code.");
+  // Keep the one-time code behind an explicit button. Corporate email scanners
+  // can safely inspect this page without consuming the Firebase action code.
+  const verificationLink = `${appUrl}/client/verify-email?oobCode=${encodeURIComponent(oobCode)}`;
   const safeLink = escapeHtml(verificationLink);
   const delivery = await sendEmail({
     to: email,

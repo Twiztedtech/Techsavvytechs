@@ -35,6 +35,7 @@ const CustomerPortal = lazy(() => import('./pages/CustomerPortal'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
 const BookJob = lazy(() => import('./pages/BookJob'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
+const ClientEmailVerification = lazy(() => import('./pages/ClientEmailVerification'));
 const Agreement = lazy(() => import('./pages/Agreement'));
 const RequestStatus = lazy(() => import('./pages/RequestStatus'));
 
@@ -90,6 +91,7 @@ function AppShell() {
             <Route path="/customer/portal" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading customer portal…</div>}><CustomerPortal /></Suspense>} />
             <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
             <Route path="/client" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading client portal…</div>}><ClientPortal /></Suspense>} />
+            <Route path="/client/verify-email" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Checking verification link…</div>}><ClientEmailVerification /></Suspense>} />
             <Route path="/agreement" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading service agreement…</div>}><Agreement /></Suspense>} />
             <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />
             <Route path="/blog" element={<Blog />} />
