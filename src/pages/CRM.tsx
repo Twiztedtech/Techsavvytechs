@@ -584,7 +584,8 @@ export default function CRM() {
   const liveLifecycle = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const invoicedJobs = new Set(liveInvoices.map((invoice) => invoice.jobId).filter(Boolean));
+    // A first-job deposit invoice shares the job's id but doesn't mean the job has been billed.
+    const invoicedJobs = new Set(liveInvoices.filter((invoice) => invoice.type !== "deposit").map((invoice) => invoice.jobId).filter(Boolean));
     const newJobs = liveJobs.filter((job) => (job.status || "New") === "New");
     const pendingQuotes = liveQuotes.filter((quote) => !["Accepted", "Converted", "Rejected"].includes(quote.status));
     const activeJobs = liveJobs.filter((job) => !isClosedJob(job));
@@ -4276,7 +4277,7 @@ function InvoicesView({
   onPayment: (invoice: LiveInvoice) => void;
 }) {
   const invoicedJobs = new Set(
-    invoices.map((invoice) => invoice.jobId).filter(Boolean),
+    invoices.filter((invoice) => invoice.type !== "deposit").map((invoice) => invoice.jobId).filter(Boolean),
   );
   const [earlyBilling, setEarlyBilling] = useState(false);
   const billingReadyJobs = jobs.filter((job) => job.status === "Ready to Invoice" && !invoicedJobs.has(job.id));
@@ -4298,7 +4299,7 @@ function InvoicesView({
     setDeletingId(invoice.id);
     try {
       await deleteDoc(doc(db, "invoices", invoice.id));
-      if (invoice.jobId) {
+      if (invoice.jobId && invoice.type !== "deposit") {
         try {
           await updateDoc(doc(db, "jobs", invoice.jobId), { status: "Ready to Invoice", updatedAt: serverTimestamp() });
         } catch (error) {
@@ -5162,7 +5163,8 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
               />
               <input
                 type="number"
-                min="0"
+                // Only credit lines (deposit / credit on account) may be negative.
+                min={item.kind === "credit" ? undefined : "0"}
                 step=".01"
                 value={item.unitPrice}
                 onChange={(e) =>
@@ -5265,7 +5267,8 @@ function PaymentModal({
         }),
         updatedAt: serverTimestamp(),
       });
-      if (balance === 0 && invoice.jobId)
+      // Paying a deposit must not mark the job itself complete/paid.
+      if (balance === 0 && invoice.jobId && invoice.type !== "deposit")
         await updateDoc(doc(db, "jobs", invoice.jobId), {
           status: "Complete",
           paidAt: serverTimestamp(),
