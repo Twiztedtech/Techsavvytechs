@@ -335,7 +335,7 @@ async function convertRequest(req, res, admin) {
     updatedAt: nowIso(),
   };
   const batch = adminDb.batch();
-  if (!customerExists) batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], createdAt: nowIso(), updatedAt: nowIso() }, { merge: true });
+  if (!customerExists) batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], depositPolicy: 'required', createdAt: nowIso(), updatedAt: nowIso() }, { merge: true });
   batch.set(jobRef, job);
   batch.set(adminDb.collection("scope_versions").doc(`${jobRef.id}_1`), {
     jobId: jobRef.id,

@@ -1,10 +1,12 @@
 import { randomInt } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
 import { createQBOBillForTimecard, reverseQBOTimecard } from '../_lib/qbo-helper.js';
 import clientPortalHandler from '../_lib/client-api-handler.js';
 import adminClientPortalHandler from '../_lib/admin-client-portal-handler.js';
 import jobEventsHandler from '../_lib/job-events-handler.js';
 import { businessDate, businessClock } from '../_lib/business-time.js';
+import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/deposit-policy.js';
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 
 // Assistant Admin gets the same standing as a full Admin inside this file —
@@ -129,6 +131,37 @@ const signatureFor = (contractor) => {
 };
 
 const cleanReason = (value) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+
+// Older jobs have no customerId, so fall back to matching the customer name,
+// the same way the rest of the app links jobs to customers.
+const customerRefForJob = async (job) => {
+  if (job.customerId) return adminDb.collection('customers').doc(job.customerId);
+  if (!job.vendorName) return null;
+  const match = await adminDb.collection('customers').where('name', '==', job.vendorName).limit(1).get();
+  return match.empty ? null : match.docs[0].ref;
+};
+
+// First-job deposit gate. Cheap for everyone who isn't deposit-required: one
+// customer read and no invoice query. Checks the deposit invoice's own
+// balance, so it works whether the payment came from "Record payment" in the
+// CRM or from the QuickBooks reconcile.
+const depositGateFor = async (jobDoc) => {
+  const job = jobDoc.data();
+  const customerRef = await customerRefForJob(job);
+  if (!customerRef) return { blocked: false };
+  const customerSnap = await customerRef.get();
+  const customer = customerSnap.exists ? customerSnap.data() : null;
+  if (!customer || customer.depositPolicy !== 'required') return { blocked: false };
+  const invoices = (await adminDb.collection('invoices').where('jobId', '==', jobDoc.id).get()).docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter(isDepositInvoice);
+  const result = depositBlocksClockIn({ customer, job, depositInvoices: invoices });
+  // First paid deposit establishes the customer: later jobs are never blocked.
+  if (result.establish) await customerRef.set({ depositEstablishedAt: nowIso() }, { merge: true });
+  return result;
+};
+
+const DEPOSIT_DUE_MESSAGE = 'A deposit is required before work can start on this job. Please contact the office.';
 
 // A clock-in/out GPS stamp is optional and must never block the action it's
 // attached to -- a denied permission, an unsupported browser, or a junk
@@ -355,7 +388,9 @@ export default async function handler(req, res) {
           const [url] = await adminStorage.file(attachment.storagePath).getSignedUrl({ action: 'read', version: 'v4', expires: Date.now() + 15 * 60 * 1000 });
           return { ...attachment, url };
         }));
-        return { id: job.id, ...data, attachments };
+        // Lets the technician UI disable Clock In with the same rule the server enforces.
+        const depositBlocked = (await depositGateFor(job)).blocked;
+        return { id: job.id, ...data, attachments, depositBlocked };
       }));
       return res.status(200).json({
         entries,
@@ -687,6 +722,20 @@ export default async function handler(req, res) {
       const now = new Date().toISOString();
       const update = { status: 'voided', voidStatus: 'voided', voidedAt: now, voidedByUid: user.uid, voidedByRole: 'admin', voidReason: reason, updatedAt: now };
       await jobRef.set(update, { merge: true });
+      // A cancelled job keeps its paid deposit as a customer credit, applied
+      // to their next invoice. Only deposits still "held" (not already applied
+      // to a final invoice) convert, so this can never double-credit.
+      const depositInvoices = (await adminDb.collection('invoices').where('jobId', '==', snapshot.id).get()).docs
+        .filter((doc) => isDepositPaid({ id: doc.id, ...doc.data() }) && (doc.data().depositCredit?.status || 'held') === 'held');
+      let creditedTotal = 0;
+      for (const deposit of depositInvoices) {
+        const customerRef = await customerRefForJob(job);
+        if (!customerRef) break;
+        const amount = Number(deposit.data().amountPaid ?? deposit.data().total ?? 0);
+        await customerRef.set({ creditBalance: FieldValue.increment(amount) }, { merge: true });
+        await deposit.ref.set({ depositCredit: { status: 'credit', creditedAt: now, creditedForVoidedJobId: snapshot.id } }, { merge: true });
+        creditedTotal += amount;
+      }
       const contractors = await adminDb.collection('contractors').get();
       const assigned = Array.isArray(job.assignedTechIds) ? job.assignedTechIds : [job.assignedTechId || 'ALL'];
       const recipients = contractors.docs.filter((contractor) => assigned.includes('ALL') || assigned.includes(contractor.id));
@@ -697,13 +746,14 @@ export default async function handler(req, res) {
         message: `Hello ${contractor.data().name || 'there'}, this work order has been removed from your active assignments.`,
         details: [['Work order', job.workOrderNumber || snapshot.id], ['Job', job.name || 'Unknown'], ['Reason', reason]],
       })));
-      return res.status(200).json({ success: true, job: { id: snapshot.id, ...job, ...update } });
+      return res.status(200).json({ success: true, job: { id: snapshot.id, ...job, ...update }, depositCredited: creditedTotal });
     }
     if (action === 'start') {
       const jobId = req.body?.jobId;
       const job = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId);
       if (!job) return res.status(403).json({ error: 'You are not assigned to this work order.' });
       if (job.data().status === 'voided') return res.status(409).json({ error: 'This work order has been voided and is no longer active.' });
+      if ((await depositGateFor(job)).blocked) return res.status(409).json({ error: DEPOSIT_DUE_MESSAGE, depositRequired: true });
       const now = new Date();
       // The time clock is the default way to log a shift; manual entry is only
       // a fallback for when a tech forgot to clock in onsite. Whichever method
@@ -808,6 +858,9 @@ export default async function handler(req, res) {
         if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
           return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
         }
+        // Manual entry creates the same billable hours as clocking in, so it
+        // can't be used to get around the deposit.
+        if ((await depositGateFor(assignedJob)).blocked) return res.status(409).json({ error: DEPOSIT_DUE_MESSAGE, depositRequired: true });
         // Manual entry is only a fallback for a forgotten clock-in, but techs
         // routinely still use this same form afterward to attach supplies,
         // travel, notes, photos, or mark the job complete for a shift they

@@ -36,6 +36,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -61,6 +62,8 @@ import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
 import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
 import { buildImportPlan, detectColumns, parseCsv, type ColumnMap, type ImportField, type ParsedCsv } from "../features/catalog/importPriceList";
+import { creditToApply, depositAmount, depositBlocksClockIn, isDepositInvoice, isDepositPaid } from "../../api/_lib/deposit-policy.js";
+import { requestDeposit } from "../features/billing/requestDeposit";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { CrmThemeToggle } from "../features/crm/ui";
 import { useCrmTheme } from "../features/crm/theme";
@@ -197,6 +200,10 @@ type LiveCustomer = {
   portalInvites?: { email: string; sentAt: string; emailId?: string; subject?: string }[];
   serviceAgreement?: { status: string; email: string; sentAt: string; expiresAt?: string; signedAt?: string; signerName?: string };
   rateAgreement?: { standardRate: number; nightRate: number; minimumHours: number; agreedAt: string };
+  depositPolicy?: "required" | "waived";
+  depositHours?: number;
+  depositEstablishedAt?: string;
+  creditBalance?: number;
   reminderPreferences?: { enabled?: boolean; appointment?: boolean; quote?: boolean; invoice?: boolean; maintenance?: boolean };
   qboCustomerId?: string;
   personnel?: CustomerPersonnel[];
@@ -211,6 +218,7 @@ type LiveJob = {
   workOrderNumber?: string;
   clientReference?: string;
   clientProjectManager?: string;
+  depositWaived?: boolean;
   name?: string;
   vendorName?: string;
   address?: string;
@@ -266,7 +274,7 @@ type InvoiceLine = {
   description: string;
   quantity: number;
   unitPrice: number;
-  kind?: "labor" | "material" | "service";
+  kind?: "labor" | "material" | "service" | "credit";
 };
 type LiveInvoice = {
   id: string;
@@ -275,6 +283,8 @@ type LiveInvoice = {
   workOrderNumber?: string;
   clientReference?: string;
   clientProjectManager?: string;
+  type?: string;
+  depositCredit?: { status: "held" | "applied" | "credit"; appliedToInvoiceId?: string };
   customer: string;
   site?: string;
   status: string;
@@ -923,6 +933,9 @@ export default function CRM() {
           onPreview={(job) => setPreviewJob(job)}
           canMessage={access === "admin" || access === "assistant_admin" || access === "dispatcher"}
           canSendClientVisible={access === "admin" || access === "assistant_admin"}
+          depositInvoices={liveInvoices.filter((invoice) => invoice.jobId === selectedJob.id)}
+          canBill={access === "admin" || access === "assistant_admin" || access === "office_billing"}
+          canWaive={access === "admin" || access === "assistant_admin"}
         />
       )}
       {previewJob && (
@@ -935,7 +948,7 @@ export default function CRM() {
         </Suspense>
       )}
       {invoiceJob && (
-        <InvoiceModal job={invoiceJob} timeEntries={billingTimeEntries.filter((entry)=>entry.jobId===invoiceJob.id)} onClose={() => setInvoiceJob(null)} />
+        <InvoiceModal job={invoiceJob} timeEntries={billingTimeEntries.filter((entry)=>entry.jobId===invoiceJob.id)} customers={liveCustomers} invoices={liveInvoices} onClose={() => setInvoiceJob(null)} />
       )}
       {paymentInvoice && (
         <PaymentModal
@@ -1153,6 +1166,15 @@ function CustomersView({
                     ${(c.lifetimeValue || 0).toLocaleString()}
                   </b>
                 </div>
+                {c.depositPolicy === "required" && !c.depositEstablishedAt && (
+                  <p className="mt-2 text-[9px] font-bold uppercase text-crm-warning">Deposit required before first job</p>
+                )}
+                {(c.creditBalance || 0) > 0 && (
+                  <div className="mt-2 flex justify-between text-[9px]">
+                    <span className="text-crm-muted">Credit on account</span>
+                    <b className="text-crm-success">${(c.creditBalance || 0).toLocaleString()}</b>
+                  </div>
+                )}
                 <button
                   onClick={() => setInviteCustomer(c)}
                   disabled={!c.email}
@@ -1699,6 +1721,8 @@ function CustomerEditModal({
     email: customer.email || "",
     phone: customer.phone || "",
     lifetimeValue: String(customer.lifetimeValue || ""),
+    depositPolicy: (customer.depositPolicy || "") as "" | "required" | "waived",
+    depositHours: String(customer.depositHours || ""),
   });
   const [personnel, setPersonnel] = useState<CustomerPersonnel[]>(
     customer.personnel?.length ? customer.personnel.map((p) => ({ ...p, active: p.active !== false })) : [],
@@ -1724,9 +1748,11 @@ function CustomerEditModal({
         phone: form.phone.trim(),
         lifetimeValue: Number(form.lifetimeValue || 0),
         personnel: cleanPersonnel,
+        ...(form.depositPolicy ? { depositPolicy: form.depositPolicy } : {}),
+        depositHours: Number(form.depositHours) > 0 ? Number(form.depositHours) : null,
         updatedAt: serverTimestamp(),
       });
-      await recordAudit("updated", "customer", customer.id, `Updated customer ${form.name.trim()}`, {});
+      await recordAudit("updated", "customer", customer.id, `Updated customer ${form.name.trim()}`, form.depositPolicy !== (customer.depositPolicy || "") ? { depositPolicy: form.depositPolicy } : {});
       onClose();
     } finally {
       setSaving(false);
@@ -1750,6 +1776,25 @@ function CustomerEditModal({
           <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
           <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
           <Field label="Lifetime value" value={form.lifetimeValue} onChange={(v) => setForm({ ...form, lifetimeValue: v })} type="number" />
+        </div>
+        <div className="mt-5 rounded border border-crm-hairline bg-crm-surface-soft p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-crm-muted">First-job deposit</p>
+          <p className="mb-2 mt-1 text-[9px] text-crm-muted">
+            When required, technicians can't clock in on this customer's first job until its deposit invoice is paid. Defaults to the first {customer.rateAgreement?.minimumHours || 2} hours at the job's bill rate.
+            {customer.depositEstablishedAt ? " Deposit already paid, so later jobs are never blocked." : ""}
+            {customer.creditBalance ? ` Credit on account: ${customer.creditBalance.toLocaleString(undefined, { style: "currency", currency: "USD" })}.` : ""}
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-[9px] font-bold uppercase text-crm-muted">
+              Deposit policy
+              <select value={form.depositPolicy} onChange={(e) => setForm({ ...form, depositPolicy: e.target.value as "" | "required" | "waived" })} className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-canvas px-2 py-2.5 text-xs normal-case text-crm-ink">
+                <option value="">Not set (no deposit)</option>
+                <option value="required">Deposit required</option>
+                <option value="waived">Waived</option>
+              </select>
+            </label>
+            <Field label="Deposit hours (optional)" value={form.depositHours} onChange={(v) => setForm({ ...form, depositHours: v })} type="number" />
+          </div>
         </div>
         <div className="mt-5 rounded border border-crm-hairline bg-crm-surface-soft p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -3538,6 +3583,69 @@ function LiveJobsView({
   );
 }
 
+// First-job deposit status/actions for a job. Renders nothing unless the
+// customer is deposit-required (existing customers are unaffected).
+function DepositBanner({ job, customer, invoices, canBill, canWaive }: { job: LiveJob; customer?: LiveCustomer; invoices: LiveInvoice[]; canBill: boolean; canWaive: boolean }) {
+  const [busy, setBusy] = useState(false);
+  if (!customer || customer.depositPolicy !== "required" || customer.depositEstablishedAt || job.status === "voided") return null;
+  const money = (value = 0) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  const deposits = invoices.filter(isDepositInvoice);
+  const gate = depositBlocksClockIn({ customer, job: job as Record<string, unknown>, depositInvoices: deposits });
+  const open = deposits.find((invoice) => !isDepositPaid(invoice));
+  const { hours, rate, amount } = depositAmount(job, customer);
+  const box = "mt-4 rounded border p-3 text-xs";
+  if (job.depositWaived) return <div className={`${box} border-crm-hairline bg-crm-surface-soft text-crm-muted`}>Deposit waived for this job.</div>;
+  if (!gate.blocked) return <div className={`${box} border-crm-success/30 bg-crm-success-soft-bg text-crm-success-soft-text`}>Deposit paid. Technicians can clock in.</div>;
+
+  const send = async () => {
+    if (!confirm(`Create a ${money(amount)} deposit invoice for ${customer.name}, sync it to QuickBooks, and email it to ${customer.email || "the customer"}?`)) return;
+    setBusy(true);
+    try {
+      const result = await requestDeposit(job as never, customer as never);
+      await recordAudit("created", "invoice", result.invoiceId, `Requested ${money(result.amount)} deposit ${result.invoiceNumber} from ${customer.name}`, { jobId: job.id, hours: result.hours });
+      alert(`Deposit invoice ${result.invoiceNumber} (${money(result.amount)}) was created and emailed.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "The deposit could not be requested.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const waive = async () => {
+    if (!confirm("Let technicians clock in on this job without a deposit? This is recorded in the audit trail.")) return;
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, "jobs", job.id), { depositWaived: true, updatedAt: serverTimestamp() });
+      await recordAudit("updated", "job", job.id, `Waived the first-job deposit on ${job.workOrderNumber || job.id}`, {});
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`${box} border-crm-warning/40 bg-crm-warning-soft-bg text-crm-warning-soft-text`}>
+      <p className="font-bold">Deposit due before work can start: technicians can't clock in yet.</p>
+      {open ? (
+        <p className="mt-1">Requested: invoice {open.invoiceNumber} for {money(open.total)} is awaiting payment. It clears here as soon as it is marked paid (or after the next QuickBooks sync).</p>
+      ) : amount > 0 ? (
+        <p className="mt-1">{money(amount)} = first {hours} hours at {money(rate)}/hr.</p>
+      ) : (
+        <p className="mt-1">Set a customer bill rate on this job (or send a rate agreement) to calculate the deposit.</p>
+      )}
+      <div className="mt-2 flex gap-2">
+        {canBill && !open && amount > 0 && (
+          <button type="button" disabled={busy} onClick={() => void send()} className="rounded bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary disabled:opacity-40">
+            {busy ? "Working…" : "Send deposit invoice"}
+          </button>
+        )}
+        {canWaive && (
+          <button type="button" disabled={busy} onClick={() => void waive()} className="rounded border border-crm-hairline px-3 py-1.5 text-[10px] font-bold text-crm-ink disabled:opacity-40">
+            Waive for this job
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function JobDetailModal({
   job,
   customers,
@@ -3548,6 +3656,9 @@ function JobDetailModal({
   onPreview,
   canMessage,
   canSendClientVisible,
+  depositInvoices,
+  canBill,
+  canWaive,
 }: {
   job: LiveJob;
   customers: LiveCustomer[];
@@ -3558,6 +3669,9 @@ function JobDetailModal({
   onPreview: (job: LiveJob) => void;
   canMessage: boolean;
   canSendClientVisible: boolean;
+  depositInvoices: LiveInvoice[];
+  canBill: boolean;
+  canWaive: boolean;
 }) {
   const [form, setForm] = useState({
     name: job.name || "",
@@ -3733,6 +3847,7 @@ function JobDetailModal({
             <X className="h-5 w-5" />
           </button>
         </div>
+        <DepositBanner job={job} customer={customerFor(job, customers) as LiveCustomer | undefined} invoices={depositInvoices} canBill={canBill} canWaive={canWaive} />
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <Field
             label="Job name"
@@ -4313,6 +4428,7 @@ function InvoicesView({
                 <tr key={invoice.id} className="hover:bg-crm-surface-soft">
                   <td className="px-4 py-3 font-mono text-[10px] font-bold text-crm-ink">
                     {invoice.invoiceNumber || invoice.id}
+                    {invoice.type === "deposit" && <span className="ml-2 rounded-full bg-crm-warning-soft-bg px-2 py-0.5 font-sans text-[8px] font-bold uppercase text-crm-warning-soft-text">Deposit{invoice.depositCredit?.status === "credit" ? " · credit" : invoice.depositCredit?.status === "applied" ? " · applied" : ""}</span>}
                     {invoice.qboSync?.lastReconciledAt && <span className="mt-1 block font-sans text-[8px] font-normal text-crm-muted">QB checked {new Date(invoice.qboSync.lastReconciledAt).toLocaleDateString()}</span>}
                   </td>
                   <td className="px-4 py-3">
@@ -4743,7 +4859,7 @@ function InvoiceEditModal({ invoice, onClose }: { invoice: LiveInvoice; onClose:
   );
 }
 
-function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries: BillingTimeEntry[]; onClose: () => void }) {
+function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job: LiveJob; timeEntries: BillingTimeEntry[]; customers: LiveCustomer[]; invoices: LiveInvoice[]; onClose: () => void }) {
   const approvedEntries = timeEntries.filter((entry) => entry.active !== true && !['voided', 'rejected'].includes(entry.status || '') && (approvedLabor(entry) || entry.suppliesStatus === 'approved' || entry.travelStatus === 'approved'));
   const defaultItems: InvoiceLine[] = [];
   // One line per calendar date worked, not per technician: the customer
@@ -4790,6 +4906,24 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
       unitPrice: job.quotedValue || 0,
       kind: "service",
     });
+  // Credits: this job's paid first-job deposit, then any credit on account
+  // (e.g. a cancelled job's deposit). Shown as ordinary negative lines so the
+  // admin can see, edit or remove them; capped so the invoice never goes below $0.
+  const invoiceCustomer = customerFor(job, customers) as LiveCustomer | undefined;
+  const heldDeposit = invoices.find((invoice) => invoice.jobId === job.id && isDepositPaid(invoice) && (invoice.depositCredit?.status || "held") === "held");
+  const depositPaidAmount = heldDeposit ? Number(heldDeposit.amountPaid ?? heldDeposit.total ?? 0) : 0;
+  let creditRoom = defaultItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  if (heldDeposit) {
+    const applied = creditToApply(depositPaidAmount, creditRoom);
+    if (applied > 0) {
+      defaultItems.push({ description: `Deposit applied (${heldDeposit.invoiceNumber || heldDeposit.id})`, quantity: 1, unitPrice: -applied, kind: "credit" });
+      creditRoom -= applied;
+    }
+  }
+  if (invoiceCustomer?.creditBalance) {
+    const applied = creditToApply(invoiceCustomer.creditBalance, creditRoom);
+    if (applied > 0) defaultItems.push({ description: "Credit on account applied", quantity: 1, unitPrice: -applied, kind: "credit" });
+  }
   const [items, setItems] = useState(
     defaultItems.map((item) => ({
       ...item,
@@ -4863,7 +4997,19 @@ function InvoiceModal({ job, timeEntries, onClose }: { job: LiveJob; timeEntries
         invoiceCreatedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await recordAudit("created", "invoice", created.id, `Created invoice ${invoiceNumber} for ${job.vendorName || "customer"}`, { jobId: job.id, total });
+      // Settle whatever credit ended up on the invoice (the admin may have
+      // edited or removed the lines): the deposit is used first, any unused
+      // part of it moves to the customer's credit, and credit on account is
+      // drawn down by whatever the deposit didn't cover.
+      const creditUsed = Math.round(-items.filter((item) => item.kind === "credit").reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0) * 100) / 100;
+      if (creditUsed > 0) {
+        const fromDeposit = Math.min(creditUsed, depositPaidAmount);
+        const depositLeftover = heldDeposit ? depositPaidAmount - fromDeposit : 0;
+        const delta = Math.round((depositLeftover - (creditUsed - fromDeposit)) * 100) / 100;
+        if (heldDeposit) await updateDoc(doc(db, "invoices", heldDeposit.id), { depositCredit: { status: "applied", appliedToInvoiceId: created.id }, updatedAt: serverTimestamp() });
+        if (delta !== 0 && invoiceCustomer) await updateDoc(doc(db, "customers", invoiceCustomer.id), { creditBalance: increment(delta), updatedAt: serverTimestamp() });
+      }
+      await recordAudit("created", "invoice", created.id, `Created invoice ${invoiceNumber} for ${job.vendorName || "customer"}`, { jobId: job.id, total, ...(creditUsed > 0 ? { creditApplied: creditUsed } : {}) });
       onClose();
     } finally {
       setSaving(false);
@@ -6338,6 +6484,9 @@ function CreateRecordModal({
           sites: customer.site.trim() ? [customer.site.trim()] : [],
           assets: 0,
           lifetimeValue: 0,
+          // New customers establish payment (a first-job deposit) before a
+          // technician can clock in; change to "Waived" in Edit customer.
+          depositPolicy: "required",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });

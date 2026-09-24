@@ -286,6 +286,9 @@ export default function ContractorDashboard() {
   const todayStr = new Date().toISOString().split('T')[0];
   const hasLoggedEntryFor = (jobId, date) => timeEntries.some((entry) => entry.jobId === jobId && entry.date === date && entry.status !== 'voided');
   const alreadyClockedInToday = Boolean(selectedJobId) && hasLoggedEntryFor(selectedJobId, todayStr);
+  // Set by the server (same rule it enforces on clock-in) for a new customer's
+  // first job until the deposit invoice is paid.
+  const depositBlocked = !isCustomJob && (selectedJobObj as { depositBlocked?: boolean } | undefined)?.depositBlocked === true;
   const alreadyLoggedForManualDate = Boolean(selectedJobId) && !isCustomJob && hasLoggedEntryFor(selectedJobId, logDate);
 
   // Filtered History Entries
@@ -998,11 +1001,11 @@ export default function ContractorDashboard() {
                         <button
                           type="button"
                           onClick={handleStartShift}
-                          disabled={alreadyClockedInToday}
-                          title={alreadyClockedInToday ? 'You already have hours logged for this job today.' : undefined}
+                          disabled={alreadyClockedInToday || depositBlocked}
+                          title={depositBlocked ? 'A deposit is required before work can start on this job.' : alreadyClockedInToday ? 'You already have hours logged for this job today.' : undefined}
                           className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs transition shadow-lg shadow-green-600/20 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          🟢 {alreadyClockedInToday ? 'Already logged today' : 'Clock In Now'}
+                          🟢 {depositBlocked ? 'Deposit due' : alreadyClockedInToday ? 'Already logged today' : 'Clock In Now'}
                         </button>
                       ) : (
                         <button
@@ -1016,6 +1019,11 @@ export default function ContractorDashboard() {
                     </div>
                   </div>
 
+                  {depositBlocked && (
+                    <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300">
+                      <strong>Deposit due.</strong> This customer's first-job deposit hasn't been paid yet, so you can't clock in on this job. Please contact the office; it clears as soon as the deposit is paid.
+                    </div>
+                  )}
                   {selectedJobObj?.id && !isCustomJob && (
                     <div className="mb-6">
                       <JobMessagesPanel jobId={selectedJobObj.id} />
