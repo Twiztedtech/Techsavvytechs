@@ -132,9 +132,9 @@ function renderCustomerDocumentEmail({ type, document, number, total, link, expi
   const apDetailsHtml = apDetails.length
     ? `<table style="margin-top:14px;font-size:13px;color:#334155">${apDetails.map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#64748b">${escapeHtml(label)}</td><td style="font-weight:600">${escapeHtml(value)}</td></tr>`).join("")}</table>`
     : "";
-  const pdfNoteText = hasPdf ? "\nA PDF copy of this invoice is attached.\n" : "";
+  const pdfNoteText = hasPdf ? `\nA PDF copy of this ${type} is attached.\n` : "";
   const pdfNoteHtml = hasPdf
-    ? `<p style="font-size:12px;color:#64748b">A PDF copy of this invoice is attached.</p>`
+    ? `<p style="font-size:12px;color:#64748b">A PDF copy of this ${type} is attached.</p>`
     : "";
   return {
     subject:
@@ -162,7 +162,7 @@ async function previewCustomerDocument(req, res) {
   const expiresAt = new Date(Date.now() + (type === "quote" ? 30 : 60) * 86400000).toISOString();
   const number = type === "quote" ? document.quoteNumber || documentId : document.invoiceNumber || documentId;
   const total = Number(document.total || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
-  const attachment = type === "invoice" ? tryInvoicePdf(document) : null;
+  const attachment = tryInvoicePdf(document);
   const { subject, html } = renderCustomerDocumentEmail({
     type,
     document,
@@ -255,7 +255,7 @@ async function sendCustomerDocument(req, res) {
   });
   const sender = documentSender(type);
   const replyTo = documentReplyTo(type);
-  const attachment = type === "invoice" ? tryInvoicePdf(document) : null;
+  const attachment = tryInvoicePdf(document);
   const { subject, text, html } = renderCustomerDocumentEmail({
     type,
     document,

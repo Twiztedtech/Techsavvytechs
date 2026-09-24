@@ -5,13 +5,18 @@ const money = (value = 0) =>
   Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 export function invoicePdfFileName(invoice) {
-  const base = String(invoice.invoiceNumber || "TechSavvy-Invoice").replace(/[^\w.-]+/g, "-");
+  const base = String(invoice.invoiceNumber || invoice.quoteNumber || "TechSavvy-Invoice").replace(/[^\w.-]+/g, "-");
   return `${base}.pdf`;
 }
 
 // Shared by the server (emailed attachment) and the CRM download button, so it
 // must not touch Node-only globals (process, Buffer) outside the wrappers below.
+// A record with a quoteNumber (and no invoiceNumber) renders as a quote: no balance
+// due, the stipulations are printed, and the footer points to the approval link.
 export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsavvytechs.com") {
+  const isQuote = Boolean(invoice.quoteNumber) && !invoice.invoiceNumber;
+  const docLabel = isQuote ? "QUOTE" : "INVOICE";
+  const docNumber = String(invoice.invoiceNumber || invoice.quoteNumber || invoice.id || "");
   const pdf = new jsPDF();
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
 
@@ -30,19 +35,23 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
   pdf.rect(0, 44, 210, 1.6, "F");
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(22);
-  pdf.text("INVOICE", 194, 20, { align: "right" });
+  pdf.text(docLabel, 194, 20, { align: "right" });
   pdf.setFontSize(10);
   pdf.setTextColor(120, 230, 40);
-  pdf.text(String(invoice.invoiceNumber || invoice.id || ""), 194, 28, { align: "right" });
+  pdf.text(docNumber, 194, 28, { align: "right" });
   pdf.setFontSize(8);
   pdf.setTextColor(200, 205, 201);
   pdf.text("Fairfield, CA  |  (707) 653-6702  |  techsavvytechs.com", 194, 37, { align: "right" });
 
   pdf.setFontSize(9);
   pdf.setTextColor(90, 100, 94);
-  pdf.text(`Issue: ${invoice.issueDate || ""}`, 155, 63);
-  pdf.text(`Due: ${invoice.dueDate || ""}`, 155, 69);
-  if (invoice.serviceDate) pdf.text(`Service: ${invoice.serviceDate}`, 155, 75);
+  if (isQuote) {
+    pdf.text("Valid for 30 days", 155, 63);
+  } else {
+    pdf.text(`Issue: ${invoice.issueDate || ""}`, 155, 63);
+    pdf.text(`Due: ${invoice.dueDate || ""}`, 155, 69);
+    if (invoice.serviceDate) pdf.text(`Service: ${invoice.serviceDate}`, 155, 75);
+  }
 
   pdf.setTextColor(20, 25, 22);
   pdf.setFontSize(11);
@@ -115,8 +124,8 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
   pdf.setFillColor(102, 220, 20);
   pdf.rect(125, y - 6, 69, 10, "F");
   pdf.setTextColor(0, 0, 0);
-  pdf.text("Balance Due", 128, y + 1);
-  pdf.text(money(invoice.balance ?? invoice.total), 191, y + 1, { align: "right" });
+  pdf.text(isQuote ? "Quote Total" : "Balance Due", 128, y + 1);
+  pdf.text(money(isQuote ? invoice.total : (invoice.balance ?? invoice.total)), 191, y + 1, { align: "right" });
 
   if (invoice.customerMessage) {
     y += 14;
@@ -125,10 +134,40 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
     pdf.text(pdf.splitTextToSize(String(invoice.customerMessage), 178), 16, y);
   }
 
+  const stipulations = isQuote && Array.isArray(invoice.stipulations) ? invoice.stipulations.filter(Boolean) : [];
+  if (stipulations.length) {
+    y += 14;
+    if (y > 240) {
+      pdf.addPage();
+      y = 24;
+    }
+    pdf.setFillColor(102, 220, 20);
+    pdf.rect(16, y - 5, 1.6, 7, "F");
+    pdf.setFontSize(10);
+    pdf.setTextColor(20, 25, 22);
+    pdf.text("STIPULATIONS & TERMS", 20, y);
+    y += 8;
+    pdf.setFontSize(9);
+    pdf.setTextColor(60, 70, 63);
+    stipulations.forEach((line, index) => {
+      const wrapped = pdf.splitTextToSize(String(line), 168);
+      const height = wrapped.length * 4.5 + 3;
+      if (y + height > 272) {
+        pdf.addPage();
+        y = 24;
+      }
+      pdf.text(`${index + 1}.`, 18, y);
+      pdf.text(wrapped, 26, y);
+      y += height;
+    });
+  }
+
   pdf.setFontSize(8);
   pdf.setTextColor(100, 110, 103);
   pdf.text(
-    `Thank you for choosing TechSavvy. Payment is due by ${invoice.dueDate || "the due date shown above"}. Questions? ${billingEmail}`,
+    isQuote
+      ? `Thank you for the opportunity to earn your business. To approve this quote, use the secure link in your email. Questions? ${billingEmail}`
+      : `Thank you for choosing TechSavvy. Payment is due by ${invoice.dueDate || "the due date shown above"}. Questions? ${billingEmail}`,
     16,
     284,
     { maxWidth: 178 },

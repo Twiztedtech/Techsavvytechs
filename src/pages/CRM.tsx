@@ -2315,6 +2315,11 @@ function QuotesView({
       setWorking("");
     }
   };
+  const downloadQuotePdf = async (quote: LiveQuote) => {
+    // Same generator as the PDF attached to the customer email.
+    const { buildInvoicePdfDocument } = await import("../../api/_lib/invoice-pdf.js");
+    buildInvoicePdfDocument(quote).save(`${quote.quoteNumber || "TechSavvy-Quote"}.pdf`);
+  };
   const convert = async (quote: LiveQuote) => {
     setWorking(quote.id);
     try {
@@ -2417,6 +2422,12 @@ function QuotesView({
                         className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
                       >
                         View
+                      </button>
+                      <button
+                        onClick={() => void downloadQuotePdf(q)}
+                        className="rounded border border-crm-hairline px-2 py-1.5 text-[9px] font-bold"
+                      >
+                        PDF
                       </button>
                       <button
                         disabled={q.status === "Converted"}
