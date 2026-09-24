@@ -908,7 +908,14 @@ export default function ContractorDashboard() {
             </div>
 
             {/* CONTRACTOR VIEW TABS */}
-            <div className="flex border-b border-slate-800 gap-4">
+            <div className="flex overflow-x-auto border-b border-slate-800 gap-4">
+              <Link
+                to="/surveys"
+                className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent pb-3 text-xs font-bold text-slate-400 transition hover:text-amber-400"
+              >
+                <span>📋</span>
+                <span>Site Surveys</span>
+              </Link>
               <button
                 type="button"
                 onClick={() => setContractorTab('logger')}

@@ -260,6 +260,8 @@ type LiveQuote = {
   stipulations?: string[];
   createdAt?: unknown;
   customerDelivery?: { status: string; email: string; sentAt: string };
+  sourceSurveyId?: string;
+  sourceSurveyNumber?: string;
 };
 type Technician = {
   id: string;
@@ -692,6 +694,12 @@ export default function CRM() {
           </label>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <a
+            href="/surveys"
+            className="hidden items-center gap-2 rounded-lg border border-crm-hairline px-3 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:flex"
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" /> Site surveys
+          </a>
           {canCreateNew(module) && (
             <button
               onClick={handleCreateNew}
@@ -2548,6 +2556,8 @@ function QuotesView({
       const created = await saveJob({
         workOrderNumber: `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
         sourceQuoteId: quote.id,
+        sourceSurveyId: quote.sourceSurveyId || null,
+        sourceSurveyNumber: quote.sourceSurveyNumber || null,
         customerId: quote.customerId || null,
         vendorName: quote.customer,
         name: quote.title,
@@ -2628,6 +2638,11 @@ function QuotesView({
                     <p className="text-[9px] text-crm-muted">
                       {q.lineItems?.length || 0} line items
                     </p>
+                    {q.sourceSurveyId && (
+                      <a href={`/surveys/${q.sourceSurveyId}`} className="mt-1 inline-block text-[9px] font-semibold text-crm-success underline">
+                        From {q.sourceSurveyNumber || "site survey"}
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-crm-warning-soft-bg px-2 py-1 text-[9px] text-crm-warning">

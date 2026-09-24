@@ -37,6 +37,14 @@ service cloud.firestore {
     match /webhook_events/{document=**} { allow read, write: if false; }
     match /sms_preferences/{document=**} { allow read, write: if false; }
 
+    // Site surveys are accessed only through authenticated server endpoints so
+    // assignment checks, workflow transitions, and customer-safe projections
+    // cannot be bypassed by a browser client.
+    match /site_surveys/{document=**} { allow read, write: if false; }
+    match /survey_reports/{document=**} { allow read, write: if false; }
+    match /survey_module_definitions/{document=**} { allow read, write: if false; }
+    match /survey_templates/{document=**} { allow read, write: if false; }
+
     // Email Triggers for Extension
     match /mail/{mailId} {
       allow read, write: if false;

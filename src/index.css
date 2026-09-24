@@ -178,3 +178,22 @@
     touch-action: manipulation;
   }
 }
+/* Site-survey reports stay out of the field UI and become the only visible
+   content when a technician or reviewer prints/saves a customer PDF. */
+.survey-print-report { display: none; }
+@media print {
+  body * { visibility: hidden !important; }
+  .survey-print-report, .survey-print-report * { visibility: visible !important; }
+  .survey-print-report { display: block; position: absolute; inset: 0; padding: 0.45in; background: white; color: #111827; font: 11pt/1.45 Arial, sans-serif; }
+  .survey-print-report header { border-bottom: 3px solid #f59e0b; padding-bottom: 16px; }
+  .survey-print-report h1 { margin: 4px 0; font-size: 24pt; }
+  .survey-print-report .report-kicker { color: #b45309; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .survey-print-report .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  .survey-print-report .report-section { break-inside: avoid; margin-top: 22px; }
+  .survey-print-report h2 { border-bottom: 1px solid #d1d5db; padding-bottom: 5px; font-size: 15pt; }
+  .survey-print-report dl > div { display: grid; grid-template-columns: 180px 1fr; border-bottom: 1px solid #e5e7eb; padding: 6px 0; }
+  .survey-print-report dt { font-weight: 700; }
+  .survey-print-report table { width: 100%; border-collapse: collapse; }
+  .survey-print-report th, .survey-print-report td { border: 1px solid #d1d5db; padding: 7px; text-align: left; vertical-align: top; }
+  .survey-print-report footer { margin-top: 28px; border-top: 1px solid #d1d5db; padding-top: 10px; color: #4b5563; font-size: 9pt; }
+}

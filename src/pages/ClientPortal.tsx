@@ -938,6 +938,22 @@ export default function ClientPortal() {
                           reports and documents
                         </h3>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {selected.surveyReport && (
+                            <details className="rounded border border-tech-green/30 bg-tech-green/5 p-4 text-sm text-slate-300 sm:col-span-2">
+                              <summary className="cursor-pointer font-bold text-tech-green">
+                                Site survey {selected.surveyReport.surveyNumber}
+                              </summary>
+                              <p className="mt-2 text-xs text-slate-400">{selected.surveyReport.siteName} · {selected.surveyReport.siteAddress}</p>
+                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                {selected.surveyReport.modules.map((module) => (
+                                  <div key={module.id} className="rounded border border-white/10 bg-black/20 p-3">
+                                    <p className="font-bold capitalize text-white">{module.id.replace(/_/g, " ")}</p>
+                                    <p className="mt-1 text-xs text-slate-400">{module.records?.length || 0} documented item{module.records?.length === 1 ? "" : "s"}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                           {[
                             ...(selected.job.documents || []),
                             ...(selected.job.billingDocuments || []).map(
@@ -956,7 +972,7 @@ export default function ClientPortal() {
                             </a>
                           ))}
                         </div>
-                        {(selected.job.documents?.length || 0) +
+                        {!selected.surveyReport && (selected.job.documents?.length || 0) +
                           (selected.job.billingDocuments?.length || 0) ===
                           0 && (
                           <p className="mt-4 text-sm text-slate-500">

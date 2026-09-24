@@ -40,5 +40,11 @@ service firebase.storage {
     match /client-request-documents/{requestId}/{fileName} {
       allow read, write: if false;
     }
+
+    // Survey media is compressed in the field, then uploaded and served by
+    // the survey API after it validates the technician's assignment.
+    match /site-surveys/{surveyId}/{fileName} {
+      allow read, write: if false;
+    }
   }
 }

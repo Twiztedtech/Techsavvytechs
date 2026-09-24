@@ -92,4 +92,13 @@ export interface ClientJobDetail {
     message: string;
     createdAt: string;
   }>;
+  surveyReport?: {
+    id: string;
+    surveyNumber: string;
+    customerName: string;
+    siteName: string;
+    siteAddress: string;
+    status: string;
+    modules: Array<{ id: string; answers?: Record<string, unknown>; records?: Array<Record<string, unknown>> }>;
+  } | null;
 }

@@ -1,0 +1,80 @@
+export type SurveyStatus = 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'needs_revision' | 'approved' | 'shared_with_customer' | 'converted_to_estimate' | 'archived';
+
+export type SurveyRecord = {
+  id: string;
+  label?: string;
+  notes?: string;
+  partType?: string;
+  quantity?: number;
+  unit?: string;
+  targetDevice?: string;
+  cableType?: string;
+  dropCount?: number;
+  estimatedFeet?: number;
+  origin?: string;
+  destination?: string;
+  conduitRequired?: boolean;
+  poeRequired?: boolean;
+  pathwayNotes?: string;
+  carrier?: string;
+  technology?: string;
+  band?: string;
+  rsrp?: number;
+  rsrq?: number;
+  sinr?: number;
+  measurementPoint?: string;
+  floor?: string;
+  donorCandidate?: boolean;
+  azimuth?: number;
+  location?: string;
+  environment?: string;
+  mountingHeight?: number;
+  fieldOfView?: string;
+  lighting?: string;
+  lensRequirements?: string;
+  nvrLocation?: string;
+  equipmentModel?: string;
+  peripherals?: string;
+  vlan?: string;
+  dedicatedCircuit?: boolean;
+  upsAvailable?: boolean;
+  counterPenetration?: boolean;
+  [key: string]: string | number | boolean | undefined;
+};
+
+export type SurveyModule = {
+  id: string;
+  moduleKey: string;
+  definition: { title: string; version: number; fields?: SurveyFieldDefinition[]; recordType?: string };
+  answers: Record<string, string | number | boolean>;
+  records: SurveyRecord[];
+};
+
+export type SiteSurvey = {
+  id: string;
+  surveyNumber: string;
+  status: SurveyStatus;
+  customerId?: string;
+  customerName: string;
+  workOrderId?: string;
+  siteName: string;
+  siteAddress: string;
+  scheduledAt?: string;
+  contactName?: string;
+  contactPhone?: string;
+  assignedContractorIds?: string[];
+  assignedContractorUids?: string[];
+  moduleKeys: string[];
+  updatedAt?: string;
+  modules?: SurveyModule[];
+  attachments?: { id: string; moduleKey: string; recordId?: string; caption?: string; url: string; contentType?: string }[];
+  signatures?: { technician?: { signedBy: string; timestamp: string }; customer?: { signedBy: string; timestamp: string } };
+};
+
+export type DirectoryItem = { id: string; name?: string; companyName?: string; displayName?: string; email?: string; authUid?: string; status?: string; customerName?: string; title?: string };
+export type SurveyFieldDefinition = { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'checkbox' | 'select' | 'photo'; options?: string[]; required?: boolean };
+export type SurveyModuleDefinition = { id?: string; key: string; title: string; version: number; recordType?: string; fields?: SurveyFieldDefinition[]; active?: boolean };
+export type SurveyTemplate = { id: string; name: string; description?: string; moduleKeys: string[] };
+export type SurveyBootstrap = { surveys: SiteSurvey[]; customers: DirectoryItem[]; jobs: DirectoryItem[]; contractors: DirectoryItem[]; templates: SurveyTemplate[]; moduleDefinitions: SurveyModuleDefinition[] };
+export type EstimatePlanItem = { sku: string; description: string; quantity: number; unitPrice: number; catalogItemId?: string | null; catalogMatched: boolean; category?: string; sources: string[] };
+export type EstimatePlan = { surveyId: string; surveyNumber: string; status: SurveyStatus; quoteId?: string | null; wastePercent: number; items: EstimatePlanItem[] };

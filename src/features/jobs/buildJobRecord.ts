@@ -9,6 +9,8 @@ export interface SaveJobInput extends Partial<Omit<JobSite, 'id'>> {
   name: string;
   customerId?: string | null;
   sourceQuoteId?: string;
+  sourceSurveyId?: string | null;
+  sourceSurveyNumber?: string | null;
   attachments?: Array<Record<string, unknown>>;
   quotedValue?: number;
   actorUid?: string;
@@ -39,6 +41,8 @@ export function buildJobRecord(
     vendorName: input.vendorName ?? existing.vendorName ?? '',
     customerId: input.customerId !== undefined ? input.customerId : (existing.customerId ?? null),
     sourceQuoteId: input.sourceQuoteId ?? existing.sourceQuoteId ?? '',
+    sourceSurveyId: input.sourceSurveyId !== undefined ? input.sourceSurveyId : (existing.sourceSurveyId ?? null),
+    sourceSurveyNumber: input.sourceSurveyNumber !== undefined ? input.sourceSurveyNumber : (existing.sourceSurveyNumber ?? null),
     name: input.name,
     address: input.address ?? existing.address ?? 'Address on file',
     notes: input.notes ?? existing.notes ?? 'Site instructions unspecified',

@@ -1099,6 +1099,7 @@ async function listJobs(req, res) {
       const reportCount =
         (data.attachments || []).length +
         (data.signedWorkOrders || []).length +
+        (data.sourceSurveyId ? 1 : 0) +
         (hasRole(profile, "billing", "company_admin")
           ? (data.clientBillingDocuments || []).length
           : 0);
@@ -1131,6 +1132,12 @@ async function getJob(req, res) {
       adminDb.collection("contractors").get(),
     ]);
   const data = jobDoc.data();
+  const surveyReportDoc = data.sourceSurveyId
+    ? await adminDb.collection("survey_reports").doc(data.sourceSurveyId).get()
+    : null;
+  const surveyReport = surveyReportDoc?.exists && surveyReportDoc.data().status === "shared_with_customer"
+    ? { id: surveyReportDoc.id, ...surveyReportDoc.data() }
+    : null;
   const contractorMap = new Map(
     contractors.docs.map((doc) => [doc.id, doc.data()]),
   );
@@ -1212,6 +1219,7 @@ async function getJob(req, res) {
       .map((doc) => ({ id: doc.id, ...doc.data() }))
       .filter((message) => message.visibility === "client")
       .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))),
+    surveyReport,
   });
 }
 

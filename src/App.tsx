@@ -39,6 +39,7 @@ const ClientEmailVerification = lazy(() => import('./pages/ClientEmailVerificati
 const ClientFeedback = lazy(() => import('./pages/ClientFeedback'));
 const Agreement = lazy(() => import('./pages/Agreement'));
 const RequestStatus = lazy(() => import('./pages/RequestStatus'));
+const SiteSurveys = lazy(() => import('./pages/SiteSurveys'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -59,7 +60,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm';
+  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname.startsWith('/surveys');
   const isSecureCustomerDocument = pathname.startsWith('/customer/');
 
   return (
@@ -88,6 +89,8 @@ function AppShell() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/crm" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading CRM command center…</div>}><CRM /></Suspense>} />
+            <Route path="/surveys" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading survey workspace…</div>}><SiteSurveys /></Suspense>} />
+            <Route path="/surveys/:surveyId" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading site survey…</div>}><SiteSurveys /></Suspense>} />
             <Route path="/customer/document" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading secure document…</div>}><CustomerDocument /></Suspense>} />
             <Route path="/customer/portal" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading customer portal…</div>}><CustomerPortal /></Suspense>} />
             <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />
