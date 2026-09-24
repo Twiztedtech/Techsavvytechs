@@ -24,6 +24,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Upload,
   Users,
   Wrench,
   X,
@@ -59,6 +60,7 @@ import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
 import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
+import { buildImportPlan, detectColumns, parseCsv, type ColumnMap, type ImportField, type ParsedCsv } from "../features/catalog/importPriceList";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { CrmThemeToggle } from "../features/crm/ui";
 import { useCrmTheme } from "../features/crm/theme";
@@ -2112,6 +2114,7 @@ function CatalogView({
 }) {
   const [search, setSearch] = useState("");
   const [editingItem, setEditingItem] = useState<CatalogItem | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
   const money = (value = 0) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
   const visible = items.filter((item) =>
     [item.name, item.sku, item.category].filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase()),
@@ -2138,6 +2141,9 @@ function CatalogView({
               placeholder="Search catalog…"
               className="rounded border border-crm-hairline px-3 py-2 text-xs outline-none focus:border-crm-ink"
             />
+            <button onClick={() => setImporting(true)} className="rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-ink hover:bg-crm-surface-soft">
+              <Upload className="mr-1 inline h-3 w-3" /> Import price list
+            </button>
             <button onClick={() => setEditingItem("new")} className="rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[10px] font-bold text-crm-on-primary">
               <Plus className="mr-1 inline h-3 w-3" /> Add item
             </button>
@@ -2208,6 +2214,176 @@ function CatalogView({
       {editingItem && (
         <CatalogItemModal item={editingItem === "new" ? null : editingItem} onClose={() => setEditingItem(null)} />
       )}
+      {importing && <CatalogImportModal items={items} onClose={() => setImporting(false)} />}
+    </div>
+  );
+}
+
+const importFieldLabels: Record<ImportField, string> = {
+  name: "Item name",
+  sku: "SKU / part #",
+  category: "Category",
+  unitPrice: "Price",
+  quantityOnHand: "Quantity on hand",
+};
+
+function CatalogImportModal({ items, onClose }: { items: CatalogItem[]; onClose: () => void }) {
+  const [parsed, setParsed] = useState<ParsedCsv | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [columns, setColumns] = useState<ColumnMap>({});
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const money = (value = 0) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  const plan = useMemo(() => (parsed ? buildImportPlan(parsed, columns, items) : null), [parsed, columns, items]);
+  const changeCount = plan ? plan.creates.length + plan.updates.length : 0;
+
+  const onFile = async (file: File | undefined) => {
+    setError("");
+    setDone("");
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return setError("That file is over 5 MB. Split it into smaller price lists.");
+    const result = parseCsv(await file.text());
+    if (!result.headers.length || !result.rows.length) return setError("No rows found. Make sure the file is a CSV with a header row.");
+    setFileName(file.name);
+    setParsed(result);
+    setColumns(detectColumns(result.headers));
+  };
+
+  const runImport = async () => {
+    if (!plan || !changeCount) return;
+    setImporting(true);
+    setError("");
+    try {
+      // Firestore batches cap at 500 writes; stay well under.
+      type Batch = ReturnType<typeof writeBatch>;
+      const operations: Array<(batch: Batch) => void> = [
+        ...plan.creates.map((row) => (batch: Batch) =>
+          batch.set(doc(collection(db, "catalog_items")), { ...row, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })),
+        ...plan.updates.map((row) => (batch: Batch) =>
+          batch.update(doc(db, "catalog_items", row.id), { ...row.patch, updatedAt: serverTimestamp() })),
+      ];
+      for (let start = 0; start < operations.length; start += 400) {
+        const batch = writeBatch(db);
+        operations.slice(start, start + 400).forEach((apply) => apply(batch));
+        await batch.commit();
+      }
+      await recordAudit("imported", "catalog_item", "price-list", `Imported price list ${fileName}: ${plan.creates.length} added, ${plan.updates.length} updated`, {
+        file: fileName, created: plan.creates.length, updated: plan.updates.length, unchanged: plan.unchanged, skipped: plan.skipped.length,
+      });
+      setDone(`Imported ${fileName}: ${plan.creates.length} added, ${plan.updates.length} updated.`);
+      setParsed(null);
+    } catch {
+      setError("The import could not be fully saved. Run it again to finish: rows that already went in will show as unchanged, so nothing is duplicated.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const columnSelect = (field: ImportField) => (
+    <label key={field} className="text-[9px] font-bold uppercase text-crm-muted">
+      {importFieldLabels[field]}
+      <select
+        value={columns[field] ?? ""}
+        onChange={(e) => setColumns({ ...columns, [field]: e.target.value === "" ? undefined : Number(e.target.value) })}
+        className="mt-1.5 w-full rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs normal-case text-crm-ink"
+      >
+        <option value="">— not in file —</option>
+        {parsed?.headers.map((header, index) => <option key={index} value={index}>{header || `Column ${index + 1}`}</option>)}
+      </select>
+    </label>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded border border-crm-hairline bg-crm-canvas p-6 text-crm-ink shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="crm-display-sm">Import supplier price list</h2>
+            <p className="mt-1 text-[11px] text-crm-muted">
+              Upload a CSV from your supplier. Existing items are matched by SKU (or by name when there is no SKU) and only their price is updated; new items are added. Stock counts stay as they are unless you map a Quantity column. You review everything before anything is saved.
+            </p>
+          </div>
+          <button type="button" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-5">
+          <input type="file" accept=".csv,text/csv" onChange={(e) => void onFile(e.target.files?.[0])} className="text-xs" />
+        </div>
+        {error && <p className="mt-3 rounded border border-crm-error/30 bg-crm-error-soft-bg p-2 text-[11px] text-crm-error">{error}</p>}
+        {done && <p className="mt-3 rounded border border-crm-success/30 bg-crm-success-soft-bg p-2 text-[11px] text-crm-success-soft-text">{done}</p>}
+
+        {parsed && plan && (
+          <>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {(["sku", "name", "unitPrice", "category", "quantityOnHand"] as ImportField[]).map(columnSelect)}
+            </div>
+            {plan.warnings.map((warning) => <p key={warning} className="mt-2 text-[10px] text-crm-warning">{warning}</p>)}
+            <div className="mt-5 grid grid-cols-4 gap-3 text-center">
+              {([
+                ["New items", plan.creates.length],
+                ["Changes", plan.updates.length],
+                ["Unchanged", plan.unchanged],
+                ["Skipped", plan.skipped.length],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="rounded border border-crm-hairline bg-crm-surface-soft p-3">
+                  <p className="text-[9px] font-bold uppercase text-crm-muted">{label}</p>
+                  <p className="crm-display-sm">{value}</p>
+                </div>
+              ))}
+            </div>
+            {changeCount > 0 && (
+              <div className="mt-4 max-h-64 overflow-y-auto rounded border border-crm-hairline">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="sticky top-0 bg-crm-surface-soft text-[9px] uppercase text-crm-muted">
+                    <tr><th className="px-3 py-2">Item</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Change</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-crm-hairline-soft">
+                    {plan.updates.slice(0, 200).map((row) => (
+                      <tr key={row.id}>
+                        <td className="px-3 py-2">{row.name}</td>
+                        <td className="px-3 py-2 text-crm-muted">{row.sku || "—"}</td>
+                        <td className="px-3 py-2">
+                          {row.patch.unitPrice !== undefined && <span>{money(row.previousPrice)} → <strong>{money(row.unitPrice)}</strong></span>}
+                          {row.patch.quantityOnHand !== undefined && <span className="ml-2 text-crm-muted">on hand → {row.patch.quantityOnHand}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {plan.creates.slice(0, 200).map((row, index) => (
+                      <tr key={`new-${index}`}>
+                        <td className="px-3 py-2">{row.name}</td>
+                        <td className="px-3 py-2 text-crm-muted">{row.sku || "—"}</td>
+                        <td className="px-3 py-2"><span className="rounded-full bg-crm-success-soft-bg px-2 py-0.5 text-[9px] text-crm-success-soft-text">New</span> {money(row.unitPrice)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(plan.updates.length > 200 || plan.creates.length > 200) && <p className="p-2 text-[10px] text-crm-muted">Showing the first 200 of each; every change will be imported.</p>}
+              </div>
+            )}
+            {plan.skipped.length > 0 && (
+              <details className="mt-3 text-[11px]">
+                <summary className="cursor-pointer font-semibold text-crm-warning">{plan.skipped.length} row{plan.skipped.length === 1 ? "" : "s"} skipped</summary>
+                <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-crm-muted">
+                  {plan.skipped.slice(0, 100).map((row) => <li key={row.line}>Line {row.line}: {row.reason}</li>)}
+                </ul>
+              </details>
+            )}
+          </>
+        )}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded border px-4 py-2 text-xs">{done ? "Close" : "Cancel"}</button>
+          <button
+            type="button"
+            disabled={importing || !changeCount}
+            onClick={() => void runImport()}
+            className="rounded bg-crm-primary px-5 py-2 text-xs font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-40"
+          >
+            {importing ? "Importing…" : changeCount ? `Import ${changeCount} change${changeCount === 1 ? "" : "s"}` : "Import"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
