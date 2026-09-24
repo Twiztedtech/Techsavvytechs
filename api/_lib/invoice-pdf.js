@@ -9,9 +9,10 @@ export function invoicePdfFileName(invoice) {
   return `${base}.pdf`;
 }
 
-export function buildInvoicePdf(invoice) {
+// Shared by the server (emailed attachment) and the CRM download button, so it
+// must not touch Node-only globals (process, Buffer) outside the wrappers below.
+export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsavvytechs.com") {
   const pdf = new jsPDF();
-  const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
 
   // Brand header: black band carrying the full logo, green accent rule, invoice number at right.
@@ -133,5 +134,10 @@ export function buildInvoicePdf(invoice) {
     { maxWidth: 178 },
   );
 
-  return Buffer.from(pdf.output("arraybuffer"));
+  return pdf;
+}
+
+export function buildInvoicePdf(invoice) {
+  const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
+  return Buffer.from(buildInvoicePdfDocument(invoice, billingEmail).output("arraybuffer"));
 }

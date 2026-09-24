@@ -4062,73 +4062,9 @@ function InvoicesView({
     finally { setRefreshingReadiness(false); }
   };
   const download = async (invoice: LiveInvoice) => {
-    const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF();
-    pdf.setFillColor(11, 15, 12);
-    pdf.rect(0, 0, 210, 32, "F");
-    pdf.setTextColor(34, 197, 94);
-    pdf.setFontSize(18);
-    pdf.text("TECHSAVVY", 16, 18);
-    pdf.setFontSize(9);
-    pdf.setTextColor(220, 225, 221);
-    pdf.text("FIELD SERVICES INVOICE", 16, 25);
-    pdf.setTextColor(20, 25, 22);
-    pdf.setFontSize(18);
-    pdf.text("INVOICE", 155, 52);
-    pdf.setFontSize(10);
-    pdf.text(invoice.invoiceNumber || invoice.id, 155, 60);
-    pdf.setFontSize(9);
-    pdf.setTextColor(90, 100, 94);
-    pdf.text(`Issue: ${invoice.issueDate}`, 155, 67);
-    pdf.text(`Due: ${invoice.dueDate}`, 155, 73);
-    pdf.setTextColor(20, 25, 22);
-    pdf.setFontSize(11);
-    pdf.text("Bill To", 16, 48);
-    pdf.setFontSize(10);
-    pdf.text(invoice.customer, 16, 57);
-    pdf.setTextColor(90, 100, 94);
-    pdf.text(invoice.site || "Address on file", 16, 64, { maxWidth: 100 });
-    let y = 88;
-    pdf.setFillColor(235, 240, 236);
-    pdf.rect(16, y - 7, 178, 9, "F");
-    pdf.setTextColor(40, 50, 43);
-    pdf.text("Description", 19, y);
-    pdf.text("Qty", 135, y);
-    pdf.text("Rate", 153, y);
-    pdf.text("Amount", 174, y);
-    y += 10;
-    invoice.lineItems.forEach((item) => {
-      pdf.setTextColor(30, 35, 31);
-      pdf.text(item.description, 19, y, { maxWidth: 105 });
-      pdf.text(String(item.quantity), 137, y);
-      pdf.text(money(item.unitPrice), 151, y);
-      pdf.text(money(item.quantity * item.unitPrice), 174, y);
-      y += 9;
-    });
-    y += 4;
-    pdf.setDrawColor(220, 225, 221);
-    pdf.line(125, y, 194, y);
-    y += 8;
-    pdf.text("Subtotal", 145, y);
-    pdf.text(money(invoice.subtotal), 174, y);
-    y += 7;
-    pdf.text(`Tax (${invoice.taxRate}%)`, 145, y);
-    pdf.text(money(invoice.tax), 174, y);
-    y += 8;
-    pdf.setFontSize(12);
-    pdf.text("Total", 145, y);
-    pdf.text(money(invoice.total), 174, y);
-    y += 8;
-    pdf.setTextColor(21, 128, 61);
-    pdf.text("Balance Due", 135, y);
-    pdf.text(money(invoice.balance), 174, y);
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 110, 103);
-    pdf.text(
-      "Thank you for choosing TechSavvy. Payment is due according to the terms shown above.",
-      16,
-      280,
-    );
+    // Same generator as the PDF attached to the customer email.
+    const { buildInvoicePdfDocument } = await import("../../api/_lib/invoice-pdf.js");
+    const pdf = buildInvoicePdfDocument(invoice);
     pdf.save(`${invoice.invoiceNumber || "TechSavvy-Invoice"}.pdf`);
   };
   return (
