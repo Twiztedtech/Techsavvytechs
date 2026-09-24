@@ -17,6 +17,7 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/api/client", "destination": "/api/portal/time-clock?portalOperation=clientPortal" },
+    { "source": "/api/surveys", "destination": "/api/portal/time-clock?portalOperation=surveys" },
     { "source": "/api/admin/client-portal", "destination": "/api/portal/time-clock?portalOperation=adminClientPortal" },
     { "source": "/api/portal/job-events", "destination": "/api/portal/time-clock?portalOperation=jobEvents" },
     { "source": "/api/auth/google-calendar", "destination": "/api/auth/quickbooks?authProvider=googleCalendar" },

@@ -8,6 +8,7 @@ import jobEventsHandler from '../_lib/job-events-handler.js';
 import { businessDate, businessClock } from '../_lib/business-time.js';
 import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/deposit-policy.js';
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
+import surveyHandler from '../_lib/survey-handler.js';
 
 // Assistant Admin gets the same standing as a full Admin inside this file —
 // the RBAC role matrix grants it full Timecard Approval access, which means
@@ -356,6 +357,7 @@ const handleOnboarding = async (req, res, user) => {
 };
 
 export default async function handler(req, res) {
+  if (req.query?.portalOperation === 'surveys') return surveyHandler(req, res);
   if (req.query?.portalOperation === 'clientPortal') return clientPortalHandler(req, res);
   if (req.query?.portalOperation === 'adminClientPortal') return adminClientPortalHandler(req, res);
   if (req.query?.portalOperation === 'jobEvents') return jobEventsHandler(req, res);

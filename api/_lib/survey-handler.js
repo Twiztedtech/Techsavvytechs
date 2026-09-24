@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { adminAuth, adminDb, adminStorage } from './_lib/firebase-admin.js';
-import { writeAudit } from './_lib/audit.js';
-import { SURVEY_MODULES, snapshotModule } from './_lib/survey-definitions.js';
+import { adminAuth, adminDb, adminStorage } from './firebase-admin.js';
+import { writeAudit } from './audit.js';
+import { SURVEY_MODULES, snapshotModule } from './survey-definitions.js';
 
 const MANAGER_ROLES = new Set(['assistant_admin', 'dispatcher']);
 const REVIEWER_ROLES = new Set(['assistant_admin']);
