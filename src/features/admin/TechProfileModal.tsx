@@ -3,6 +3,7 @@ import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Plus, Star, Trash2, Wrench } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { CrmBadge, CrmButton, CrmInput, CrmModalShell } from "../crm/ui";
+import { TechAvatar, resizeProfilePhoto } from "./techPhoto";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
 type Certification = { id: string; name: string; expiryDate: string };
@@ -92,6 +93,16 @@ export function TechProfileModal({
   const [feedback, setFeedback] = useState("");
   const [isTechnicianLead, setIsTechnicianLead] = useState(contractor.role === "technician_lead");
   const [savingLead, setSavingLead] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string>(contractor.profilePhotoUrl || "");
+  const onPhotoChosen = async (file?: File) => {
+    if (!file) return;
+    try {
+      setPhotoUrl(await resizeProfilePhoto(file));
+      setFeedback("Photo ready — click Save profile to keep it.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Could not use this photo.");
+    }
+  };
 
   const addCertification = () => {
     const name = newCertName.trim();
@@ -115,6 +126,7 @@ export function TechProfileModal({
         skills,
         tools,
         certifications,
+        profilePhotoUrl: photoUrl,
         updatedAt: serverTimestamp(),
       });
       setFeedback("Profile saved.");
@@ -180,6 +192,25 @@ export function TechProfileModal({
             {savingLead ? "Saving…" : isTechnicianLead ? "Remove lead" : "Make lead"}
           </CrmButton>
         </div>
+
+        <section className="flex items-center gap-4">
+          <TechAvatar name={form.name} photoUrl={photoUrl} size={80} />
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-crm-muted">Profile photo</h3>
+            <div className="flex flex-wrap gap-2">
+              <label className="cursor-pointer rounded-lg border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink">
+                {photoUrl ? "Change photo" : "Upload photo"}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { void onPhotoChosen(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {photoUrl && (
+                <button type="button" onClick={() => setPhotoUrl("")} className="rounded-lg border border-crm-error/30 px-3 py-2 text-xs font-bold text-crm-error">
+                  Remove
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-crm-muted">Square crop, resized automatically. Clients only see it if photo sharing is enabled in Client Portal settings.</p>
+          </div>
+        </section>
 
         <section>
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-crm-muted">Contact & basics</h3>

@@ -655,7 +655,12 @@ async function saveTechnicianPublicProfile(req, res, admin) {
   const data = {
     publicDisplayName: clean(req.body?.publicDisplayName, 100),
     specialty: clean(req.body?.specialty, 120),
-    profilePhotoUrl: clean(req.body?.profilePhotoUrl, 1000),
+    profilePhotoUrl:
+      /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(
+        String(req.body?.profilePhotoUrl || ""),
+      ) && String(req.body.profilePhotoUrl).length <= 200000
+        ? String(req.body.profilePhotoUrl)
+        : clean(req.body?.profilePhotoUrl, 1000),
     showPhotoToClients: req.body?.showPhotoToClients === true,
     allowDirectClientContact: req.body?.allowDirectClientContact === true,
     businessPhone: clean(req.body?.businessPhone, 40),

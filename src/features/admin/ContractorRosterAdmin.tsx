@@ -5,6 +5,7 @@ import { auth, db } from "../../lib/firebase";
 import { getEntryTotals } from "../contractor/timesheets/calculations";
 import { CrmBadge, CrmButton, CrmCard } from "../crm/ui";
 import { TechProfileModal } from "./TechProfileModal";
+import { TechAvatar } from "./techPhoto";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
 
@@ -51,6 +52,19 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
   const [reviewingOnboardingId, setReviewingOnboardingId] = useState<string | null>(null);
   const [viewingTimecardsFor, setViewingTimecardsFor] = useState<ContractorRecord | null>(null);
   const [viewingProfileFor, setViewingProfileFor] = useState<ContractorRecord | null>(null);
+  const [search, setSearch] = useState("");
+  const searchTerms = search.toLowerCase().split(/\s+/).filter(Boolean);
+  const matchesSearch = (c: ContractorRecord) => {
+    if (!searchTerms.length) return true;
+    const haystack = [
+      c.name, c.email, c.specialty, c.businessPhone,
+      ...(Array.isArray(c.skills) ? c.skills : []),
+      ...(Array.isArray(c.tools) ? c.tools : []),
+      ...(Array.isArray(c.certifications) ? c.certifications.map((x: any) => x?.name) : []),
+    ].filter(Boolean).join(" ").toLowerCase();
+    return searchTerms.every((term) => haystack.includes(term));
+  };
+  const visibleContractors = contractors.filter(matchesSearch);
 
   const [lifecycleTarget, setLifecycleTarget] = useState<ContractorRecord | null>(null);
   const [lifecycleStatus, setLifecycleStatus] = useState<"Active" | "Suspended" | "Offboarded">("Active");
@@ -252,6 +266,19 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
         </div>
       </CrmCard>
 
+      <div className="border-b border-crm-hairline p-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, skills, tools or certifications (e.g. fiber splicer OTDR)"
+          className="h-9 w-full rounded-lg border border-crm-hairline bg-crm-canvas px-3 text-xs text-crm-ink outline-none focus:border-crm-ink"
+        />
+        {search && (
+          <p className="mt-1 text-[10px] text-crm-muted">
+            {visibleContractors.length} of {contractors.length} match
+          </p>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs text-crm-body">
           <thead className="bg-crm-surface-soft text-crm-muted uppercase text-[10px] font-bold border-b border-crm-hairline">
@@ -267,12 +294,22 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
             </tr>
           </thead>
           <tbody className="divide-y divide-crm-hairline-soft">
-            {contractors.map((cont) => (
+            {visibleContractors.map((cont) => (
               <tr key={cont.id} className="hover:bg-crm-surface-soft">
                 <td className="p-3 font-semibold text-crm-ink">
-                  <button type="button" onClick={() => setViewingProfileFor(cont)} className="underline decoration-dotted underline-offset-2 hover:text-crm-ink">
-                    {cont.name}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <TechAvatar name={cont.name} photoUrl={cont.profilePhotoUrl} />
+                    <div>
+                      <button type="button" onClick={() => setViewingProfileFor(cont)} className="underline decoration-dotted underline-offset-2 hover:text-crm-ink">
+                        {cont.name}
+                      </button>
+                      {(cont.skills?.length > 0 || cont.tools?.length > 0) && (
+                        <p className="mt-0.5 max-w-[260px] truncate text-[10px] font-normal text-crm-muted">
+                          {[...(cont.skills || []), ...(cont.tools || [])].join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className="p-3 font-mono">{cont.email}</td>
                 <td className="p-3">
