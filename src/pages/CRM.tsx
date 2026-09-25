@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  ExternalLink,
   Clock3,
   FileText,
   HardHat,
@@ -770,6 +771,18 @@ export default function CRM() {
                       </button>
                     );
                   })}
+                  {group.label === "Sales & Billing" && (access === "admin" || ["assistant_admin", "dispatcher", "office_billing"].includes(access as string)) && (
+                    <a
+                      href="/surveys"
+                      target="_blank"
+                      rel="noopener"
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-crm-muted hover:bg-crm-surface-soft"
+                    >
+                      <ClipboardCheck className="h-4 w-4" />
+                      <span className="flex-1">Site Surveys</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               </div>
               );
