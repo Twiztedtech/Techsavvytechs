@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { adminAuth, adminDb, adminStorage } from './firebase-admin.js';
 import { writeAudit } from './audit.js';
 import { SURVEY_MODULES, snapshotModule } from './survey-definitions.js';
+import { buildLaborItems } from './survey-labor.js';
 
 const MANAGER_ROLES = new Set(['assistant_admin', 'dispatcher']);
 const REVIEWER_ROLES = new Set(['assistant_admin']);
@@ -155,7 +156,16 @@ async function estimatePlan(id, actor) {
       category: catalog?.category || '',
     };
   });
-  return { surveyId: id, surveyNumber: survey.surveyNumber, status: survey.status, quoteId: survey.quoteId || null, wastePercent: 15, items };
+  const customerSnap = survey.customerId ? await adminDb.collection('customers').doc(survey.customerId).get() : null;
+  const laborRate = Number(customerSnap?.data()?.rateAgreement?.standardRate || 0);
+  const laborItems = buildLaborItems({ modules: survey.modules, rate: laborRate }).map((line) => ({
+    sku: '', description: line.description, quantity: line.quantity, unitPrice: line.unitPrice,
+    catalogItemId: null, catalogMatched: false, category: 'Labor', sources: [], kind: 'labor', driver: line.driver,
+  }));
+  return {
+    surveyId: id, surveyNumber: survey.surveyNumber, status: survey.status, quoteId: survey.quoteId || null, wastePercent: 15,
+    laborRate, items: [...items.map((item) => ({ ...item, kind: 'material' })), ...laborItems],
+  };
 }
 
 async function bootstrap(actor) {
@@ -428,6 +438,7 @@ async function createEstimate(body, actor) {
     description: safeText(item.description, 500),
     quantity: Math.max(0, Number(item.quantity || 0)),
     unitPrice: Math.max(0, Number(item.unitPrice || 0)),
+    kind: item.kind === 'labor' ? 'labor' : 'material',
     sku: safeText(item.sku, 100).toUpperCase(),
     catalogItemId: safeText(item.catalogItemId, 200) || null,
     sourceRecordIds: Array.isArray(item.sources) ? item.sources.map((value) => safeText(value, 200)).filter(Boolean).slice(0, 100) : [],

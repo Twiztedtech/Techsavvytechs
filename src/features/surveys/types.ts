@@ -76,5 +76,5 @@ export type SurveyFieldDefinition = { key: string; label: string; type: 'text' |
 export type SurveyModuleDefinition = { id?: string; key: string; title: string; version: number; recordType?: string; fields?: SurveyFieldDefinition[]; active?: boolean };
 export type SurveyTemplate = { id: string; name: string; description?: string; moduleKeys: string[] };
 export type SurveyBootstrap = { surveys: SiteSurvey[]; customers: DirectoryItem[]; jobs: DirectoryItem[]; contractors: DirectoryItem[]; templates: SurveyTemplate[]; moduleDefinitions: SurveyModuleDefinition[] };
-export type EstimatePlanItem = { sku: string; description: string; quantity: number; unitPrice: number; catalogItemId?: string | null; catalogMatched: boolean; category?: string; sources: string[] };
-export type EstimatePlan = { surveyId: string; surveyNumber: string; status: SurveyStatus; quoteId?: string | null; wastePercent: number; items: EstimatePlanItem[] };
+export type EstimatePlanItem = { sku: string; description: string; quantity: number; unitPrice: number; catalogItemId?: string | null; catalogMatched: boolean; category?: string; sources: string[]; kind?: 'material' | 'labor' };
+export type EstimatePlan = { surveyId: string; surveyNumber: string; status: SurveyStatus; quoteId?: string | null; wastePercent: number; laborRate?: number; items: EstimatePlanItem[] };
