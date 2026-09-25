@@ -493,17 +493,61 @@ async function scheduleAppointment(req, res, admin) {
     },
     { merge: true },
   );
+  // The CRM Schedule & Dispatch board reads job.schedule (Pacific local
+  // date/time) and the assignedTech* fields, so mirror the confirmed window
+  // and technician onto the job.
+  const pacific = (iso) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Los_Angeles",
+        hourCycle: "h23",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+        .formatToParts(new Date(iso))
+        .map((p) => [p.type, p.value]),
+    );
+    return {
+      date: `${parts.year}-${parts.month}-${parts.day}`,
+      time: `${parts.hour}:${parts.minute}`,
+    };
+  };
+  const startLocal = pacific(start);
+  const endLocal = pacific(end);
+  const jobUpdate = {
+    clientStatus: "scheduled",
+    targetCompletion: startLocal.date,
+    schedule: {
+      date: startLocal.date,
+      start: startLocal.time,
+      end: endLocal.date === startLocal.date ? endLocal.time : "23:59",
+    },
+    updatedAt: nowIso(),
+  };
+  const techId = appointment.technicianId;
+  if (techId) {
+    const tech = await adminDb.collection("contractors").doc(techId).get();
+    const techName = tech.exists
+      ? tech.data().name || tech.data().companyName || "Technician"
+      : "";
+    Object.assign(jobUpdate, {
+      assignedTechId: techId,
+      assignedTechIds: [techId],
+      technicianLeadId: techId,
+      ...(techName
+        ? { assignedTechName: techName, assignedTechNames: [techName] }
+        : {}),
+    });
+  }
+  if (!jobDoc.data()?.status || jobDoc.data().status === "New")
+    jobUpdate.status = "Scheduled";
   await adminDb
     .collection("jobs")
     .doc(previous.jobId)
-    .set(
-      {
-        clientStatus: "scheduled",
-        targetCompletion: start.slice(0, 10),
-        updatedAt: nowIso(),
-      },
-      { merge: true },
-    );
+    .set(jobUpdate, { merge: true });
   await recordEvent({
     jobId: previous.jobId,
     appointmentId,

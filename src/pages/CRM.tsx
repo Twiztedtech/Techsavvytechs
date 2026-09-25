@@ -3470,6 +3470,9 @@ function LiveScheduleBoard({
                         <span className="block truncate">
                           {job.workOrderNumber || job.id}
                         </span>
+                        <span className="block truncate">
+                          {job.name}
+                        </span>
                         <span className="block truncate font-normal">
                           {job.vendorName}
                         </span>
