@@ -40,6 +40,15 @@ async function listDashboard(res) {
       .limit(50)
       .get(),
   ]);
+  const jobIds = [
+    ...new Set(appointments.docs.map((doc) => doc.data().jobId).filter(Boolean)),
+  ];
+  const jobDocs = jobIds.length
+    ? await adminDb.getAll(...jobIds.map((id) => adminDb.collection("jobs").doc(id)))
+    : [];
+  const jobById = new Map(
+    jobDocs.filter((doc) => doc.exists).map((doc) => [doc.id, doc.data()]),
+  );
   return res.status(200).json({
     requests: requests.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -52,10 +61,19 @@ async function listDashboard(res) {
       const data = doc.data();
       return { id: doc.id, ...data, verificationCodeHash: undefined };
     }),
-    appointments: appointments.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })),
+    appointments: appointments.docs.map((doc) => {
+      const appointment = doc.data();
+      const job = jobById.get(appointment.jobId) || {};
+      return {
+        id: doc.id,
+        ...appointment,
+        workOrderNumber: job.workOrderNumber || "",
+        jobName: job.name || "",
+        clientName: job.vendorName || "",
+        jobAddress: job.address || "",
+        clientReference: job.clientReference || "",
+      };
+    }),
     failedNotifications: failedNotifications.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),

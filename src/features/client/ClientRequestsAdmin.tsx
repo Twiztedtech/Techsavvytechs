@@ -677,9 +677,30 @@ export function ClientRequestsAdmin({
               key={appointment.id}
               className="rounded-xl border border-crm-hairline bg-crm-canvas p-4"
             >
-              <p className="text-xs font-bold text-crm-ink">
-                Appointment {appointment.id.slice(-6)}
+              <p className="font-mono text-[10px] font-bold text-crm-success">
+                {appointment.workOrderNumber || `Appointment ${appointment.id.slice(-6)}`}
               </p>
+              <p className="mt-1 text-sm font-bold text-crm-ink">
+                {appointment.jobName || "Unknown job"}
+              </p>
+              <p className="text-[11px] text-crm-body">
+                {[appointment.clientName, appointment.clientReference]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              {appointment.jobAddress && (
+                <p className="text-[10px] text-crm-muted">
+                  {appointment.jobAddress}
+                </p>
+              )}
+              {appointment.requestedWindows?.[0]?.date && !appointment.confirmedStart && (
+                <p className="mt-1 text-[10px] text-crm-muted">
+                  Preferred: {appointment.requestedWindows[0].date}
+                  {appointment.requestedWindows[0].start
+                    ? ` ${appointment.requestedWindows[0].start}`
+                    : ""}
+                </p>
+              )}
               <p className="mt-1 text-[10px] capitalize text-crm-muted">
                 {appointment.status}
               </p>
