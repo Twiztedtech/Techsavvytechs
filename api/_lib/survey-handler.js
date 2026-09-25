@@ -349,6 +349,26 @@ async function deleteRecord(body, actor) {
   return { ok: true };
 }
 
+// Custom modules can mark fields required. Photo fields are satisfied by an
+// attachment on that record; every other type by a non-empty value.
+async function missingRequiredFields(id, actor) {
+  const survey = await getSurvey(id, actor);
+  const missing = [];
+  for (const module of survey.modules || []) {
+    const required = (Array.isArray(module.definition?.fields) ? module.definition.fields : []).filter((field) => field && typeof field === 'object' && field.required);
+    if (!required.length) continue;
+    (module.records || []).forEach((record, index) => {
+      for (const field of required) {
+        const satisfied = field.type === 'photo'
+          ? (survey.attachments || []).some((photo) => photo.moduleKey === module.id && photo.recordId === record.id)
+          : field.type === 'checkbox' ? true : record[field.key] !== undefined && record[field.key] !== '' && record[field.key] !== null;
+        if (!satisfied) missing.push(`${module.definition.title} #${index + 1}: ${field.label}`);
+      }
+    });
+  }
+  return missing;
+}
+
 async function changeStatus(body, actor) {
   const { ref, survey } = await loadSurvey(body.id, actor);
   const target = body.status;
@@ -357,6 +377,10 @@ async function changeStatus(body, actor) {
     ? canEdit(survey, actor)
     : actor.isReviewer && ['needs_revision', 'approved', 'shared_with_customer', 'converted_to_estimate', 'archived'].includes(target);
   if (!allowed) throw new Error('You cannot make this status change.');
+  if (target === 'submitted') {
+    const missing = await missingRequiredFields(body.id, actor);
+    if (missing.length) throw new Error(`Complete these required items before submitting: ${missing.slice(0, 8).join('; ')}${missing.length > 8 ? '; …' : ''}`);
+  }
   const update = { status: target, updatedAt: new Date() };
   if (target === 'submitted') update.submittedAt = new Date();
   if (target === 'approved') update.approvedAt = new Date();
