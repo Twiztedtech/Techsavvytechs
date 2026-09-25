@@ -941,11 +941,15 @@ export default function CRM() {
         />
       )}
       {scheduleJob && (
+        <div key={scheduleJob.id}>
         <ScheduleModal
-          job={scheduleJob}
+          job={liveJobs.find((job) => job.id === scheduleJob.id) || scheduleJob}
+          jobs={liveJobs}
           technicians={assignableTechnicians}
           onClose={() => setScheduleJob(null)}
+          onOpenJob={(job) => setSelectedJob(job)}
         />
+        </div>
       )}
       {selectedJob && (
         <JobDetailModal
@@ -6010,23 +6014,73 @@ function QuoteModal({
 
 function ScheduleModal({
   job,
+  jobs,
   technicians,
   onClose,
+  onOpenJob,
 }: {
   job: LiveJob;
+  jobs: LiveJob[];
   technicians: Technician[];
   onClose: () => void;
+  onOpenJob: (job: LiveJob) => void;
 }) {
   const [techIds, setTechIds] = useState<string[]>((job.assignedTechIds?.length ? job.assignedTechIds : job.assignedTechId ? [job.assignedTechId] : []).filter((id) => id !== "ALL"));
   const [date, setDate] = useState(job.schedule?.date || job.targetCompletion || "");
   const [start, setStart] = useState(job.schedule?.start || "08:00");
   const [end, setEnd] = useState(job.schedule?.end || "12:00");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [techSearch, setTechSearch] = useState("");
+  const isScheduled = Boolean(job.schedule?.date);
+  const job_ = job as LiveJob & { siteContact?: string; clientVisibleNotes?: string; clientProjectManager?: string };
+
+  const toMin = (t: string) => (/^\d{1,2}:\d{2}/.test(t) ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
+  const shiftEnd = (minutes: number) => {
+    const s0 = toMin(start);
+    if (s0 === null) return;
+    const total = Math.min(s0 + minutes, 24 * 60 - 1);
+    setEnd(`${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`);
+  };
+  // Other jobs already booked for a selected technician in this window.
+  const conflicts = techIds.flatMap((id) => {
+    const s0 = toMin(start);
+    const e0 = toMin(end);
+    if (!date || s0 === null || e0 === null) return [];
+    const tech = technicians.find((t) => t.id === id);
+    return jobs
+      .filter((other) => other.id !== job.id && other.schedule?.date === date && (other.assignedTechIds?.includes(id) || other.assignedTechId === id))
+      .filter((other) => {
+        const os = toMin(other.schedule?.start || "");
+        const oe = toMin(other.schedule?.end || "");
+        return os !== null && oe !== null && s0 < oe && os < e0;
+      })
+      .map((other) => `${tech?.name || "Technician"} is already on ${other.workOrderNumber || other.id} (${other.schedule?.start}–${other.schedule?.end})`);
+  });
+  const visibleTechs = technicians.filter((t) =>
+    `${t.name || ""} ${t.companyName || ""} ${t.specialty || ""}`.toLowerCase().includes(techSearch.toLowerCase()),
+  );
+
+  const syncPortalAppointment = async (technicianId: string, d: string, s0: string, e0: string) => {
+    if (!(job as LiveJob & { sourceRequestId?: string }).sourceRequestId) return;
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch("/api/admin/client-portal?action=sync-job-appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jobId: job.id, date: d, start: s0, end: e0, technicianId }),
+      });
+    } catch {
+      /* the job itself is already saved */
+    }
+  };
+
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    setError("");
     const selectedTechs = techIds.map((id) => technicians.find((technician) => technician.id === id)).filter((tech): tech is Technician => Boolean(tech));
-    if (selectedTechs.length !== techIds.length) { alert('One or more assigned technicians are no longer active. Review the assignment before saving.'); return; }
-    if (end <= start) { alert('Finish must be after start for this single-day schedule.'); return; }
+    if (selectedTechs.length !== techIds.length) { setError("One or more assigned technicians are no longer active. Review the assignment before saving."); return; }
+    if (end <= start) { setError("Finish must be after start for this single-day schedule."); return; }
     if (!selectedTechs.length) return;
     const leadTech = selectedTechs[0];
     const techNames = selectedTechs.map((tech) => tech.name || tech.companyName || "Technician");
@@ -6044,67 +6098,132 @@ function ScheduleModal({
         updatedAt: serverTimestamp(),
       });
       await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${techNames.join(", ")}`, { technicianIds: selectedTechs.map((tech) => tech.id), leadTechnicianId: leadTech.id, date, start, end });
+      await syncPortalAppointment(leadTech.id, date, start, end);
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save this schedule.");
     } finally {
       setSaving(false);
     }
   };
+
+  const unschedule = async () => {
+    if (!window.confirm(`Remove ${job.workOrderNumber || job.id} from the schedule? It goes back to the dispatch queue.`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      await updateDoc(doc(db, "jobs", job.id), {
+        schedule: { date: "", start: "", end: "" },
+        targetCompletion: "",
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit("unscheduled", "job", job.id, `Removed ${job.workOrderNumber || job.id} from the schedule`, {});
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not unschedule this job.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
-      <form
-        onSubmit={save}
-        className="w-full max-w-md rounded bg-crm-canvas p-6 shadow-2xl"
-      >
-        <div className="flex justify-between">
-          <div>
-            <p className="font-mono text-[9px] text-crm-ink">
-              {job.workOrderNumber || job.id}
-            </p>
-            <h2 className="mt-1 crm-display-sm">
-              Assign technician
-            </h2>
-            <p className="text-xs text-crm-muted">{job.name}</p>
+    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-crm-hairline bg-crm-canvas shadow-2xl">
+      <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+        <header className="flex items-start justify-between gap-3 border-b border-crm-hairline p-5">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] text-crm-success">{job.workOrderNumber || job.id}</p>
+            <h2 className="mt-1 truncate text-base font-bold">{job.name || "Untitled job"}</h2>
+            <p className="text-xs text-crm-muted">{job.vendorName || "Customer pending"}</p>
           </div>
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={onClose} aria-label="Close panel" className="rounded p-1 hover:bg-crm-surface-soft">
             <X className="h-4 w-4" />
           </button>
-        </div>
-        <div className="mt-5 space-y-3">
-          <label className="block text-[9px] font-bold uppercase text-crm-muted">
-            Technicians ({techIds.length} selected)
-            <span className="mt-1 block text-[9px] font-normal normal-case text-crm-muted">The first selected technician is the lead. Select everyone assigned to this job.</span>
-            <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded border border-crm-hairline p-2">{technicians.map((technician)=><label key={technician.id} className="flex items-start gap-2 rounded p-2 text-xs font-normal normal-case hover:bg-crm-surface-soft"><input type="checkbox" checked={techIds.includes(technician.id)} onChange={()=>setTechIds((current)=>current.includes(technician.id)?current.filter((id)=>id!==technician.id):[...current,technician.id])} className="mt-0.5 accent-green-500"/><span><strong className="block">{technician.name || technician.companyName || technician.id}</strong>{technician.specialty&&<span className="text-[9px] text-crm-muted">{technician.specialty}</span>}</span></label>)}</div>
-          </label>
-          <Field
-            label="Schedule date"
-            value={date}
-            onChange={setDate}
-            type="date"
-            required
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="Start"
-              value={start}
-              onChange={setStart}
-              type="time"
-              required
+        </header>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <section className="space-y-1 rounded border border-crm-hairline-soft bg-crm-surface-soft p-3 text-[11px]">
+            {job.status && <p><span className="text-crm-muted">Status:</span> <strong>{job.status}</strong></p>}
+            {job.address && <p><span className="text-crm-muted">Site:</span> {job.address}</p>}
+            {job_.siteContact && <p><span className="text-crm-muted">Contact:</span> {job_.siteContact}</p>}
+            {job.clientReference && <p><span className="text-crm-muted">Client ref:</span> {job.clientReference}</p>}
+            {(job_.clientVisibleNotes || job.notes) && <p className="whitespace-pre-line text-crm-body">{job_.clientVisibleNotes || job.notes}</p>}
+            <button type="button" onClick={() => { onClose(); onOpenJob(job); }} className="pt-1 text-[10px] font-bold underline underline-offset-2">
+              Open full job details →
+            </button>
+          </section>
+
+          <section>
+            <h3 className="text-[10px] font-bold uppercase text-crm-muted">When</h3>
+            <div className="mt-2 space-y-3">
+              <Field label="Schedule date" value={date} onChange={setDate} type="date" required />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start" value={start} onChange={setStart} type="time" required />
+                <Field label="Finish" value={end} onChange={setEnd} type="time" required />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="self-center text-[10px] text-crm-muted">Length:</span>
+                {[[60, "1h"], [120, "2h"], [240, "4h"], [480, "8h"]].map(([mins, label]) => (
+                  <button key={label} type="button" onClick={() => shiftEnd(mins as number)} className="rounded border border-crm-hairline px-2 py-1 text-[10px] font-bold hover:border-crm-ink">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-[10px] font-bold uppercase text-crm-muted">
+              Technicians ({techIds.length} selected)
+            </h3>
+            <p className="mt-1 text-[10px] text-crm-muted">The first selected technician is the lead.</p>
+            <input
+              value={techSearch}
+              onChange={(e) => setTechSearch(e.target.value)}
+              placeholder="Search technicians"
+              className="mt-2 h-9 w-full rounded border border-crm-hairline bg-crm-canvas px-3 text-xs outline-none focus:border-crm-ink"
             />
-            <Field
-              label="Finish"
-              value={end}
-              onChange={setEnd}
-              type="time"
-              required
-            />
-          </div>
+            <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded border border-crm-hairline p-1">
+              {visibleTechs.map((technician) => (
+                <label key={technician.id} className="flex cursor-pointer items-center gap-2 rounded p-2 text-xs hover:bg-crm-surface-soft">
+                  <input
+                    type="checkbox"
+                    checked={techIds.includes(technician.id)}
+                    onChange={() => setTechIds((current) => (current.includes(technician.id) ? current.filter((id) => id !== technician.id) : [...current, technician.id]))}
+                    className="accent-green-500"
+                  />
+                  <TechAvatar name={technician.name || technician.companyName} photoUrl={technician.profilePhotoUrl} size={28} />
+                  <span className="min-w-0">
+                    <strong className="block truncate">{technician.name || technician.companyName || technician.id}</strong>
+                    {technician.specialty && <span className="block truncate text-[10px] text-crm-muted">{technician.specialty}</span>}
+                  </span>
+                  {techIds[0] === technician.id && <span className="ml-auto rounded bg-crm-surface-card px-1.5 py-0.5 text-[9px] font-bold">Lead</span>}
+                </label>
+              ))}
+              {!visibleTechs.length && <p className="p-2 text-[11px] text-crm-muted">No technicians match.</p>}
+            </div>
+          </section>
+
+          {conflicts.length > 0 && (
+            <div className="rounded border border-crm-warning bg-crm-warning-soft-bg p-3 text-[11px] text-crm-warning">
+              <p className="font-bold">Schedule conflict</p>
+              {conflicts.map((message) => <p key={message}>{message}</p>)}
+              <p className="mt-1 font-normal">You can still save; the jobs will overlap.</p>
+            </div>
+          )}
+          {error && <p className="text-xs font-semibold text-crm-error">{error}</p>}
         </div>
-        <button
-          disabled={saving || techIds.length === 0}
-          className="mt-5 w-full rounded bg-crm-primary px-4 py-3 text-xs font-bold text-crm-on-primary disabled:opacity-40"
-        >
-          {saving ? "Scheduling…" : "Confirm assignment"}
-        </button>
+        <footer className="flex items-center gap-2 border-t border-crm-hairline p-4">
+          {isScheduled && (
+            <button type="button" disabled={saving} onClick={() => void unschedule()} className="rounded border border-crm-error/30 px-3 py-3 text-xs font-bold text-crm-error disabled:opacity-40">
+              Unschedule
+            </button>
+          )}
+          <button
+            disabled={saving || techIds.length === 0}
+            className="flex-1 rounded bg-crm-primary px-4 py-3 text-xs font-bold text-crm-on-primary disabled:opacity-40"
+          >
+            {saving ? "Saving…" : isScheduled ? "Save changes" : "Confirm assignment"}
+          </button>
+        </footer>
       </form>
     </div>
   );
