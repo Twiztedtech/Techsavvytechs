@@ -729,6 +729,10 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setSchedule((v) => ({ ...v, start: e.target.value }))
                     }
+                    onClick={(e) => {
+                      try { e.currentTarget.showPicker(); } catch { /* unsupported */ }
+                    }}
+                    style={{ colorScheme: "dark" }}
                     className="rounded border border-crm-hairline bg-crm-canvas p-2 text-[10px] text-crm-ink"
                   />
                   <input
@@ -737,6 +741,10 @@ export function ClientRequestsAdmin({
                     onChange={(e) =>
                       setSchedule((v) => ({ ...v, end: e.target.value }))
                     }
+                    onClick={(e) => {
+                      try { e.currentTarget.showPicker(); } catch { /* unsupported */ }
+                    }}
+                    style={{ colorScheme: "dark" }}
                     className="rounded border border-crm-hairline bg-crm-canvas p-2 text-[10px] text-crm-ink"
                   />
                   <select
