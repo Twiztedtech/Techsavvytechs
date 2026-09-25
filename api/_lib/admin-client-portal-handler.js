@@ -898,6 +898,65 @@ async function dismissNotifications(req, res, admin) {
   return res.status(200).json({ success: true, dismissed });
 }
 
+const JOB_CASCADE_COLLECTIONS = [
+  "appointments",
+  "scope_versions",
+  "job_participants",
+  "job_events",
+  "job_messages",
+  "notification_deliveries",
+];
+
+// Permanently deletes a job and its portal-side records. Refuses when the job
+// has invoices or time entries so financial history is never orphaned.
+async function deleteJob(req, res, admin) {
+  if (admin.admin !== true)
+    return res.status(403).json({ error: "Administrator access required." });
+  const jobId = clean(req.body?.jobId, 120);
+  if (!jobId) return res.status(400).json({ error: "A job is required." });
+  const jobRef = adminDb.collection("jobs").doc(jobId);
+  const job = await jobRef.get();
+  if (!job.exists) return res.status(404).json({ error: "Job not found." });
+  const [invoices, entries] = await Promise.all([
+    adminDb.collection("invoices").where("jobId", "==", jobId).limit(1).get(),
+    adminDb.collection("time_entries").where("jobId", "==", jobId).limit(1).get(),
+  ]);
+  if (!invoices.empty || !entries.empty)
+    return res.status(409).json({
+      error:
+        "This job has invoices or time entries. Void it instead so financial history is kept.",
+    });
+  const linked = await Promise.all([
+    ...JOB_CASCADE_COLLECTIONS.map((name) =>
+      adminDb.collection(name).where("jobId", "==", jobId).get(),
+    ),
+    adminDb.collection("vendor_requests").where("convertedJobId", "==", jobId).get(),
+  ]);
+  const removed = {};
+  const refs = [];
+  JOB_CASCADE_COLLECTIONS.forEach((name, i) => {
+    removed[name] = linked[i].size;
+    linked[i].docs.forEach((doc) => refs.push(doc.ref));
+  });
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = adminDb.batch();
+    refs.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+  const requestBatch = adminDb.batch();
+  linked[linked.length - 1].docs.forEach((doc) =>
+    requestBatch.set(
+      doc.ref,
+      { convertedJobId: "", status: "reviewing", updatedAt: nowIso() },
+      { merge: true },
+    ),
+  );
+  await requestBatch.commit();
+  await jobRef.delete();
+  console.info("Job deleted", { jobId, by: admin.uid, removed });
+  return res.status(200).json({ success: true, removed });
+}
+
 export default async function handler(req, res) {
   try {
     // Dispatchers get view-only access to the "requests" dashboard; every
@@ -919,6 +978,8 @@ export default async function handler(req, res) {
       return await updateRequest(req, res, admin);
     if (req.method === "POST" && action === "convert")
       return await convertRequest(req, res, admin);
+    if (req.method === "POST" && action === "delete-job")
+      return await deleteJob(req, res, admin);
     if (req.method === "POST" && action === "schedule")
       return await scheduleAppointment(req, res, admin);
     if (req.method === "POST" && action === "scope-change")

@@ -3888,6 +3888,27 @@ function JobDetailModal({
       setVoiding(false);
     }
   };
+  const deleteWorkOrder = async () => {
+    const label = job.workOrderNumber || job.id;
+    if (!window.confirm(`Permanently delete ${label}${job.name ? ` (${job.name})` : ""}? This also removes its appointments, messages and activity, and cannot be undone.`)) return;
+    setVoiding(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/admin/client-portal?action=delete-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jobId: job.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not delete this work order.");
+      await recordAudit("deleted", "job", job.id, `Deleted job ${label}`, { removed: data.removed });
+      onClose();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not delete this work order.");
+    } finally {
+      setVoiding(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
       <form
@@ -4292,18 +4313,28 @@ function JobDetailModal({
           </div>
         )}
         <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-2 border-t border-crm-hairline-soft bg-crm-canvas py-4">
-          {job.status !== "voided" ? (
+          <div className="flex items-center gap-2">
+            {job.status !== "voided" ? (
+              <button
+                type="button"
+                disabled={voiding}
+                onClick={voidWorkOrder}
+                className="rounded border border-crm-error/30 px-4 py-2 text-xs font-bold text-crm-error disabled:opacity-40"
+              >
+                {voiding ? "Working…" : "Void work order"}
+              </button>
+            ) : (
+              <span className="text-[10px] font-bold uppercase text-crm-muted">Voided</span>
+            )}
             <button
               type="button"
               disabled={voiding}
-              onClick={voidWorkOrder}
-              className="rounded border border-crm-error/30 px-4 py-2 text-xs font-bold text-crm-error disabled:opacity-40"
+              onClick={deleteWorkOrder}
+              className="rounded bg-crm-error px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
             >
-              {voiding ? "Voiding…" : "Void work order"}
+              Delete
             </button>
-          ) : (
-            <span className="text-[10px] font-bold uppercase text-crm-muted">Voided</span>
-          )}
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
