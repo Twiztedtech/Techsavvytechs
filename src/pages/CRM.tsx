@@ -3323,6 +3323,15 @@ function StipulationsModal({
   );
 }
 
+const addDays = (day: string, n: number) => {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const mondayOf = (day: string) => {
+  const dow = new Date(`${day}T12:00:00Z`).getUTCDay();
+  return addDays(day, dow === 0 ? -6 : 1 - dow);
+};
 const DISPATCH_DRAG_TYPE = "application/x-techsavvy-job";
 const DEFAULT_JOB_MINUTES = 120;
 const SNAP_MINUTES = 30;
@@ -3406,6 +3415,9 @@ function LiveScheduleBoard({
 }) {
   const [date, setDate] = useState(() => localDate());
   const [fullDay, setFullDay] = useState(false);
+  const [view, setView] = useState<"day" | "week">("day");
+  const step = view === "week" ? 7 : 1;
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(mondayOf(date), i));
   const [dropTarget, setDropTarget] = useState<{ techId: string; minutes: number } | null>(null);
   const [boardNotice, setBoardNotice] = useState("");
   const startHour = fullDay ? 0 : 6;
@@ -3475,8 +3487,20 @@ function LiveScheduleBoard({
       (toMinutes(job.schedule?.end) ?? 0) - (toMinutes(job.schedule?.start) ?? 0);
     const length = job.schedule?.date && existingLength > 0 ? existingLength : DEFAULT_JOB_MINUTES;
     const endMin = Math.min(startMin + length, 24 * 60 - 1);
-    const start = fromMinutes(startMin);
-    const end = fromMinutes(endMin);
+    await applySchedule(job, tech, date, fromMinutes(startMin), fromMinutes(endMin));
+  };
+
+  // Week view: dropping on a day cell keeps the job's time of day (or 08:00-10:00).
+  const dropOnDay = async (e: DragEvent<HTMLDivElement>, tech: Technician, day: string) => {
+    e.preventDefault();
+    setDropTarget(null);
+    const job = jobs.find((item) => item.id === e.dataTransfer.getData(DISPATCH_DRAG_TYPE));
+    if (!job) return;
+    const hasTime = toMinutes(job.schedule?.start) !== null && toMinutes(job.schedule?.end) !== null;
+    await applySchedule(job, tech, day, hasTime ? job.schedule!.start! : "08:00", hasTime ? job.schedule!.end! : "10:00");
+  };
+
+  const applySchedule = async (job: LiveJob, tech: Technician, date: string, start: string, end: string) => {
     const isAll = tech.id === "ALL";
     const techName = tech.name || tech.companyName || "Technician";
     setBoardNotice("");
@@ -3534,9 +3558,9 @@ function LiveScheduleBoard({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setDate(localDate(new Date(new Date(`${date}T12:00:00`).getTime() - 86400000)))}
+            onClick={() => setDate(addDays(date, -step))}
             className="rounded border border-crm-hairline px-2 py-2 text-xs"
-            aria-label="Previous day"
+            aria-label={view === "week" ? "Previous week" : "Previous day"}
           >
             ‹
           </button>
@@ -3550,9 +3574,9 @@ function LiveScheduleBoard({
           />
           <button
             type="button"
-            onClick={() => setDate(localDate(new Date(new Date(`${date}T12:00:00`).getTime() + 86400000)))}
+            onClick={() => setDate(addDays(date, step))}
             className="rounded border border-crm-hairline px-2 py-2 text-xs"
-            aria-label="Next day"
+            aria-label={view === "week" ? "Next week" : "Next day"}
           >
             ›
           </button>
@@ -3563,13 +3587,27 @@ function LiveScheduleBoard({
           >
             Today
           </button>
-          <button
-            type="button"
-            onClick={() => setFullDay((v) => !v)}
-            className="rounded border border-crm-hairline px-3 py-2 text-xs"
-          >
-            {fullDay ? "Work hours" : "Full 24h"}
-          </button>
+          {view === "day" && (
+            <button
+              type="button"
+              onClick={() => setFullDay((v) => !v)}
+              className="rounded border border-crm-hairline px-3 py-2 text-xs"
+            >
+              {fullDay ? "Work hours" : "Full 24h"}
+            </button>
+          )}
+          <div className="flex overflow-hidden rounded border border-crm-hairline text-xs font-bold">
+            {(["day", "week"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setView(mode)}
+                className={`px-3 py-2 capitalize ${view === mode ? "bg-crm-ink text-crm-canvas" : ""}`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
       {upcoming.length > 0 && (
@@ -3591,6 +3629,111 @@ function LiveScheduleBoard({
           {boardNotice}
         </p>
       )}
+      {view === "week" ? (
+        <div className="overflow-x-auto">
+          <div className="min-w-[1000px]">
+            <div className="grid grid-cols-[190px_repeat(7,minmax(0,1fr))] border-b border-crm-hairline bg-crm-surface-soft">
+              <div className="border-r border-crm-hairline px-4 py-3 text-[9px] font-bold uppercase text-crm-muted">
+                Technician
+              </div>
+              {weekDays.map((day) => {
+                const count = jobs.filter((job) => job.schedule?.date === day).length;
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => { setDate(day); setView("day"); }}
+                    title="Open this day"
+                    className={`border-r border-crm-hairline px-2 py-2 text-center text-[10px] hover:bg-crm-surface-card ${day === today ? "font-bold text-crm-ink" : "text-crm-muted"}`}
+                  >
+                    <span className="block uppercase">
+                      {new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })}
+                    </span>
+                    <span className="block text-xs">
+                      {new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
+                    <span className="block text-[9px] font-normal">{count} job{count === 1 ? "" : "s"}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {rows.map((tech) => (
+              <div key={tech.id} className="grid min-h-20 grid-cols-[190px_repeat(7,minmax(0,1fr))] border-b border-crm-hairline-soft">
+                <div className="flex items-center gap-3 border-r border-crm-hairline px-4">
+                  {tech.id === "ALL" ? (
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-crm-surface-card text-[10px] font-bold text-crm-muted">?</span>
+                  ) : (
+                    <TechAvatar name={tech.name || tech.companyName} photoUrl={tech.profilePhotoUrl} />
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-semibold">{tech.name || tech.companyName || "Technician"}</p>
+                    <p className="truncate text-[9px] text-crm-muted">
+                      {tech.id === "ALL" ? "Unassigned" : tech.specialty || "Field technician"}
+                    </p>
+                  </div>
+                </div>
+                {weekDays.map((day) => {
+                  const cellJobs = jobs
+                    .filter((job) => job.schedule?.date === day)
+                    .filter((job) =>
+                      tech.id === "ALL"
+                        ? needsDispatch(job) || job.assignedTechIds?.includes("ALL")
+                        : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
+                    )
+                    .sort((a, b) => (a.schedule?.start || "").localeCompare(b.schedule?.start || ""));
+                  const key = `${tech.id}|${day}`;
+                  return (
+                    <div
+                      key={day}
+                      className={`space-y-1 border-r border-crm-hairline-soft p-1 ${dropTarget?.techId === key ? "bg-crm-ink/10 outline outline-1 outline-dashed outline-crm-ink" : day === today ? "bg-crm-surface-soft" : ""}`}
+                      onDragOver={(e) => {
+                        if (!e.dataTransfer.types.includes(DISPATCH_DRAG_TYPE)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        setDropTarget({ techId: key, minutes: 0 });
+                      }}
+                      onDragLeave={() => setDropTarget((t) => (t?.techId === key ? null : t))}
+                      onDrop={(e) => void dropOnDay(e, tech, day)}
+                    >
+                      {cellJobs.map((job) => {
+                        const clash = overlaps(job, cellJobs);
+                        return (
+                          <button
+                            key={job.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(DISPATCH_DRAG_TYPE, job.id);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onClick={() => onSchedule(job)}
+                            title={clash ? "Overlaps another job for this technician" : "Drag to another day or technician"}
+                            className={`block w-full cursor-grab overflow-hidden rounded border px-1.5 py-1 text-left text-[9px] active:cursor-grabbing ${
+                              clash
+                                ? "border-crm-warning bg-crm-warning-soft-bg text-crm-warning"
+                                : "border-crm-success/30 bg-crm-success-soft-bg text-crm-success-soft-text"
+                            }`}
+                          >
+                            <span className="block truncate font-semibold">
+                              {clash ? "⚠ " : ""}{job.schedule?.start}–{job.schedule?.end}
+                            </span>
+                            <span className="block truncate font-mono">{job.workOrderNumber || job.id}</span>
+                            <span className="block truncate">{job.name || job.vendorName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {!technicians.length && (
+              <div className="p-8 text-center text-xs text-crm-muted">
+                Add contractors in the Contractor Portal before scheduling jobs.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           <div className="grid grid-cols-[190px_1fr] border-b border-crm-hairline bg-crm-surface-soft">
@@ -3706,9 +3849,11 @@ function LiveScheduleBoard({
           )}
         </div>
       </div>
+      )}
       <footer className="border-t border-crm-hairline-soft bg-crm-surface-soft px-4 py-3 text-[9px] text-crm-muted">
-        {scheduled.length} scheduled job{scheduled.length === 1 ? "" : "s"} on
-        this date · Drag a block to move it · Click a block for full details
+        {view === "week"
+          ? `${jobs.filter((job) => weekDays.includes(job.schedule?.date || "")).length} scheduled this week · Drag a job to another day or technician (keeps its time) · Click a day header to open that day`
+          : `${scheduled.length} scheduled job${scheduled.length === 1 ? "" : "s"} on this date · Drag a block to move it · Click a block for full details`}
       </footer>
     </section>
   );
