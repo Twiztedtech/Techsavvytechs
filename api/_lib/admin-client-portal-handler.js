@@ -962,6 +962,71 @@ async function deleteJob(req, res, admin) {
   return res.status(200).json({ success: true, removed });
 }
 
+// Converts a Pacific wall-clock date/time to an ISO instant (handles DST).
+function pacificToIso(date, time) {
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+      .formatToParts(new Date(guess))
+      .map((p) => [p.type, p.value]),
+  );
+  const shown = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+  );
+  return new Date(guess + (guess - shown)).toISOString();
+}
+
+// Called by the dispatch board after a drag-and-drop so the client-portal
+// appointment matches the job's new schedule and technician.
+async function syncJobAppointment(req, res, admin) {
+  const jobId = clean(req.body?.jobId, 120);
+  const date = clean(req.body?.date, 10);
+  const start = clean(req.body?.start, 5);
+  const end = clean(req.body?.end, 5);
+  if (!jobId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end))
+    return res.status(400).json({ error: "A job, date and time window are required." });
+  const technicianId = clean(req.body?.technicianId, 120);
+  const snapshot = await adminDb.collection("appointments").where("jobId", "==", jobId).get();
+  const confirmedStart = pacificToIso(date, start);
+  const confirmedEnd = pacificToIso(date, end);
+  const batch = adminDb.batch();
+  snapshot.docs.forEach((doc) => {
+    const previous = doc.data();
+    batch.set(
+      doc.ref,
+      {
+        confirmedStart,
+        confirmedEnd,
+        status: "scheduled",
+        ...(technicianId ? { technicianId } : {}),
+        history: [
+          ...(previous.history || []),
+          { type: "scheduled", start: confirmedStart, end: confirmedEnd, actorUid: admin.uid, at: nowIso(), via: "dispatch_board" },
+        ],
+        updatedAt: nowIso(),
+      },
+      { merge: true },
+    );
+  });
+  if (!snapshot.empty) await batch.commit();
+  await adminDb.collection("jobs").doc(jobId).set({ clientStatus: "scheduled" }, { merge: true });
+  return res.status(200).json({ success: true, appointments: snapshot.size });
+}
+
 export default async function handler(req, res) {
   try {
     // Dispatchers get view-only access to the "requests" dashboard; every
@@ -983,6 +1048,8 @@ export default async function handler(req, res) {
       return await updateRequest(req, res, admin);
     if (req.method === "POST" && action === "convert")
       return await convertRequest(req, res, admin);
+    if (req.method === "POST" && action === "sync-job-appointment")
+      return await syncJobAppointment(req, res, admin);
     if (req.method === "POST" && action === "delete-job")
       return await deleteJob(req, res, admin);
     if (req.method === "POST" && action === "schedule")

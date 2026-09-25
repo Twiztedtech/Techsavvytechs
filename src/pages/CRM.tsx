@@ -1,4 +1,4 @@
-import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -58,6 +58,7 @@ import { saveJob } from "../features/jobs/saveJob";
 import { buildJobRecord } from "../features/jobs/buildJobRecord";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
+import { TechAvatar } from "../features/admin/techPhoto";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
@@ -214,6 +215,7 @@ type LiveCustomer = {
   defaultContactPolicy?: string;
 };
 type LiveJob = {
+  sourceRequestId?: string;
   id: string;
   customerId?: string;
   workOrderNumber?: string;
@@ -270,6 +272,7 @@ type Technician = {
   companyName?: string;
   specialty?: string;
   authUid?: string;
+  profilePhotoUrl?: string;
   accessStatus?: "Pending" | "Active" | "Suspended" | "Offboarded";
   active?: boolean;
 };
@@ -3320,6 +3323,17 @@ function StipulationsModal({
   );
 }
 
+const DISPATCH_DRAG_TYPE = "application/x-techsavvy-job";
+const DEFAULT_JOB_MINUTES = 120;
+const SNAP_MINUTES = 30;
+
+const toMinutes = (time?: string) => {
+  if (!time || !/^\d{1,2}:\d{2}/.test(time)) return null;
+  return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+};
+const fromMinutes = (total: number) =>
+  `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+
 function LiveSchedulingQueue({
   jobs,
   onSchedule,
@@ -3327,18 +3341,21 @@ function LiveSchedulingQueue({
   jobs: LiveJob[];
   onSchedule: (job: LiveJob) => void;
 }) {
-  const queue = jobs.filter(needsDispatch);
+  // Waiting for a technician OR for a date: both can be dragged onto the board.
+  const queue = jobs.filter(
+    (job) => !isClosedJob(job) && (needsDispatch(job) || !job.schedule?.date),
+  );
   return (
     <section className="rounded border border-crm-hairline bg-crm-canvas p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold">Live dispatch queue</h2>
           <p className="text-[10px] text-crm-muted">
-            Jobs awaiting a technician or schedule
+            Drag a job onto a technician and time on the board below, or click to pick manually
           </p>
         </div>
         <span className="rounded-full bg-crm-warning-soft-bg px-2 py-1 text-[9px] font-bold text-crm-warning">
-          {queue.length} unassigned
+          {queue.length} to schedule
         </span>
       </div>
       {queue.length ? (
@@ -3346,8 +3363,13 @@ function LiveSchedulingQueue({
           {queue.map((job) => (
             <button
               key={job.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(DISPATCH_DRAG_TYPE, job.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
               onClick={() => onSchedule(job)}
-              className="min-w-52 rounded border border-crm-hairline p-3 text-left hover:border-crm-ink"
+              className="min-w-52 cursor-grab rounded border border-crm-hairline p-3 text-left hover:border-crm-ink active:cursor-grabbing"
             >
               <p className="font-mono text-[9px] text-crm-ink">
                 {job.workOrderNumber || job.id}
@@ -3359,14 +3381,14 @@ function LiveSchedulingQueue({
                 {job.vendorName || "Customer pending"}
               </p>
               <span className="mt-2 inline-block text-[9px] font-bold text-crm-ink">
-                Assign & schedule →
+                {needsDispatch(job) ? "Needs technician" : "Needs date"} · drag or click
               </span>
             </button>
           ))}
         </div>
       ) : (
         <p className="mt-3 text-[10px] text-crm-muted">
-          All active jobs have a technician assignment.
+          Every active job has a technician and a date.
         </p>
       )}
     </section>
@@ -3383,7 +3405,13 @@ function LiveScheduleBoard({
   onSchedule: (job: LiveJob) => void;
 }) {
   const [date, setDate] = useState(() => localDate());
-  const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  const [fullDay, setFullDay] = useState(false);
+  const [dropTarget, setDropTarget] = useState<{ techId: string; minutes: number } | null>(null);
+  const [boardNotice, setBoardNotice] = useState("");
+  const startHour = fullDay ? 0 : 6;
+  const endHour = fullDay ? 24 : 21;
+  const span = (endHour - startHour) * 60;
+  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const today = localDate();
   const upcoming = jobs
     .filter((job) => job.schedule?.date && job.schedule.date >= today && !isClosedJob(job))
@@ -3402,26 +3430,147 @@ function LiveScheduleBoard({
       setDate(upcoming[0].schedule!.date!);
   }, [autoJumped, upcoming, date]);
   const scheduled = jobs.filter((job) => job.schedule?.date === date);
-  const position = (time = "08:00") =>
-    Math.max(
-      0,
-      Math.min(24, Number(time.slice(0, 2)) + Number(time.slice(3)) / 60),
+  const rows: Technician[] = [
+    ...technicians.filter((t) => t.accessStatus !== "Offboarded"),
+    { id: "ALL", name: "All technicians / unassigned" },
+  ];
+
+  const pct = (minutes: number) =>
+    (Math.max(0, Math.min(span, minutes - startHour * 60)) / span) * 100;
+
+  const rowJobs = (tech: Technician) =>
+    scheduled.filter((job) =>
+      tech.id === "ALL"
+        ? needsDispatch(job) || job.assignedTechIds?.includes("ALL")
+        : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
     );
+
+  const overlaps = (job: LiveJob, others: LiveJob[]) => {
+    const s = toMinutes(job.schedule?.start);
+    const e = toMinutes(job.schedule?.end);
+    if (s === null || e === null) return false;
+    return others.some((other) => {
+      if (other.id === job.id) return false;
+      const os = toMinutes(other.schedule?.start);
+      const oe = toMinutes(other.schedule?.end);
+      return os !== null && oe !== null && s < oe && os < e;
+    });
+  };
+
+  const minutesFromEvent = (e: DragEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const raw = startHour * 60 + ratio * span;
+    return Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES;
+  };
+
+  const dropJob = async (e: DragEvent<HTMLDivElement>, tech: Technician) => {
+    e.preventDefault();
+    const jobId = e.dataTransfer.getData(DISPATCH_DRAG_TYPE);
+    setDropTarget(null);
+    const job = jobs.find((item) => item.id === jobId);
+    if (!job) return;
+    const startMin = Math.min(minutesFromEvent(e), 24 * 60 - SNAP_MINUTES);
+    const existingLength =
+      (toMinutes(job.schedule?.end) ?? 0) - (toMinutes(job.schedule?.start) ?? 0);
+    const length = job.schedule?.date && existingLength > 0 ? existingLength : DEFAULT_JOB_MINUTES;
+    const endMin = Math.min(startMin + length, 24 * 60 - 1);
+    const start = fromMinutes(startMin);
+    const end = fromMinutes(endMin);
+    const isAll = tech.id === "ALL";
+    const techName = tech.name || tech.companyName || "Technician";
+    setBoardNotice("");
+    try {
+      await updateDoc(doc(db, "jobs", job.id), {
+        ...(isAll
+          ? {}
+          : {
+              assignedTechId: tech.id,
+              assignedTechIds: [tech.id],
+              assignedTechName: techName,
+              assignedTechNames: [techName],
+              technicianLeadId: tech.id,
+            }),
+        targetCompletion: date,
+        schedule: { date, start, end },
+        status: !job.status || job.status === "New" ? "Scheduled" : job.status,
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit(
+        "scheduled",
+        "job",
+        job.id,
+        `Dispatched ${job.workOrderNumber || job.id} to ${isAll ? "unassigned" : techName} on ${date} ${start}-${end}`,
+        { technicianId: isAll ? "" : tech.id, date, start, end },
+      );
+      // Keep client-portal appointments in step; best effort (admin-only route).
+      if (job.sourceRequestId) {
+        try {
+          const token = await auth.currentUser?.getIdToken();
+          await fetch("/api/admin/client-portal?action=sync-job-appointment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ jobId: job.id, date, start, end, technicianId: isAll ? "" : tech.id }),
+          });
+        } catch {
+          /* the job itself is already saved */
+        }
+      }
+      setBoardNotice(`${job.workOrderNumber || job.name || "Job"} → ${techName}, ${date} ${start}–${end}`);
+    } catch (error) {
+      setBoardNotice(error instanceof Error ? error.message : "Could not schedule this job.");
+    }
+  };
+
   return (
     <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
       <header className="flex flex-col justify-between gap-3 border-b border-crm-hairline p-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-sm font-bold">Live schedule board</h2>
           <p className="text-[10px] text-crm-muted">
-            Assignments update in real time across CRM and contractor operations
+            Drag jobs from the queue onto a technician's row, or drag a block to reschedule or reassign
           </p>
         </div>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded border border-crm-hairline px-3 py-2 text-xs"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDate(localDate(new Date(new Date(`${date}T12:00:00`).getTime() - 86400000)))}
+            className="rounded border border-crm-hairline px-2 py-2 text-xs"
+            aria-label="Previous day"
+          >
+            ‹
+          </button>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* unsupported */ } }}
+            style={{ colorScheme: "dark" }}
+            className="rounded border border-crm-hairline px-3 py-2 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => setDate(localDate(new Date(new Date(`${date}T12:00:00`).getTime() + 86400000)))}
+            className="rounded border border-crm-hairline px-2 py-2 text-xs"
+            aria-label="Next day"
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            onClick={() => setDate(localDate())}
+            className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullDay((v) => !v)}
+            className="rounded border border-crm-hairline px-3 py-2 text-xs"
+          >
+            {fullDay ? "Work hours" : "Full 24h"}
+          </button>
+        </div>
       </header>
       {upcoming.length > 0 && (
         <div className="flex gap-2 overflow-x-auto border-b border-crm-hairline px-4 py-3">
@@ -3430,12 +3579,17 @@ function LiveScheduleBoard({
             <button
               key={job.id}
               onClick={() => setDate(job.schedule!.date!)}
-              className={`shrink-0 rounded border px-2 py-1 text-left text-[9px] ${job.schedule?.date === date ? 'border-crm-ink' : 'border-crm-hairline'}`}
+              className={`shrink-0 rounded border px-2 py-1 text-left text-[9px] ${job.schedule?.date === date ? "border-crm-ink" : "border-crm-hairline"}`}
             >
               <span className="font-mono">{job.workOrderNumber || job.id}</span> · {job.name || job.vendorName} · {job.schedule?.date} {job.schedule?.start}
             </button>
           ))}
         </div>
+      )}
+      {boardNotice && (
+        <p className="border-b border-crm-hairline bg-crm-surface-soft px-4 py-2 text-[10px] text-crm-body">
+          {boardNotice}
+        </p>
       )}
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
@@ -3443,70 +3597,98 @@ function LiveScheduleBoard({
             <div className="border-r border-crm-hairline px-4 py-3 text-[9px] font-bold uppercase text-crm-muted">
               Technician
             </div>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
+            <div className="grid" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
               {hours.map((h) => (
                 <div
                   key={h}
                   className="border-r border-crm-hairline py-3 text-center text-[9px] text-crm-muted"
                 >
-                  {h}
+                  {h}:00
                 </div>
               ))}
             </div>
           </div>
-          {[...technicians, { id: 'ALL', name: 'All technicians' }].map((tech) => {
-            const techJobs = scheduled.filter((job) =>
-              tech.id === 'ALL'
-                ? needsDispatch(job) || job.assignedTechIds?.includes('ALL')
-                : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
-            );
+          {rows.map((tech) => {
+            const techJobs = rowJobs(tech);
+            const laneHeight = Math.max(80, techJobs.length * 70);
             return (
               <div
                 key={tech.id}
                 className="grid min-h-20 grid-cols-[190px_1fr] border-b border-crm-hairline-soft"
               >
                 <div className="flex items-center gap-3 border-r border-crm-hairline px-4">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-crm-ink text-[9px] font-bold text-crm-canvas">
-                    {(tech.name || tech.companyName || "T")
-                      .split(" ")
-                      .map((x) => x[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </span>
-                  <div>
-                    <p className="text-[11px] font-semibold">
+                  {tech.id === "ALL" ? (
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-crm-surface-card text-[10px] font-bold text-crm-muted">?</span>
+                  ) : (
+                    <TechAvatar name={tech.name || tech.companyName} photoUrl={tech.profilePhotoUrl} />
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-semibold">
                       {tech.name || tech.companyName || "Technician"}
                     </p>
-                    <p className="text-[9px] text-crm-muted">
-                      {tech.specialty || "Field technician"}
+                    <p className="truncate text-[9px] text-crm-muted">
+                      {tech.id === "ALL" ? "Drop here to schedule without a technician" : tech.specialty || "Field technician"}
                     </p>
                   </div>
                 </div>
-                <div className="relative bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px)]" style={{ minHeight: Math.max(80, techJobs.length * 70), backgroundSize: '4.1667% 100%' }}>
+                <div
+                  className="relative"
+                  style={{
+                    minHeight: laneHeight,
+                    backgroundImage: "linear-gradient(to right, rgba(128,128,128,0.25) 1px, transparent 1px)",
+                    backgroundSize: `${100 / hours.length}% 100%`,
+                  }}
+                  onDragOver={(e) => {
+                    if (!e.dataTransfer.types.includes(DISPATCH_DRAG_TYPE)) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDropTarget({ techId: tech.id, minutes: minutesFromEvent(e) });
+                  }}
+                  onDragLeave={() => setDropTarget((t) => (t?.techId === tech.id ? null : t))}
+                  onDrop={(e) => void dropJob(e, tech)}
+                >
+                  {dropTarget?.techId === tech.id && (
+                    <div
+                      className="pointer-events-none absolute top-0 bottom-0 z-10 rounded border border-dashed border-crm-ink bg-crm-ink/10"
+                      style={{
+                        left: `${pct(dropTarget.minutes)}%`,
+                        width: `${(DEFAULT_JOB_MINUTES / span) * 100}%`,
+                      }}
+                    >
+                      <span className="m-1 inline-block rounded bg-crm-ink px-1 text-[9px] text-crm-canvas">
+                        {fromMinutes(dropTarget.minutes)}
+                      </span>
+                    </div>
+                  )}
                   {techJobs.map((job, index) => {
-                    const left = position(job.schedule?.start) / 24 * 100;
-                    const width = Math.max(
-                      2,
-                      (position(job.schedule?.end) -
-                        position(job.schedule?.start)) *
-                        100 / 24,
-                    );
+                    const startMin = toMinutes(job.schedule?.start) ?? 8 * 60;
+                    const endMin = toMinutes(job.schedule?.end) ?? startMin + DEFAULT_JOB_MINUTES;
+                    const left = pct(startMin);
+                    const width = Math.max(3, pct(endMin) - left);
+                    const clash = overlaps(job, techJobs);
                     return (
                       <button
                         key={job.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(DISPATCH_DRAG_TYPE, job.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
                         onClick={() => onSchedule(job)}
+                        title={clash ? "Overlaps another job for this technician" : "Drag to reschedule or reassign"}
                         style={{ left: `${left}%`, width: `${width}%`, top: index * 70 + 4, height: 62 }}
-                        className="absolute top-2 bottom-2 overflow-hidden rounded border border-crm-success/30 bg-crm-success-soft-bg px-2 text-left text-[9px] font-semibold text-crm-success-soft-text"
+                        className={`absolute cursor-grab overflow-hidden rounded border px-2 text-left text-[9px] font-semibold active:cursor-grabbing ${
+                          clash
+                            ? "border-crm-warning bg-crm-warning-soft-bg text-crm-warning"
+                            : "border-crm-success/30 bg-crm-success-soft-bg text-crm-success-soft-text"
+                        }`}
                       >
                         <span className="block truncate">
+                          {clash ? "⚠ " : ""}
                           {job.workOrderNumber || job.id}
                         </span>
-                        <span className="block truncate">
-                          {job.name}
-                        </span>
-                        <span className="block truncate font-normal">
-                          {job.vendorName}
-                        </span>
+                        <span className="block truncate">{job.name}</span>
+                        <span className="block truncate font-normal">{job.vendorName}</span>
                         <span className="block truncate font-normal">
                           {job.schedule?.start}–{job.schedule?.end}
                         </span>
@@ -3526,7 +3708,7 @@ function LiveScheduleBoard({
       </div>
       <footer className="border-t border-crm-hairline-soft bg-crm-surface-soft px-4 py-3 text-[9px] text-crm-muted">
         {scheduled.length} scheduled job{scheduled.length === 1 ? "" : "s"} on
-        this date · Click a block to reassign or reschedule
+        this date · Drag a block to move it · Click a block for full details
       </footer>
     </section>
   );
