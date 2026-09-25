@@ -3384,9 +3384,24 @@ function LiveScheduleBoard({
 }) {
   const [date, setDate] = useState(() => localDate());
   const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-  const scheduled = jobs.filter(
-    (job) => job.schedule?.date === date && (job.assignedTechIds?.length || job.assignedTechId),
-  );
+  const today = localDate();
+  const upcoming = jobs
+    .filter((job) => job.schedule?.date && job.schedule.date >= today && !isClosedJob(job))
+    .sort((a, b) =>
+      `${a.schedule?.date} ${a.schedule?.start || ""}`.localeCompare(
+        `${b.schedule?.date} ${b.schedule?.start || ""}`,
+      ),
+    );
+  // If nothing is on today's board, jump to the next day that has work so
+  // freshly scheduled jobs are not hidden behind the default date.
+  const [autoJumped, setAutoJumped] = useState(false);
+  useEffect(() => {
+    if (autoJumped || !upcoming.length) return;
+    setAutoJumped(true);
+    if (!upcoming.some((job) => job.schedule?.date === date))
+      setDate(upcoming[0].schedule!.date!);
+  }, [autoJumped, upcoming, date]);
+  const scheduled = jobs.filter((job) => job.schedule?.date === date);
   const position = (time = "08:00") =>
     Math.max(
       0,
@@ -3408,6 +3423,20 @@ function LiveScheduleBoard({
           className="rounded border border-crm-hairline px-3 py-2 text-xs"
         />
       </header>
+      {upcoming.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto border-b border-crm-hairline px-4 py-3">
+          <span className="shrink-0 text-[9px] font-bold uppercase text-crm-muted">Upcoming</span>
+          {upcoming.map((job) => (
+            <button
+              key={job.id}
+              onClick={() => setDate(job.schedule!.date!)}
+              className={`shrink-0 rounded border px-2 py-1 text-left text-[9px] ${job.schedule?.date === date ? 'border-crm-ink' : 'border-crm-hairline'}`}
+            >
+              <span className="font-mono">{job.workOrderNumber || job.id}</span> · {job.name || job.vendorName} · {job.schedule?.date} {job.schedule?.start}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           <div className="grid grid-cols-[190px_1fr] border-b border-crm-hairline bg-crm-surface-soft">
@@ -3426,8 +3455,10 @@ function LiveScheduleBoard({
             </div>
           </div>
           {[...technicians, { id: 'ALL', name: 'All technicians' }].map((tech) => {
-            const techJobs = scheduled.filter(
-              (job) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
+            const techJobs = scheduled.filter((job) =>
+              tech.id === 'ALL'
+                ? needsDispatch(job) || job.assignedTechIds?.includes('ALL')
+                : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
             );
             return (
               <div
