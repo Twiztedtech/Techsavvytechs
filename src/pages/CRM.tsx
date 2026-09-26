@@ -857,6 +857,7 @@ export default function CRM() {
                   jobs={liveJobs}
                   onSchedule={setScheduleJob}
                 />
+                <TechWorkloadSummary jobs={liveJobs} technicians={technicians} />
                 <LiveScheduleBoard
                   jobs={liveJobs}
                   technicians={technicians}
@@ -3346,6 +3347,126 @@ const toMinutes = (time?: string) => {
 };
 const fromMinutes = (total: number) =>
   `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+
+function TechWorkloadSummary({ jobs, technicians }: { jobs: LiveJob[]; technicians: Technician[] }) {
+  const [open, setOpen] = useState(true);
+  const today = localDate();
+  const weekStart = mondayOf(today);
+  const weekEnd = addDays(weekStart, 6);
+  const WEEK_CAPACITY_HOURS = 40;
+  const active = jobs.filter((job) => !isClosedJob(job));
+  const hoursOf = (job: LiveJob) => {
+    const s0 = toMinutes(job.schedule?.start);
+    const e0 = toMinutes(job.schedule?.end);
+    return s0 !== null && e0 !== null && e0 > s0 ? (e0 - s0) / 60 : 0;
+  };
+  const rows = technicians
+    .filter((t) => t.accessStatus !== "Offboarded")
+    .map((tech) => {
+      const mine = active.filter((job) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id);
+      const scheduled = mine.filter((job) => job.schedule?.date);
+      const todayJobs = scheduled.filter((job) => job.schedule?.date === today);
+      const weekJobs = scheduled.filter((job) => job.schedule!.date! >= weekStart && job.schedule!.date! <= weekEnd);
+      const weekHours = weekJobs.reduce((sum, job) => sum + hoursOf(job), 0);
+      const next = scheduled
+        .filter((job) => `${job.schedule!.date} ${job.schedule!.start || ""}` >= `${today} 00:00`)
+        .sort((a, b) => `${a.schedule!.date} ${a.schedule!.start || ""}`.localeCompare(`${b.schedule!.date} ${b.schedule!.start || ""}`))[0];
+      const clashes = weekJobs.filter((job) =>
+        weekJobs.some((other) => {
+          if (other.id === job.id || other.schedule?.date !== job.schedule?.date) return false;
+          const a0 = toMinutes(job.schedule?.start), a1 = toMinutes(job.schedule?.end);
+          const b0 = toMinutes(other.schedule?.start), b1 = toMinutes(other.schedule?.end);
+          return a0 !== null && a1 !== null && b0 !== null && b1 !== null && a0 < b1 && b0 < a1;
+        }),
+      ).length;
+      return {
+        tech,
+        open: mine.length,
+        unscheduled: mine.length - scheduled.length,
+        today: todayJobs.length,
+        week: weekJobs.length,
+        weekHours,
+        next,
+        clashes,
+      };
+    })
+    .sort((a, b) => b.weekHours - a.weekHours || b.open - a.open);
+  const unassigned = active.filter((job) => needsDispatch(job)).length;
+  return (
+    <section className="rounded border border-crm-hairline bg-crm-canvas shadow-sm">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between p-4 text-left">
+        <div>
+          <h2 className="text-sm font-bold">Technician workload</h2>
+          <p className="text-[10px] text-crm-muted">
+            Week of {weekStart} · capacity {WEEK_CAPACITY_HOURS}h per technician · {unassigned} job{unassigned === 1 ? "" : "s"} with no technician
+          </p>
+        </div>
+        <span className="text-[10px] font-bold text-crm-muted">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && (
+        <div className="overflow-x-auto border-t border-crm-hairline">
+          <table className="w-full min-w-[820px] text-left text-xs">
+            <thead className="bg-crm-surface-soft text-[9px] font-bold uppercase text-crm-muted">
+              <tr>
+                <th className="p-3">Technician</th>
+                <th className="p-3 text-center">Today</th>
+                <th className="p-3">This week</th>
+                <th className="p-3 text-center">Open jobs</th>
+                <th className="p-3 text-center">Need a date</th>
+                <th className="p-3">Next job</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-crm-hairline-soft">
+              {rows.map(({ tech, open: openJobs, unscheduled, today: todayCount, week, weekHours, next, clashes }) => {
+                const load = Math.min(100, (weekHours / WEEK_CAPACITY_HOURS) * 100);
+                const over = weekHours > WEEK_CAPACITY_HOURS;
+                return (
+                  <tr key={tech.id}>
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        <TechAvatar name={tech.name || tech.companyName} photoUrl={tech.profilePhotoUrl} />
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{tech.name || tech.companyName || "Technician"}</p>
+                          <p className="truncate text-[10px] text-crm-muted">{tech.specialty || "Field technician"}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3 text-center font-mono">{todayCount}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-28 overflow-hidden rounded bg-crm-surface-card">
+                          <div className={`h-full ${over ? "bg-crm-error" : load > 75 ? "bg-crm-warning" : "bg-crm-success"}`} style={{ width: `${load}%` }} />
+                        </div>
+                        <span className="font-mono text-[11px]">{weekHours.toFixed(1)}h · {week} job{week === 1 ? "" : "s"}</span>
+                        {over && <span className="text-[9px] font-bold text-crm-error">OVER</span>}
+                        {clashes > 0 && <span className="text-[9px] font-bold text-crm-warning">⚠ {clashes} overlapping</span>}
+                      </div>
+                    </td>
+                    <td className="p-3 text-center font-mono">{openJobs}</td>
+                    <td className="p-3 text-center font-mono">{unscheduled > 0 ? <span className="text-crm-warning">{unscheduled}</span> : 0}</td>
+                    <td className="p-3 text-[11px]">
+                      {next ? (
+                        <>
+                          <span className="font-mono">{next.workOrderNumber || next.id}</span> · {next.name || next.vendorName}
+                          <span className="block text-[10px] text-crm-muted">{next.schedule?.date} {next.schedule?.start}–{next.schedule?.end}</span>
+                        </>
+                      ) : (
+                        <span className="text-crm-muted">Nothing scheduled</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!rows.length && (
+                <tr><td colSpan={6} className="p-6 text-center text-crm-muted">No active technicians.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function LiveSchedulingQueue({
   jobs,

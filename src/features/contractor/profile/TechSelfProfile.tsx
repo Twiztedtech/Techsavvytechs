@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { auth } from '../../../lib/firebase';
 import type { Certification, SelfProfile } from '../types';
+import { resizeProfilePhoto } from '../../admin/techPhoto';
 
 async function postTimeClock(action: string, body: Record<string, unknown> = {}) {
   const token = await auth.currentUser?.getIdToken();
@@ -75,6 +76,7 @@ export function TechSelfProfile({ profile, onUpdated }: { profile: SelfProfile |
   const [certifications, setCertifications] = useState<Certification[]>(profile?.certifications || []);
   const [newCertName, setNewCertName] = useState('');
   const [newCertExpiry, setNewCertExpiry] = useState('');
+  const [photoUrl, setPhotoUrl] = useState<string>(profile?.profilePhotoUrl || '');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
@@ -94,11 +96,21 @@ export function TechSelfProfile({ profile, onUpdated }: { profile: SelfProfile |
     setNewCertExpiry('');
   };
 
+  const onPhotoChosen = async (file?: File) => {
+    if (!file) return;
+    try {
+      setPhotoUrl(await resizeProfilePhoto(file));
+      setNotice({ tone: 'success', text: 'Photo ready — press Save profile to keep it.' });
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not use this photo.' });
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setNotice(null);
     try {
-      const data = await postTimeClock('update_self_profile', { skills, tools, certifications });
+      const data = await postTimeClock('update_self_profile', { skills, tools, certifications, profilePhotoUrl: photoUrl });
       onUpdated({ ...profile, ...data.selfProfile });
       setNotice({ tone: 'success', text: 'Profile saved.' });
     } catch (error) {
@@ -112,9 +124,29 @@ export function TechSelfProfile({ profile, onUpdated }: { profile: SelfProfile |
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-100">{profile.name}</h3>
-            <p className="text-xs text-slate-400">{profile.email}</p>
+          <div className="flex items-center gap-4">
+            {photoUrl ? (
+              <img src={photoUrl} alt={profile.name} className="h-20 w-20 rounded-full border border-slate-700 object-cover" />
+            ) : (
+              <span className="grid h-20 w-20 place-items-center rounded-full border border-slate-700 bg-slate-800 text-xl font-bold text-slate-300">
+                {(profile.name || 'T').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()}
+              </span>
+            )}
+            <div>
+              <h3 className="text-lg font-bold text-slate-100">{profile.name}</h3>
+              <p className="text-xs text-slate-400">{profile.email}</p>
+              <div className="mt-2 flex gap-2">
+                <label className="cursor-pointer rounded border border-slate-700 px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:border-amber-500 hover:text-amber-400">
+                  {photoUrl ? 'Change photo' : 'Add photo'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { void onPhotoChosen(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+                {photoUrl && (
+                  <button type="button" onClick={() => setPhotoUrl('')} className="rounded border border-slate-800 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-red-400">
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase">
             <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-violet-300">

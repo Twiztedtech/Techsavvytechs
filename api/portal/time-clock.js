@@ -423,6 +423,7 @@ export default async function handler(req, res) {
           skills: Array.isArray(contractor.data().skills) ? contractor.data().skills : [],
           tools: Array.isArray(contractor.data().tools) ? contractor.data().tools : [],
           certifications: Array.isArray(contractor.data().certifications) ? contractor.data().certifications : [],
+          profilePhotoUrl: contractor.data().profilePhotoUrl || '',
         } : null,
       });
     }
@@ -523,6 +524,15 @@ export default async function handler(req, res) {
         tools: sanitizeTags(req.body?.tools),
         certifications: sanitizeCertifications(req.body?.certifications),
       };
+      // Photo is optional in the request: omit the key to leave it alone, send
+      // '' to remove it, or a resized image data URL to replace it.
+      if (req.body?.profilePhotoUrl !== undefined) {
+        const photo = String(req.body.profilePhotoUrl || '');
+        if (photo && !(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(photo) && photo.length <= 200000)) {
+          return res.status(422).json({ error: 'Choose a smaller image (JPEG, PNG or WebP).' });
+        }
+        update.profilePhotoUrl = photo;
+      }
       await contractor.ref.set(update, { merge: true });
       return res.status(200).json({ success: true, selfProfile: update });
     }

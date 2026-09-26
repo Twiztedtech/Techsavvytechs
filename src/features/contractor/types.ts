@@ -51,6 +51,7 @@ export interface SelfProfile {
   skills: string[];
   tools: string[];
   certifications: Certification[];
+  profilePhotoUrl?: string;
 }
 
 export interface JobSite {
