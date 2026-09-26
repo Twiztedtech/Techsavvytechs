@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Plus, Star, Trash2, Wrench } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { CrmBadge, CrmButton, CrmInput, CrmModalShell } from "../crm/ui";
 import { TechAvatar, resizeProfilePhoto } from "./techPhoto";
+import { DispatchDemoContext } from "./demoContext";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
 type Certification = { id: string; name: string; expiryDate: string };
@@ -74,6 +75,7 @@ export function TechProfileModal({
   onOpenW9: () => void;
   onOpenHistory: () => void;
 }) {
+  const demo = useContext(DispatchDemoContext);
   const [form, setForm] = useState({
     name: contractor.name || "",
     email: contractor.email || "",
@@ -116,6 +118,22 @@ export function TechProfileModal({
     setSaving(true);
     setFeedback("");
     try {
+      if (demo?.updateContractor) {
+        demo.updateContractor(contractor.id, {
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          rate: Number(form.rate) || 0,
+          specialty: form.specialty.trim(),
+          employmentType: form.employmentType,
+          businessPhone: form.businessPhone.trim(),
+          skills,
+          tools,
+          certifications,
+          profilePhotoUrl: photoUrl,
+        });
+        setFeedback("Profile saved.");
+        return;
+      }
       await updateDoc(doc(db, "contractors", contractor.id), {
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
@@ -144,6 +162,11 @@ export function TechProfileModal({
     setSavingLead(true);
     setFeedback("");
     try {
+      if (demo?.updateContractor) {
+        demo.updateContractor(contractor.id, { role: next ? "technician_lead" : "" });
+        setIsTechnicianLead(next);
+        return;
+      }
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch("/api/admin/contractors/invite?adminOperation=technician-lead", {
         method: "POST",

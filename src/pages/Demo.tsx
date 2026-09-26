@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
+import { DispatchDemoContext } from "../features/admin/demoContext";
 import {
-  DispatchDemoContext,
   LiveScheduleBoard,
   LiveSchedulingQueue,
   ScheduleModal,
@@ -21,12 +22,56 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-const TECHS: Technician[] = [
-  { id: "t1", name: "Alex Rivera", specialty: "Fiber & structured cabling", accessStatus: "Active" },
-  { id: "t2", name: "Jordan Lee", specialty: "Network & Wi-Fi", accessStatus: "Active" },
-  { id: "t3", name: "Sam Patel", specialty: "Low-voltage & access control", accessStatus: "Active" },
-  { id: "t4", name: "Casey Morgan", specialty: "RF / cell signal", accessStatus: "Active" },
-  { id: "t5", name: "Riley Chen", specialty: "Field technician", accessStatus: "Active" },
+// Placeholder portraits (initials on a gradient) so the roster shows how photos look.
+const portrait = (initials: string, from: string, to: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/><text x="128" y="152" font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="white" text-anchor="middle">${initials}</text></svg>`,
+  )}`;
+
+const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
+  {
+    id: "t1", name: "Alex Rivera", email: "alex.rivera@example.com", specialty: "Fiber & structured cabling",
+    rate: 85, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0111",
+    profilePhotoUrl: portrait("AR", "#0f766e", "#14b8a6"), onboarding: { status: "approved" }, role: "technician_lead",
+    skills: ["Fiber splicing", "Cat6A termination", "Rack dressing", "OTDR testing"],
+    tools: ["Fusion splicer", "OTDR", "Fluke DSX-8000"],
+    certifications: [{ id: "c1", name: "BICSI Installer 2", expiryDate: "2027-05-01" }, { id: "c2", name: "Fiber Optic Association CFOT", expiryDate: "" }],
+  },
+  {
+    id: "t2", name: "Jordan Lee", email: "jordan.lee@example.com", specialty: "Network & Wi-Fi",
+    rate: 95, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0122",
+    profilePhotoUrl: portrait("JL", "#1d4ed8", "#60a5fa"), onboarding: { status: "approved" },
+    skills: ["Wi-Fi surveys", "Firewall configuration", "SD-WAN", "VLAN design"],
+    tools: ["Ekahau sidekick", "Laptop with console cable"],
+    certifications: [{ id: "c3", name: "CCNA", expiryDate: "2026-10-15" }],
+  },
+  {
+    id: "t3", name: "Sam Patel", email: "sam.patel@example.com", specialty: "Low-voltage & access control",
+    rate: 80, employmentType: "w2_employee", accessStatus: "Active", active: true, businessPhone: "(555) 010-0133",
+    profilePhotoUrl: portrait("SP", "#7c3aed", "#c084fc"), onboarding: { status: "approved" },
+    skills: ["Access control wiring", "IP cameras", "Intercom systems", "Conduit runs"],
+    tools: ["Bucket truck", "Conduit bender", "Toner and probe"],
+    certifications: [{ id: "c4", name: "C-7 Low Voltage License", expiryDate: "2028-01-31" }],
+  },
+  {
+    id: "t4", name: "Casey Morgan", email: "casey.morgan@example.com", specialty: "RF / cell signal",
+    rate: 100, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0144",
+    profilePhotoUrl: portrait("CM", "#b45309", "#f59e0b"), onboarding: { status: "submitted" },
+    skills: ["Cell booster commissioning", "DAS testing", "RF site survey"],
+    tools: ["Spectrum analyzer", "Signal meter", "Antenna alignment kit"],
+    certifications: [{ id: "c5", name: "FCC GROL", expiryDate: "" }],
+  },
+  {
+    id: "t5", name: "Riley Chen", email: "riley.chen@example.com", specialty: "Field technician",
+    rate: 65, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0155",
+    onboarding: { status: "not_started" },
+    skills: ["Equipment install", "Printer setup", "Basic cabling"], tools: ["Hand tools"], certifications: [],
+  },
+  {
+    id: "t6", name: "Morgan Ellis", email: "morgan.ellis@example.com", specialty: "Structured cabling",
+    rate: 70, employmentType: "1099_contractor", accessStatus: "Pending", active: false, onboarding: { status: "not_started" },
+    skills: ["Cat6 terminations"], tools: [], certifications: [],
+  },
 ];
 
 function buildJobs(): LiveJob[] {
@@ -74,12 +119,18 @@ function buildJobs(): LiveJob[] {
 }
 
 export default function Demo() {
+  const [tab, setTab] = useState<"dispatch" | "roster">("dispatch");
+  const [contractors, setContractors] = useState(CONTRACTORS);
   const [jobs, setJobs] = useState<LiveJob[]>(buildJobs);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
   const api = useMemo(
     () => ({
       updateJob: (jobId: string, patch: Record<string, unknown>) =>
         setJobs((current) => current.map((item) => (item.id === jobId ? ({ ...item, ...patch } as LiveJob) : item))),
+      updateContractor: (contractorId: string, patch: Record<string, unknown>) =>
+        setContractors((current) => current.map((item) => (item.id === contractorId ? { ...item, ...patch } : item))),
+      addContractor: (record: Record<string, unknown>) =>
+        setContractors((current) => [...current, record as Technician & Record<string, any>]),
     }),
     [],
   );
@@ -97,6 +148,7 @@ export default function Demo() {
     };
   }, []);
 
+  const activeTechs = contractors.filter((c) => c.accessStatus === "Active");
   const active = scheduleJob ? jobs.find((item) => item.id === scheduleJob.id) || scheduleJob : null;
 
   return (
@@ -106,28 +158,48 @@ export default function Demo() {
           <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-crm-warning">Interactive demo · sample data only</p>
-              <h1 className="text-lg font-bold text-crm-ink">TechSavvy Schedule &amp; Dispatch</h1>
+              <h1 className="text-lg font-bold text-crm-ink">TechSavvy CRM</h1>
               <p className="text-[11px] text-crm-muted">
-                Drag jobs from the queue onto a technician, switch to the week view, or click a job. Nothing here is connected to real customers, technicians or jobs, and changes reset when you reload.
+                Try dispatching jobs on the board, or open the Contractor Roster to search skills and edit a profile. Nothing here is connected to real customers, technicians or jobs, and changes reset when you reload.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => { setJobs(buildJobs()); setScheduleJob(null); }}
+              onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setScheduleJob(null); }}
               className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
             >
               Reset demo data
             </button>
           </div>
         </div>
+        <nav className="border-b border-crm-hairline bg-crm-canvas px-4 sm:px-8">
+          <div className="mx-auto flex max-w-[1500px] gap-1">
+            {([["dispatch", "Schedule & Dispatch"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => { setTab(id); setScheduleJob(null); }}
+                className={`border-b-2 px-4 py-3 text-xs font-bold ${tab === id ? "border-crm-ink text-crm-ink" : "border-transparent text-crm-muted hover:text-crm-ink"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
         <main className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-8">
-          <TechWorkloadSummary jobs={jobs} technicians={TECHS} />
-          <LiveSchedulingQueue jobs={jobs} onSchedule={setScheduleJob} />
-          <LiveScheduleBoard jobs={jobs} technicians={TECHS} onSchedule={setScheduleJob} />
+          {tab === "dispatch" ? (
+            <>
+              <TechWorkloadSummary jobs={jobs} technicians={activeTechs} />
+              <LiveSchedulingQueue jobs={jobs} onSchedule={setScheduleJob} />
+              <LiveScheduleBoard jobs={jobs} technicians={activeTechs} onSchedule={setScheduleJob} />
+            </>
+          ) : (
+            <ContractorRosterAdmin contractors={contractors} jobs={jobs} />
+          )}
         </main>
         {active && (
           <div key={active.id}>
-            <ScheduleModal job={active} jobs={jobs} technicians={TECHS} onClose={() => setScheduleJob(null)} onOpenJob={() => undefined} />
+            <ScheduleModal job={active} jobs={jobs} technicians={activeTechs} onClose={() => setScheduleJob(null)} onOpenJob={() => undefined} />
           </div>
         )}
       </div>

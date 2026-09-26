@@ -1,4 +1,4 @@
-import { createContext, DragEvent, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -58,6 +58,7 @@ import { saveJob } from "../features/jobs/saveJob";
 import { buildJobRecord } from "../features/jobs/buildJobRecord";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
+import { DispatchDemoContext, type DispatchDemoApi } from "../features/admin/demoContext";
 import { TechAvatar } from "../features/admin/techPhoto";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
@@ -214,10 +215,8 @@ type LiveCustomer = {
   referencePrefixes?: string[];
   defaultContactPolicy?: string;
 };
-// Demo mode: when provided, the dispatch components change local state only and
-// never touch Firestore or any API. Used by the public /demo page.
-export type DispatchDemoApi = { updateJob: (jobId: string, patch: Record<string, unknown>) => void };
-export const DispatchDemoContext = createContext<DispatchDemoApi | null>(null);
+export { DispatchDemoContext };
+export type { DispatchDemoApi };
 
 export type LiveJob = {
   sourceRequestId?: string;

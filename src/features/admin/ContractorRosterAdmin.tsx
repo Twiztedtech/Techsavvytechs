@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useContext, useEffect, useState, type FormEvent } from "react";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { Calendar, IdCard, Link2, Plug, Plus, RefreshCw, X } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
@@ -6,6 +6,7 @@ import { getEntryTotals } from "../contractor/timesheets/calculations";
 import { CrmBadge, CrmButton, CrmCard } from "../crm/ui";
 import { TechProfileModal } from "./TechProfileModal";
 import { TechAvatar } from "./techPhoto";
+import { DispatchDemoContext } from "./demoContext";
 
 type ContractorRecord = Record<string, any> & { id: string; name?: string; email?: string };
 
@@ -34,6 +35,9 @@ const getAssignedTechIds = (job: Record<string, any>): string[] => {
 const terminalJobStatuses = new Set(["complete", "completed", "closed", "cancelled", "canceled", "voided"]);
 
 export function ContractorRosterAdmin({ contractors, jobs }: { contractors: ContractorRecord[]; jobs: Record<string, any>[] }) {
+  const demo = useContext(DispatchDemoContext);
+  const call = (path: string, options: RequestInit = {}) =>
+    demo ? Promise.reject(new Error("Not available in the demo — this is sample data only.")) : authedFetch(path, options);
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
@@ -73,9 +77,10 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
   const [isSavingLifecycle, setIsSavingLifecycle] = useState(false);
 
   useEffect(() => {
+    if (demo) return;
     (async () => {
       try {
-        const data = await authedFetch("/api/admin/quickbooks/status");
+        const data = await call("/api/admin/quickbooks/status");
         setQboConnected(data.connected === true);
         setQboRealmId(data.realmId || "");
       } catch {
@@ -85,7 +90,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
     })();
     (async () => {
       try {
-        const data = await authedFetch("/api/portal/time-clock");
+        const data = await call("/api/portal/time-clock");
         setTimeEntries(data.entries || []);
       } catch {
         setTimeEntries([]);
@@ -109,6 +114,23 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
     }
     setIsSaving(true);
     try {
+      if (demo?.addContractor) {
+        demo.addContractor({
+          id: `demo-c${Date.now()}`,
+          name: newName.trim(),
+          email: newEmail.trim().toLowerCase(),
+          rate: Number(newRate) || 75,
+          specialty: newSpecialty.trim(),
+          employmentType: newEmploymentType,
+          accessStatus: "Pending",
+          active: false,
+          onboarding: { status: "not_started" },
+        });
+        setNewName("");
+        setNewEmail("");
+        setIsAddOpen(false);
+        return;
+      }
       await addDoc(collection(db, "contractors"), {
         name: newName.trim(),
         email: newEmail.trim().toLowerCase(),
@@ -136,7 +158,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
 
   const openContractorW9 = async (contractor: ContractorRecord) => {
     try {
-      const data = await authedFetch(`/api/admin/contractors/onboarding?contractorId=${encodeURIComponent(contractor.id)}`);
+      const data = await call(`/api/admin/contractors/onboarding?contractorId=${encodeURIComponent(contractor.id)}`);
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not open this W-9.");
@@ -152,7 +174,11 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
     }
     setReviewingOnboardingId(contractor.id);
     try {
-      await authedFetch("/api/admin/contractors/onboarding", {
+      if (demo?.updateContractor) {
+        demo.updateContractor(contractor.id, { onboarding: { ...(contractor.onboarding || {}), status } });
+        return;
+      }
+      await call("/api/admin/contractors/onboarding", {
         method: "POST",
         body: JSON.stringify({ contractorId: contractor.id, status, reviewNote }),
       });
@@ -175,7 +201,12 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
     if (!lifecycleTarget) return;
     setIsSavingLifecycle(true);
     try {
-      const data = await authedFetch("/api/admin/contractors/invite?adminOperation=lifecycle", {
+      if (demo?.updateContractor) {
+        demo.updateContractor(lifecycleTarget.id, { accessStatus: lifecycleStatus, active: lifecycleStatus === "Active" });
+        setLifecycleTarget(null);
+        return;
+      }
+      const data = await call("/api/admin/contractors/invite?adminOperation=lifecycle", {
         method: "POST",
         body: JSON.stringify({
           contractorId: lifecycleTarget.id,
@@ -217,7 +248,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
               onClick={async () => {
                 if (!confirm("Are you sure you want to disconnect QuickBooks? This will remove the authentication tokens.")) return;
                 try {
-                  await authedFetch("/api/admin/quickbooks/status?operation=disconnect", { method: "POST" });
+                  await call("/api/admin/quickbooks/status?operation=disconnect", { method: "POST" });
                   setQboConnected(false);
                   setQboRealmId("");
                   alert("QuickBooks disconnected successfully.");
@@ -232,26 +263,29 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
           ) : (
             <button
               type="button"
+              disabled={Boolean(demo)}
+              title={demo ? "Integrations are disabled in the demo" : undefined}
               onClick={async () => {
                 try {
-                  const data = await authedFetch("/api/auth/quickbooks", { method: "POST" });
+                  const data = await call("/api/auth/quickbooks", { method: "POST" });
                   window.location.assign(data.authorizationUrl);
                 } catch (err) {
                   alert("QuickBooks connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-crm-success hover:brightness-90 text-white font-bold rounded-lg text-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-crm-success hover:brightness-90 text-white font-bold rounded-lg text-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Link2 className="h-3.5 w-3.5" /> Connect to QuickBooks
             </button>
           )}
           <button
             type="button"
-            disabled={isSyncing}
+            disabled={isSyncing || Boolean(demo)}
+            title={demo ? "Integrations are disabled in the demo" : undefined}
             onClick={async () => {
               setIsSyncing(true);
               try {
-                const data = await authedFetch("/api/sync-vendors", { method: "POST" });
+                const data = await call("/api/sync-vendors", { method: "POST" });
                 alert(data.message || "Sync complete.");
               } catch (err) {
                 alert("Sync failed: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -373,12 +407,12 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                     </button>
                     <button
                       type="button"
-                      disabled={!cont.email || invitingId === cont.id || ["Suspended", "Offboarded"].includes(contractorAccessStatus(cont))}
+                      disabled={Boolean(demo) || !cont.email || invitingId === cont.id || ["Suspended", "Offboarded"].includes(contractorAccessStatus(cont))}
                       onClick={async () => {
                         if (!confirm(`Send a branded TechSavvy portal invitation to ${cont.email}?`)) return;
                         setInvitingId(cont.id);
                         try {
-                          const data = await authedFetch("/api/admin/contractors/invite", {
+                          const data = await call("/api/admin/contractors/invite", {
                             method: "POST",
                             body: JSON.stringify({ contractorId: cont.id }),
                           });
@@ -411,7 +445,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
                         onClick={async () => {
                           setCheckingInvitationId(cont.id);
                           try {
-                            const data = await authedFetch(`/api/admin/contractors/invitation-status?contractorId=${encodeURIComponent(cont.id)}`);
+                            const data = await call(`/api/admin/contractors/invitation-status?contractorId=${encodeURIComponent(cont.id)}`);
                             alert(`Email provider status: ${String(data.status).replace("_", " ")}.`);
                           } catch (error) {
                             alert(error instanceof Error ? error.message : "Could not check invitation delivery.");
