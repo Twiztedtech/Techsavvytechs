@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
+import { CrmButton, CrmModalShell } from "../features/crm/ui";
 import { DispatchDemoContext } from "../features/admin/demoContext";
 import { DemoTour, type DemoTab, type TourStep } from "./DemoTour";
 import {
+  InvoicesView,
   LiveScheduleBoard,
   LiveSchedulingQueue,
   ScheduleModal,
   TechWorkloadSummary,
+  type LiveInvoice,
   type LiveJob,
   type Technician,
 } from "./CRM";
@@ -24,16 +27,143 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-// Illustrated portraits (not real people) so the roster shows how photos look.
-type AvatarLook = { bg: [string, string]; skin: string; hair: string; shirt: string; style: "short" | "long" | "beard"; hat?: string };
-const avatar = ({ bg, skin, hair, shirt, style, hat }: AvatarLook) => {
+// Illustrated portraits (original drawings, not film stills) in the style of each character.
+type AvatarLook = {
+  bg: [string, string];
+  skin: string;
+  hair: string;
+  shirt: string;
+  style: "short" | "long" | "beard" | "none";
+  back?: string;
+  shirtExtra?: string;
+  front?: string;
+};
+const avatar = ({ bg, skin, hair, shirt, style, back = "", shirtExtra = "", front = "" }: AvatarLook) => {
   const hairBack = style === "long" ? `<path d="M80 104 C68 176 84 190 100 190 L100 112 Z M176 104 C188 176 172 190 156 190 L156 112 Z" fill="${hair}"/>` : "";
-  const hairTop = hat ? "" : `<path d="M82 104 C78 52 178 52 174 104 C164 82 92 82 82 104 Z" fill="${hair}"/>`;
+  const hairTop = style === "none" ? "" : `<path d="M82 104 C78 52 178 52 174 104 C164 82 92 82 82 104 Z" fill="${hair}"/>`;
   const beard = style === "beard" ? `<path d="M88 118 C92 168 164 168 168 118 C156 140 100 140 88 118 Z" fill="${hair}"/>` : "";
-  const hard = hat ? `<path d="M78 96 C80 46 176 46 178 96 Z" fill="${hat}"/><rect x="66" y="92" width="124" height="11" rx="5" fill="${hat}"/><rect x="120" y="52" width="16" height="42" fill="rgba(255,255,255,0.25)"/>` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/>${hairBack}<path d="M24 256 C24 204 70 178 128 178 C186 178 232 204 232 256 Z" fill="${shirt}"/><rect x="108" y="146" width="40" height="40" rx="8" fill="${skin}"/><ellipse cx="128" cy="112" rx="45" ry="52" fill="${skin}"/>${beard}${hairTop}${hard}<circle cx="110" cy="116" r="4.5" fill="#1f2937"/><circle cx="146" cy="116" r="4.5" fill="#1f2937"/><path d="M112 140 C120 148 136 148 144 140" stroke="#1f2937" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/>${back}${hairBack}<path d="M24 256 C24 204 70 178 128 178 C186 178 232 204 232 256 Z" fill="${shirt}"/>${shirtExtra}<rect x="108" y="146" width="40" height="40" rx="8" fill="${skin}"/><ellipse cx="128" cy="112" rx="45" ry="52" fill="${skin}"/>${beard}${hairTop}${front}<circle cx="110" cy="116" r="4.5" fill="#1f2937"/><circle cx="146" cy="116" r="4.5" fill="#1f2937"/><path d="M112 140 C120 148 136 148 144 140" stroke="#1f2937" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
+
+const PORTRAITS = {
+  // Han Solo: tousled dark hair, white shirt, black vest
+  han: avatar({ bg: ["#0f766e", "#5eead4"], skin: "#e0ac82", hair: "#3b2416", shirt: "#f8fafc", style: "short", shirtExtra: `<path d="M64 256 L92 190 L112 196 L128 256 Z M192 256 L164 190 L144 196 L128 256 Z" fill="#111827"/><path d="M108 180 L128 214 L148 180 Z" fill="#e0ac82"/>` }),
+  // Leia: side buns, white gown
+  leia: avatar({ bg: ["#1d4ed8", "#93c5fd"], skin: "#f1c9a5", hair: "#5b3a1e", shirt: "#f1f5f9", style: "short", back: `<circle cx="72" cy="108" r="24" fill="#5b3a1e"/><circle cx="184" cy="108" r="24" fill="#5b3a1e"/><path d="M60 108 C66 96 80 96 84 108 M172 108 C176 96 190 96 196 108" stroke="rgba(255,255,255,0.22)" stroke-width="3" fill="none"/>`, shirtExtra: `<path d="M100 182 C116 200 140 200 156 182 L156 194 C140 210 116 210 100 194 Z" fill="#cbd5e1"/>` }),
+  // Lando: cape collar, mustache
+  lando: avatar({ bg: ["#7c3aed", "#d8b4fe"], skin: "#8d5a3b", hair: "#111827", shirt: "#1d4ed8", style: "short", shirtExtra: `<path d="M40 256 L70 196 L104 184 L104 256 Z M216 256 L186 196 L152 184 L152 256 Z" fill="#1e3a8a"/><circle cx="128" cy="222" r="6" fill="#fbbf24"/>`, front: `<path d="M106 134 C116 127 128 132 128 132 C128 132 140 127 150 134 C142 139 128 136 128 136 C128 136 114 139 106 134 Z" fill="#111827"/>` }),
+  // Luke: blond hair, orange flight suit
+  luke: avatar({ bg: ["#b45309", "#fcd34d"], skin: "#f5d3b3", hair: "#e8c766", shirt: "#f97316", style: "short", shirtExtra: `<rect x="110" y="178" width="36" height="14" rx="6" fill="#f8fafc"/><path d="M128 192 L128 256" stroke="#c2410c" stroke-width="4"/>` }),
+  // Padme: red headdress and gown
+  padme: avatar({ bg: ["#15803d", "#86efac"], skin: "#f0c8a6", hair: "#2b1810", shirt: "#b91c1c", style: "long", shirtExtra: `<path d="M96 182 C112 202 144 202 160 182 L160 196 C144 214 112 214 96 196 Z" fill="#fbbf24"/>`, front: `<path d="M82 98 C86 58 170 58 174 98 C162 84 94 84 82 98 Z" fill="#b91c1c"/><circle cx="128" cy="70" r="6" fill="#fbbf24"/><circle cx="100" cy="132" r="7" fill="rgba(220,38,38,0.22)"/><circle cx="156" cy="132" r="7" fill="rgba(220,38,38,0.22)"/>` }),
+  // Ahsoka: montrals, striped lekku
+  ahsoka: avatar({ bg: ["#0e7490", "#67e8f9"], skin: "#e2793a", hair: "#e2793a", shirt: "#334155", style: "none", back: `<path d="M92 76 C92 40 116 36 120 68 Z M164 76 C164 40 140 36 136 68 Z" fill="#e2793a"/><path d="M84 104 C58 140 60 202 84 232 C94 200 94 150 98 118 Z M172 104 C198 140 196 202 172 232 C162 200 162 150 158 118 Z" fill="#e2793a"/><path d="M68 150 L92 156 M66 176 L90 182 M70 202 L92 206 M188 150 L164 156 M190 176 L166 182 M186 202 L164 206" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>`, shirtExtra: `<rect x="104" y="178" width="48" height="12" rx="6" fill="#e2e8f0"/>`, front: `<path d="M112 60 L120 74 M144 60 L136 74 M100 98 L114 106 M156 98 L142 106 M90 130 L104 130 M152 130 L166 130" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>` }),
+};
+
+// Sample invoices, plus completed jobs so the billing screen has something to bill.
+const buildInvoices = (): LiveInvoice[] => {
+  const today = pacificToday();
+  const invoice = (n: number, jobId: string, customer: string, wo: string, site: string, lines: Array<[string, number, number, "labor" | "material"]>, issueBack: number, paid: number, payMethod = "ACH"): LiveInvoice => {
+    const lineItems = lines.map(([description, quantity, unitPrice, kind]) => ({ description, quantity, unitPrice, kind }));
+    const subtotal = lineItems.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+    const tax = Math.round(subtotal * 0.0825 * 100) / 100;
+    const total = Math.round((subtotal + tax) * 100) / 100;
+    const issueDate = addDays(today, -issueBack);
+    const dueDate = addDays(issueDate, 30);
+    const balance = Math.round((total - paid) * 100) / 100;
+    const overdue = balance > 0 && dueDate < today;
+    return {
+      id: `demo-inv-${n}`, invoiceNumber: `INV-DEMO-${3000 + n}`, jobId, workOrderNumber: wo, customer, site, issueDate, dueDate,
+      status: balance <= 0 ? "Paid" : paid > 0 ? "Partially Paid" : overdue ? "Overdue" : "Sent",
+      paymentTerms: "Net 30", lineItems, subtotal, taxRate: 0.0825, tax, total, amountPaid: paid, balance,
+      payments: paid > 0 ? [{ amount: paid, method: payMethod, reference: `REF-${9000 + n}`, receivedAt: `${addDays(issueDate, 12)}T18:00:00.000Z` }] : [],
+      qboSync: { status: paid >= total ? "synced" : "pending" },
+    } as unknown as LiveInvoice;
+  };
+  return [
+    invoice(1, "demo-20", "Endor Medical Plaza", "WO-DEMO-0920", "Ewok Village Clinic", [["Fiber run — labor", 9, 85, "labor"], ["Multimode fiber and terminations", 1, 310, "material"]], 6, 0),
+    invoice(2, "demo-21", "Jabba's Logistics", "WO-DEMO-0921", "Docking Bay 94", [["Access control install — labor", 14, 80, "labor"], ["Card readers (4)", 4, 145, "material"]], 40, 1840.25),
+    invoice(3, "demo-22", "Dagobah Dental Group", "WO-DEMO-0922", "Swamp Street Office", [["Wi-Fi refresh — labor", 8, 95, "labor"], ["Access points (3)", 3, 180, "material"]], 22, 800),
+    invoice(4, "demo-23", "Tatooine Academy", "WO-DEMO-0923", "Main Campus", [["Cell booster tuning — labor", 6, 100, "labor"]], 48, 0),
+  ];
+};
+
+const COMPLETED_JOBS: LiveJob[] = [
+  { id: "demo-20", workOrderNumber: "WO-DEMO-0920", name: "Fiber run — data closet", vendorName: "Endor Medical Plaza", status: "Invoiced" },
+  { id: "demo-21", workOrderNumber: "WO-DEMO-0921", name: "Access control install", vendorName: "Jabba's Logistics", status: "Invoiced" },
+  { id: "demo-22", workOrderNumber: "WO-DEMO-0922", name: "Wi-Fi refresh", vendorName: "Dagobah Dental Group", status: "Invoiced" },
+  { id: "demo-23", workOrderNumber: "WO-DEMO-0923", name: "Cell booster tuning", vendorName: "Tatooine Academy", status: "Invoiced" },
+  { id: "demo-24", workOrderNumber: "WO-DEMO-0924", name: "Rack build and labeling", vendorName: "Alderaan Credit Union", status: "Ready to Invoice" },
+  { id: "demo-25", workOrderNumber: "WO-DEMO-0925", name: "Camera aiming and cleanup", vendorName: "Echo Base Storage", status: "Ready to Invoice" },
+] as unknown as LiveJob[];
+
+const money = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+
+function DemoInvoiceCreate({ job, onCreate, onClose }: { job: LiveJob; onCreate: (invoice: LiveInvoice) => void; onClose: () => void }) {
+  const lines: Array<[string, number, number]> = [["Labor (from approved timecards)", 6.5, 95], ["Materials and supplies", 1, 140]];
+  const subtotal = lines.reduce((sum, [, q, p]) => sum + q * p, 0);
+  const tax = Math.round(subtotal * 0.0825 * 100) / 100;
+  const total = subtotal + tax;
+  return (
+    <CrmModalShell title={`Create invoice · ${job.workOrderNumber}`} onClose={onClose} maxWidth="max-w-md">
+      <p className="text-xs text-crm-muted">{job.name} · {job.vendorName}</p>
+      <div className="mt-4 space-y-2 text-xs">
+        {lines.map(([label, q, p]) => (
+          <div key={label} className="flex justify-between"><span>{label} ({q} × {money(p)})</span><strong>{money(q * p)}</strong></div>
+        ))}
+        <div className="flex justify-between text-crm-muted"><span>Tax (8.25%)</span><span>{money(tax)}</span></div>
+        <div className="flex justify-between border-t border-crm-hairline pt-2 text-sm"><strong>Total</strong><strong>{money(total)}</strong></div>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <CrmButton variant="secondary" onClick={onClose}>Cancel</CrmButton>
+        <CrmButton
+          onClick={() => {
+            const today = pacificToday();
+            onCreate({
+              id: `demo-inv-${Date.now()}`, invoiceNumber: `INV-DEMO-${3100 + Math.floor(Math.random() * 800)}`, jobId: job.id, workOrderNumber: job.workOrderNumber,
+              customer: job.vendorName || "Customer", site: job.address || "", issueDate: today, dueDate: addDays(today, 30), status: "Sent", paymentTerms: "Net 30",
+              lineItems: lines.map(([description, quantity, unitPrice]) => ({ description, quantity, unitPrice })), subtotal, taxRate: 0.0825, tax, total,
+              amountPaid: 0, balance: total, payments: [], qboSync: { status: "pending" },
+            } as unknown as LiveInvoice);
+          }}
+        >
+          Create invoice
+        </CrmButton>
+      </div>
+    </CrmModalShell>
+  );
+}
+
+function DemoPayment({ invoice, onRecord, onClose }: { invoice: LiveInvoice; onRecord: (amount: number, method: string, reference: string) => void; onClose: () => void }) {
+  const [amount, setAmount] = useState(String(invoice.balance));
+  const [method, setMethod] = useState("ACH");
+  const [reference, setReference] = useState("");
+  const value = Number(amount);
+  const valid = value > 0 && value <= invoice.balance + 0.001;
+  return (
+    <CrmModalShell title={`Record payment · ${invoice.invoiceNumber}`} onClose={onClose} maxWidth="max-w-sm">
+      <p className="text-xs text-crm-muted">{invoice.customer} · balance {money(invoice.balance)}</p>
+      <div className="mt-4 space-y-3 text-xs">
+        <label className="block font-semibold">Amount
+          <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded border border-crm-hairline bg-crm-canvas p-2" />
+        </label>
+        <label className="block font-semibold">Method
+          <select value={method} onChange={(e) => setMethod(e.target.value)} className="mt-1 w-full rounded border border-crm-hairline bg-crm-canvas p-2">
+            {["ACH", "Check", "Card", "Cash"].map((m) => <option key={m}>{m}</option>)}
+          </select>
+        </label>
+        <label className="block font-semibold">Reference
+          <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Check number or transaction id" className="mt-1 w-full rounded border border-crm-hairline bg-crm-canvas p-2" />
+        </label>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <CrmButton variant="secondary" onClick={onClose}>Cancel</CrmButton>
+        <CrmButton disabled={!valid} onClick={() => onRecord(value, method, reference)}>Record payment</CrmButton>
+      </div>
+    </CrmModalShell>
+  );
+}
 
 // Sample client-portal data: requests, portal users, organizations, appointments.
 const buildClientData = () => {
@@ -158,7 +288,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t1", authUid: "auth-t1", name: "Han Solo", email: "han.solo@example.com", specialty: "Fiber & structured cabling",
     rate: 85, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0111",
-    profilePhotoUrl: avatar({ bg: ["#0f766e", "#5eead4"], skin: "#e0ac82", hair: "#2b1d14", shirt: "#f59e0b", style: "short", hat: "#facc15" }), onboarding: { status: "approved" }, role: "technician_lead",
+    profilePhotoUrl: PORTRAITS.han, onboarding: { status: "approved" }, role: "technician_lead",
     skills: ["Fiber splicing", "Cat6A termination", "Rack dressing", "OTDR testing"],
     tools: ["Fusion splicer", "OTDR", "Fluke DSX-8000"],
     certifications: [{ id: "c1", name: "BICSI Installer 2", expiryDate: "2027-05-01" }, { id: "c2", name: "Fiber Optic Association CFOT", expiryDate: "" }],
@@ -166,7 +296,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t2", authUid: "auth-t2", name: "Leia Organa", email: "leia.organa@example.com", specialty: "Network & Wi-Fi",
     rate: 95, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0122",
-    profilePhotoUrl: avatar({ bg: ["#1d4ed8", "#93c5fd"], skin: "#f1c9a5", hair: "#5b3a1e", shirt: "#334155", style: "long" }), onboarding: { status: "approved" },
+    profilePhotoUrl: PORTRAITS.leia, onboarding: { status: "approved" },
     skills: ["Wi-Fi surveys", "Firewall configuration", "SD-WAN", "VLAN design"],
     tools: ["Ekahau sidekick", "Laptop with console cable"],
     certifications: [{ id: "c3", name: "CCNA", expiryDate: "2026-10-15" }],
@@ -174,7 +304,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t3", authUid: "auth-t3", name: "Lando Calrissian", email: "lando.calrissian@example.com", specialty: "Low-voltage & access control",
     rate: 80, employmentType: "w2_employee", accessStatus: "Active", active: true, businessPhone: "(555) 010-0133",
-    profilePhotoUrl: avatar({ bg: ["#7c3aed", "#d8b4fe"], skin: "#8d5a3b", hair: "#111827", shirt: "#0ea5e9", style: "beard" }), onboarding: { status: "approved" },
+    profilePhotoUrl: PORTRAITS.lando, onboarding: { status: "approved" },
     skills: ["Access control wiring", "IP cameras", "Intercom systems", "Conduit runs"],
     tools: ["Bucket truck", "Conduit bender", "Toner and probe"],
     certifications: [{ id: "c4", name: "C-7 Low Voltage License", expiryDate: "2028-01-31" }],
@@ -182,7 +312,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t4", authUid: "auth-t4", name: "Luke Skywalker", email: "luke.skywalker@example.com", specialty: "RF / cell signal",
     rate: 100, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0144",
-    profilePhotoUrl: avatar({ bg: ["#b45309", "#fcd34d"], skin: "#f5d3b3", hair: "#a16207", shirt: "#16a34a", style: "short", hat: "#f8fafc" }), onboarding: { status: "submitted" },
+    profilePhotoUrl: PORTRAITS.luke, onboarding: { status: "submitted" },
     skills: ["Cell booster commissioning", "DAS testing", "RF site survey"],
     tools: ["Spectrum analyzer", "Signal meter", "Antenna alignment kit"],
     certifications: [{ id: "c5", name: "FCC GROL", expiryDate: "" }],
@@ -190,13 +320,13 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t5", authUid: "auth-t5", name: "Padme Amidala", email: "padme.amidala@example.com", specialty: "Field technician",
     rate: 65, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0155",
-    profilePhotoUrl: avatar({ bg: ["#15803d", "#86efac"], skin: "#c68b64", hair: "#1c1917", shirt: "#dc2626", style: "long" }),
+    profilePhotoUrl: PORTRAITS.padme,
     onboarding: { status: "not_started" },
     skills: ["Equipment install", "Printer setup", "Basic cabling"], tools: ["Hand tools"], certifications: [],
   },
   {
     id: "t6", authUid: "auth-t6", name: "Ahsoka Tano", email: "ahsoka.tano@example.com", specialty: "Structured cabling",
-    rate: 70, employmentType: "1099_contractor", accessStatus: "Pending", active: false, onboarding: { status: "not_started" },
+    rate: 70, employmentType: "1099_contractor", accessStatus: "Pending", active: false, profilePhotoUrl: PORTRAITS.ahsoka, onboarding: { status: "not_started" },
     skills: ["Cat6 terminations"], tools: [], certifications: [],
   },
 ];
@@ -268,7 +398,11 @@ export default function Demo() {
   };
   const timeEntries = useMemo(buildTimeEntries, []);
   const [contractors, setContractors] = useState(CONTRACTORS);
-  const [jobs, setJobs] = useState<LiveJob[]>(buildJobs);
+  const [jobs, setJobs] = useState<LiveJob[]>(() => [...buildJobs(), ...COMPLETED_JOBS]);
+  const [invoices, setInvoices] = useState<LiveInvoice[]>(buildInvoices);
+  const [invoiceJob, setInvoiceJob] = useState<LiveJob | null>(null);
+  const [paymentInvoice, setPaymentInvoice] = useState<LiveInvoice | null>(null);
+  const [resetKey, setResetKey] = useState(0);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
@@ -383,6 +517,7 @@ export default function Demo() {
         setContractors((current) => [...current, record as Technician & Record<string, any>]),
       timeEntries,
       clientApi,
+      deleteInvoice: (invoiceId: string) => setInvoices((current) => current.filter((item) => item.id !== invoiceId)),
     }),
     [timeEntries, clientApi],
   );
@@ -459,6 +594,34 @@ export default function Demo() {
       find: () => [...document.querySelectorAll("h3")].find((h) => h.textContent?.includes("Scheduling"))?.parentElement ?? null,
       onEnter: () => innerTab("Scheduling")()?.click(),
     },
+    {
+      tab: "invoices",
+      title: "Invoices and payments",
+      body: "Every invoice with its customer, work order, dates, status, total, paid and balance. Status colours show what is paid, partly paid, overdue or still open.",
+      find: () => document.querySelector('[data-tour="invoices"] section'),
+    },
+    {
+      tab: "invoices",
+      title: "Bill straight from finished work",
+      body: "Jobs marked Ready to Invoice appear in this menu. Pick one and the invoice is built from approved timecards and materials. The early billing override covers jobs that are not finished yet.",
+      find: () => document.querySelector('[data-tour="invoices"] select'),
+    },
+    {
+      tab: "invoices",
+      title: "Open an invoice",
+      body: "We opened one for you: line items, tax, payments received and a full history. Edit or delete is blocked once an invoice is paid or synced to QuickBooks.",
+      find: () => [...document.querySelectorAll(".fixed")].find((d) => d.textContent?.includes("Delete invoice"))?.firstElementChild as HTMLElement | null,
+      onEnter: () => byText("View")()?.click(),
+      onLeave: () => byText("Close")()?.click(),
+    },
+    {
+      tab: "invoices",
+      title: "Record a payment",
+      body: "Log a check, ACH or card payment against the invoice. Try it: the balance, status and payment history update right away.",
+      find: () => [...document.querySelectorAll(".fixed")].find((d) => d.textContent?.includes("Record payment"))?.firstElementChild as HTMLElement | null,
+      onEnter: () => ([...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Payment" && !(b as HTMLButtonElement).disabled) as HTMLElement | undefined)?.click(),
+      onLeave: () => (document.querySelector('.fixed [aria-label="Close"]') as HTMLElement | null)?.click(),
+    },
     { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
     { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
     { tab: "roster", title: "Timecards", body: "The timecard window opened for you. Each row shows the day, job site, hours, rate, supplies and travel, and whether it is approved or still pending.", find: () => modalCard(), cardAtTop: true, onEnter: () => byText("View History")()?.click(), onLeave: () => modalClose() },
@@ -488,7 +651,7 @@ export default function Demo() {
               </button>
               <button
                 type="button"
-                onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setClient(buildClientData()); setScheduleJob(null); }}
+                onClick={() => { setJobs([...buildJobs(), ...COMPLETED_JOBS]); setContractors(CONTRACTORS()); setClient(buildClientData()); setInvoices(buildInvoices()); setScheduleJob(null); setInvoiceJob(null); setPaymentInvoice(null); setResetKey((k) => k + 1); }}
                 className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
               >
                 Reset demo data
@@ -498,7 +661,7 @@ export default function Demo() {
         </div>
         <nav className="border-b border-crm-hairline bg-crm-canvas px-4 sm:px-8">
           <div className="mx-auto flex max-w-[1500px] gap-1">
-            {([["dispatch", "Schedule & Dispatch"], ["client", "Client Requests"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
+            {([["dispatch", "Schedule & Dispatch"], ["client", "Client Requests"], ["invoices", "Invoicing"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -510,7 +673,7 @@ export default function Demo() {
             ))}
           </div>
         </nav>
-        <main className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-8">
+        <main key={resetKey} className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-8">
           {tab === "dispatch" ? (
             <>
               <div data-tour="workload"><TechWorkloadSummary jobs={jobs} technicians={activeTechs} /></div>
@@ -521,13 +684,57 @@ export default function Demo() {
             <div data-tour="client">
               <ClientRequestsAdmin contractors={activeTechs.map((c) => ({ id: c.id, name: c.name || "", email: String(c.email || "") }))} />
             </div>
+          ) : tab === "invoices" ? (
+            <div data-tour="invoices">
+              <InvoicesView
+                invoices={invoices}
+                jobs={jobs}
+                timeEntries={[]}
+                onCreate={setInvoiceJob}
+                onPayment={setPaymentInvoice}
+              />
+            </div>
           ) : (
             <ContractorRosterAdmin contractors={contractors} jobs={jobs} />
           )}
         </main>
+        {invoiceJob && (
+          <DemoInvoiceCreate
+            job={invoiceJob}
+            onClose={() => setInvoiceJob(null)}
+            onCreate={(invoice) => {
+              setInvoices((current) => [invoice, ...current]);
+              setJobs((current) => current.map((item) => (item.id === invoiceJob.id ? ({ ...item, status: "Invoiced" } as LiveJob) : item)));
+              setInvoiceJob(null);
+            }}
+          />
+        )}
+        {paymentInvoice && (
+          <DemoPayment
+            invoice={invoices.find((item) => item.id === paymentInvoice.id) || paymentInvoice}
+            onClose={() => setPaymentInvoice(null)}
+            onRecord={(amount, method, reference) => {
+              setInvoices((current) =>
+                current.map((item) => {
+                  if (item.id !== paymentInvoice.id) return item;
+                  const amountPaid = Math.round((item.amountPaid + amount) * 100) / 100;
+                  const balance = Math.max(0, Math.round((item.total - amountPaid) * 100) / 100);
+                  return {
+                    ...item,
+                    amountPaid,
+                    balance,
+                    status: balance <= 0 ? "Paid" : "Partially Paid",
+                    payments: [...(item.payments || []), { amount, method, reference, receivedAt: new Date().toISOString() }],
+                  } as LiveInvoice;
+                }),
+              );
+              setPaymentInvoice(null);
+            }}
+          />
+        )}
         {touring && <DemoTour steps={steps} tab={tab} setTab={setTab} onClose={endTour} />}
         {active && (
-          <div key={active.id}>
+          <div key={`${resetKey}-${active.id}`}>
             <ScheduleModal job={active} jobs={jobs} technicians={activeTechs} onClose={() => setScheduleJob(null)} onOpenJob={() => undefined} />
           </div>
         )}

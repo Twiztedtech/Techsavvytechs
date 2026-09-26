@@ -7,6 +7,7 @@ export type DispatchDemoApi = {
   updateContractor?: (contractorId: string, patch: Record<string, unknown>) => void;
   addContractor?: (record: Record<string, unknown>) => void;
   timeEntries?: Array<Record<string, any>>;
+  deleteInvoice?: (invoiceId: string) => void;
   /** Replaces the client-portal admin API with in-memory sample data. */
   clientApi?: (action: string, options?: RequestInit) => Promise<any>;
 };

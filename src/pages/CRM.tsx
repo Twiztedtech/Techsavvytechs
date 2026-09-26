@@ -286,7 +286,7 @@ type InvoiceLine = {
   unitPrice: number;
   kind?: "labor" | "material" | "service" | "credit";
 };
-type LiveInvoice = {
+export type LiveInvoice = {
   id: string;
   invoiceNumber?: string;
   jobId?: string;
@@ -4825,7 +4825,7 @@ function JobDetailModal({
   );
 }
 
-function InvoicesView({
+export function InvoicesView({
   invoices,
   jobs,
   timeEntries,
@@ -4838,6 +4838,7 @@ function InvoicesView({
   onCreate: (job: LiveJob) => void;
   onPayment: (invoice: LiveInvoice) => void;
 }) {
+  const demo = useContext(DispatchDemoContext);
   const invoicedJobs = new Set(
     invoices.filter((invoice) => invoice.type !== "deposit").map((invoice) => invoice.jobId).filter(Boolean),
   );
@@ -4857,6 +4858,11 @@ function InvoicesView({
   const isLocked = (invoice: LiveInvoice) => invoice.qboSync?.status === "synced" || Number(invoice.amountPaid || 0) > 0;
   const deleteInvoice = async (invoice: LiveInvoice) => {
     if (isLocked(invoice)) return;
+    if (demo?.deleteInvoice) {
+      demo.deleteInvoice(invoice.id);
+      setViewingInvoice(null);
+      return;
+    }
     if (!confirm(`Delete invoice ${invoice.invoiceNumber || invoice.id}? This cannot be undone.`)) return;
     setDeletingId(invoice.id);
     try {
@@ -4942,9 +4948,9 @@ function InvoicesView({
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-        <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness} className="rounded border border-crm-badge-violet/30 bg-crm-violet-soft-bg px-3 py-2 text-[9px] font-bold text-crm-badge-violet disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
+        <button onClick={()=>void refreshBillingReadiness()} disabled={refreshingReadiness || Boolean(demo)} title={demo ? "Disabled in the demo" : undefined} className="rounded border border-crm-badge-violet/30 bg-crm-violet-soft-bg px-3 py-2 text-[9px] font-bold text-crm-badge-violet disabled:opacity-40">{refreshingReadiness ? 'Checking…' : 'Refresh billing readiness'}</button>
         <label className="flex items-center gap-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg px-3 py-2 text-[9px] font-bold text-crm-warning-soft-text"><input type="checkbox" checked={earlyBilling} onChange={(event)=>setEarlyBilling(event.target.checked)} className="accent-amber-500"/>Early billing override</label>
-        <button onClick={() => void reconcileInvoices()} disabled={reconciling} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[10px] font-bold text-crm-ink disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
+        <button onClick={() => void reconcileInvoices()} disabled={reconciling || Boolean(demo)} title={demo ? "Disabled in the demo" : undefined} className="rounded border border-crm-hairline bg-crm-surface-card px-3 py-2 text-[10px] font-bold text-crm-ink disabled:opacity-40">{reconciling ? "Reconciling…" : "Reconcile QuickBooks"}</button>
         <select
           defaultValue=""
           onChange={(e) => {
@@ -5034,6 +5040,8 @@ function InvoicesView({
                         View
                       </button>
                       <button
+                        disabled={Boolean(demo)}
+                        title={demo ? "Email is disabled in the demo" : undefined}
                         onClick={() =>
                           setEmailDoc({ type: "invoice", id: invoice.id, label: invoice.invoiceNumber || invoice.id })
                         }
@@ -5043,7 +5051,7 @@ function InvoicesView({
                       </button>
                       <button
                         disabled={
-                          syncing === invoice.id ||
+                          Boolean(demo) || syncing === invoice.id ||
                           invoice.qboSync?.status === "synced"
                         }
                         onClick={() => void syncToQuickBooks(invoice)}
@@ -5101,6 +5109,7 @@ function InvoicesView({
             setViewingInvoice(null);
           }}
           onDelete={() => void deleteInvoice(viewingInvoice)}
+          demoMode={Boolean(demo)}
         />
       )}
       {editingInvoice && (
@@ -5125,7 +5134,9 @@ function InvoiceDetailModal({
   onClose,
   onEdit,
   onDelete,
+  demoMode = false,
 }: {
+  demoMode?: boolean;
   invoice: LiveInvoice;
   locked: boolean;
   deleting: boolean;
@@ -5243,9 +5254,9 @@ function InvoiceDetailModal({
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={locked}
+              disabled={locked || demoMode}
               onClick={onEdit}
-              title={locked ? "Synced or paid invoices can't be edited." : "Edit line items and terms"}
+              title={demoMode ? "Editing is disabled in the demo" : locked ? "Synced or paid invoices can't be edited." : "Edit line items and terms"}
               className="rounded border border-crm-hairline px-4 py-2 text-xs font-bold disabled:opacity-40"
             >
               Edit
