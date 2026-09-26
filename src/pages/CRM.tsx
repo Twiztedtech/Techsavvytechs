@@ -1945,7 +1945,7 @@ function AuditTrailView({ logs }: { logs: AuditLog[] }) {
   );
 }
 
-function ReportsView({
+export function ReportsView({
   jobs,
   quotes,
   invoices,
@@ -1960,6 +1960,7 @@ function ReportsView({
   technicians: Technician[];
   timeEntries: BillingTimeEntry[];
 }) {
+  const demo = useContext(DispatchDemoContext);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [plPreset, setPlPreset] = useState<"month" | "lastMonth" | "quarter" | "ytd" | "custom">("month");
@@ -2081,9 +2082,9 @@ function ReportsView({
     <div className="space-y-5">
       <section className="flex flex-col justify-between gap-3 rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm sm:flex-row sm:items-center">
         <div>
-          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-crm-ink"><Activity className="h-3.5 w-3.5" /> Live Firestore data</div>
+          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.18em] text-crm-ink"><Activity className="h-3.5 w-3.5" /> {demo ? "Sample data" : "Live Firestore data"}</div>
           <h2 className="mt-2 text-base font-bold">Operational performance</h2>
-          <p className="mt-1 text-[10px] text-crm-muted">Updated automatically from CRM jobs, quotes, invoices, technicians and assets. Includes test records; margins use saved job costing.</p>
+          <p className="mt-1 text-[10px] text-crm-muted">{demo ? "Built from the demo's sample jobs, quotes, invoices, timecards and assets. Change anything on the other tabs and these numbers follow." : "Updated automatically from CRM jobs, quotes, invoices, technicians and assets. Includes test records; margins use saved job costing."}</p>
         </div>
         <button onClick={exportCsv} className="flex items-center justify-center gap-2 rounded bg-crm-primary hover:bg-crm-primary-active px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-crm-on-primary"><Archive className="h-3.5 w-3.5" /> Download snapshot</button>
       </section>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type DemoTab = "dispatch" | "client" | "invoices" | "roster";
+export type DemoTab = "dispatch" | "client" | "invoices" | "reports" | "roster";
 
 export type TourStep = {
   tab: DemoTab;

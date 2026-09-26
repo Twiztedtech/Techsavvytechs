@@ -8,6 +8,7 @@ import {
   InvoicesView,
   LiveScheduleBoard,
   LiveSchedulingQueue,
+  ReportsView,
   ScheduleModal,
   TechWorkloadSummary,
   type LiveInvoice,
@@ -61,42 +62,101 @@ const PORTRAITS = {
   ahsoka: avatar({ bg: ["#0e7490", "#67e8f9"], skin: "#e2793a", hair: "#e2793a", shirt: "#334155", style: "none", back: `<path d="M92 76 C92 40 116 36 120 68 Z M164 76 C164 40 140 36 136 68 Z" fill="#e2793a"/><path d="M84 104 C58 140 60 202 84 232 C94 200 94 150 98 118 Z M172 104 C198 140 196 202 172 232 C162 200 162 150 158 118 Z" fill="#e2793a"/><path d="M68 150 L92 156 M66 176 L90 182 M70 202 L92 206 M188 150 L164 156 M190 176 L166 182 M186 202 L164 206" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>`, shirtExtra: `<rect x="104" y="178" width="48" height="12" rx="6" fill="#e2e8f0"/>`, front: `<path d="M112 60 L120 74 M144 60 L136 74 M100 98 L114 106 M156 98 L142 106 M90 130 L104 130 M152 130 L166 130" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>` }),
 };
 
-// Sample invoices, plus completed jobs so the billing screen has something to bill.
-const buildInvoices = (): LiveInvoice[] => {
-  const today = pacificToday();
-  const invoice = (n: number, jobId: string, customer: string, wo: string, site: string, lines: Array<[string, number, number, "labor" | "material"]>, issueBack: number, paid: number, payMethod = "ACH"): LiveInvoice => {
-    const lineItems = lines.map(([description, quantity, unitPrice, kind]) => ({ description, quantity, unitPrice, kind }));
-    const subtotal = lineItems.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
-    const tax = Math.round(subtotal * 0.0825 * 100) / 100;
-    const total = Math.round((subtotal + tax) * 100) / 100;
-    const issueDate = addDays(today, -issueBack);
-    const dueDate = addDays(issueDate, 30);
-    const balance = Math.round((total - paid) * 100) / 100;
-    const overdue = balance > 0 && dueDate < today;
-    return {
-      id: `demo-inv-${n}`, invoiceNumber: `INV-DEMO-${3000 + n}`, jobId, workOrderNumber: wo, customer, site, issueDate, dueDate,
-      status: balance <= 0 ? "Paid" : paid > 0 ? "Partially Paid" : overdue ? "Overdue" : "Sent",
-      paymentTerms: "Net 30", lineItems, subtotal, taxRate: 0.0825, tax, total, amountPaid: paid, balance,
-      payments: paid > 0 ? [{ amount: paid, method: payMethod, reference: `REF-${9000 + n}`, receivedAt: `${addDays(issueDate, 12)}T18:00:00.000Z` }] : [],
-      qboSync: { status: paid >= total ? "synced" : "pending" },
-    } as unknown as LiveInvoice;
-  };
-  return [
-    invoice(1, "demo-20", "Endor Medical Plaza", "WO-DEMO-0920", "Ewok Village Clinic", [["Fiber run — labor", 9, 85, "labor"], ["Multimode fiber and terminations", 1, 310, "material"]], 6, 0),
-    invoice(2, "demo-21", "Jabba's Logistics", "WO-DEMO-0921", "Docking Bay 94", [["Access control install — labor", 14, 80, "labor"], ["Card readers (4)", 4, 145, "material"]], 40, 1840.25),
-    invoice(3, "demo-22", "Dagobah Dental Group", "WO-DEMO-0922", "Swamp Street Office", [["Wi-Fi refresh — labor", 8, 95, "labor"], ["Access points (3)", 3, 180, "material"]], 22, 800),
-    invoice(4, "demo-23", "Tatooine Academy", "WO-DEMO-0923", "Main Campus", [["Cell booster tuning — labor", 6, 100, "labor"]], 48, 0),
-  ];
+// Billing history: one spec drives the completed jobs, their invoices and their timecards,
+// so the Invoicing and Reports screens always agree with each other.
+type BillingSpec = {
+  jobId: string;
+  wo: string;
+  name: string;
+  customer: string;
+  site: string;
+  lines: Array<[string, number, number, "labor" | "material"]>;
+  issueBack: number;
+  paid: number | "full";
+  invoiced: boolean;
+  entries: Array<{ tech: string; techName: string; hours: number; rate: number; supplies?: number; travel?: number }>;
+};
+const BILLING: BillingSpec[] = [
+  { jobId: "demo-20", wo: "WO-DEMO-0920", name: "Fiber run \u2014 data closet", customer: "Endor Medical Plaza", site: "Ewok Village Clinic", lines: [["Fiber run \u2014 labor", 9, 85, "labor"], ["Multimode fiber and terminations", 1, 310, "material"]], issueBack: 6, paid: 0, invoiced: true, entries: [{ tech: "t1", techName: "Han Solo", hours: 8, rate: 55, supplies: 210 }] },
+  { jobId: "demo-21", wo: "WO-DEMO-0921", name: "Access control install", customer: "Jabba's Logistics", site: "Docking Bay 94", lines: [["Access control install \u2014 labor", 14, 80, "labor"], ["Card readers (4)", 4, 145, "material"]], issueBack: 40, paid: "full", invoiced: true, entries: [{ tech: "t3", techName: "Lando Calrissian", hours: 10, rate: 50, supplies: 380 }, { tech: "t5", techName: "Padme Amidala", hours: 6, rate: 40 }] },
+  { jobId: "demo-22", wo: "WO-DEMO-0922", name: "Wi-Fi refresh", customer: "Dagobah Dental Group", site: "Swamp Street Office", lines: [["Wi-Fi refresh \u2014 labor", 8, 95, "labor"], ["Access points (3)", 3, 180, "material"]], issueBack: 22, paid: 800, invoiced: true, entries: [{ tech: "t2", techName: "Leia Organa", hours: 7, rate: 65, supplies: 300 }] },
+  { jobId: "demo-23", wo: "WO-DEMO-0923", name: "Cell booster tuning", customer: "Tatooine Academy", site: "Main Campus", lines: [["Cell booster tuning \u2014 labor", 6, 100, "labor"]], issueBack: 48, paid: 0, invoiced: true, entries: [{ tech: "t4", techName: "Luke Skywalker", hours: 8, rate: 70, supplies: 180, travel: 35 }] },
+  { jobId: "demo-26", wo: "WO-DEMO-0926", name: "Network closet refresh", customer: "Alderaan Credit Union", site: "Main Branch", lines: [["Network closet refresh \u2014 labor", 5, 95, "labor"], ["Switch and patch panel", 1, 640, "material"]], issueBack: 1, paid: "full", invoiced: true, entries: [{ tech: "t1", techName: "Han Solo", hours: 5, rate: 55, supplies: 500 }] },
+  { jobId: "demo-27", wo: "WO-DEMO-0927", name: "Camera aiming", customer: "Echo Base Storage", site: "North Ridge", lines: [["Camera aiming \u2014 labor", 4, 80, "labor"], ["Mounts (6)", 6, 45, "material"]], issueBack: 9, paid: 500, invoiced: true, entries: [{ tech: "t3", techName: "Lando Calrissian", hours: 4, rate: 50, supplies: 150 }] },
+  { jobId: "demo-28", wo: "WO-DEMO-0928", name: "Wi-Fi coverage build", customer: "Hoth Wellness Clinic", site: "Front Desk Wing", lines: [["Wi-Fi coverage \u2014 labor", 6, 95, "labor"], ["Access points (2)", 2, 180, "material"]], issueBack: 35, paid: "full", invoiced: true, entries: [{ tech: "t2", techName: "Leia Organa", hours: 6, rate: 65, supplies: 250 }] },
+  { jobId: "demo-29", wo: "WO-DEMO-0929", name: "Leasing office cabling", customer: "Naboo Palace Apartments", site: "Royal Courtyard", lines: [["Leasing office cabling \u2014 labor", 12, 85, "labor"], ["Cat6A cable and jacks", 1, 420, "material"]], issueBack: 58, paid: "full", invoiced: true, entries: [{ tech: "t1", techName: "Han Solo", hours: 12, rate: 55, supplies: 300 }] },
+  { jobId: "demo-24", wo: "WO-DEMO-0924", name: "Rack build and labeling", customer: "Alderaan Credit Union", site: "Operations Center", lines: [], issueBack: 0, paid: 0, invoiced: false, entries: [] },
+  { jobId: "demo-25", wo: "WO-DEMO-0925", name: "Camera aiming and cleanup", customer: "Echo Base Storage", site: "South Gate", lines: [], issueBack: 0, paid: 0, invoiced: false, entries: [] },
+];
+
+const invoiceTotals = (lines: BillingSpec["lines"]) => {
+  const subtotal = lines.reduce((sum, [, quantity, unitPrice]) => sum + quantity * unitPrice, 0);
+  const tax = Math.round(subtotal * 0.0825 * 100) / 100;
+  return { subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 };
 };
 
-const COMPLETED_JOBS: LiveJob[] = [
-  { id: "demo-20", workOrderNumber: "WO-DEMO-0920", name: "Fiber run — data closet", vendorName: "Endor Medical Plaza", status: "Invoiced" },
-  { id: "demo-21", workOrderNumber: "WO-DEMO-0921", name: "Access control install", vendorName: "Jabba's Logistics", status: "Invoiced" },
-  { id: "demo-22", workOrderNumber: "WO-DEMO-0922", name: "Wi-Fi refresh", vendorName: "Dagobah Dental Group", status: "Invoiced" },
-  { id: "demo-23", workOrderNumber: "WO-DEMO-0923", name: "Cell booster tuning", vendorName: "Tatooine Academy", status: "Invoiced" },
-  { id: "demo-24", workOrderNumber: "WO-DEMO-0924", name: "Rack build and labeling", vendorName: "Alderaan Credit Union", status: "Ready to Invoice" },
-  { id: "demo-25", workOrderNumber: "WO-DEMO-0925", name: "Camera aiming and cleanup", vendorName: "Echo Base Storage", status: "Ready to Invoice" },
-] as unknown as LiveJob[];
+const buildInvoices = (): LiveInvoice[] => {
+  const today = pacificToday();
+  return BILLING.filter((spec) => spec.invoiced).map((spec, index) => {
+    const { subtotal, tax, total } = invoiceTotals(spec.lines);
+    const paid = spec.paid === "full" ? total : spec.paid;
+    const issueDate = addDays(today, -spec.issueBack);
+    const dueDate = addDays(issueDate, 30);
+    const balance = Math.round((total - paid) * 100) / 100;
+    return {
+      id: `demo-inv-${index + 1}`, invoiceNumber: `INV-DEMO-${3001 + index}`, jobId: spec.jobId, workOrderNumber: spec.wo, customer: spec.customer, site: spec.site,
+      issueDate, dueDate, paymentTerms: "Net 30",
+      status: balance <= 0 ? "Paid" : paid > 0 ? "Partially Paid" : dueDate < today ? "Overdue" : "Sent",
+      lineItems: spec.lines.map(([description, quantity, unitPrice, kind]) => ({ description, quantity, unitPrice, kind })),
+      subtotal, taxRate: 0.0825, tax, total, amountPaid: paid, balance,
+      payments: paid > 0 ? [{ amount: paid, method: "ACH", reference: `REF-${9000 + index}`, receivedAt: `${addDays(issueDate, 12)}T18:00:00.000Z` }] : [],
+      qboSync: { status: paid >= total ? "synced" : "pending" },
+    } as unknown as LiveInvoice;
+  });
+};
+
+const entryCost = (e: BillingSpec["entries"][number]) => e.hours * e.rate + (e.supplies || 0) + (e.travel || 0);
+
+const buildCompletedJobs = (): LiveJob[] =>
+  BILLING.map((spec) => {
+    const revenue = invoiceTotals(spec.lines).subtotal;
+    const cost = spec.entries.reduce((sum, e) => sum + entryCost(e), 0);
+    return {
+      id: spec.jobId, workOrderNumber: spec.wo, name: spec.name, vendorName: spec.customer, address: spec.site,
+      status: spec.invoiced ? "Invoiced" : "Ready to Invoice",
+      estimatedHours: spec.entries.reduce((sum, e) => sum + e.hours, 0),
+      ...(spec.invoiced && revenue ? { margin: Math.round(((revenue - cost) / revenue) * 1000) / 10 } : {}),
+    } as unknown as LiveJob;
+  });
+
+// Approved timecards behind those jobs; these feed the profitability report.
+const buildReportEntries = () => {
+  const today = pacificToday();
+  const out: Array<Record<string, any>> = [];
+  BILLING.forEach((spec) => {
+    spec.entries.forEach((e, i) => {
+      out.push({
+        id: `demo-rte-${spec.jobId}-${i}`, jobId: spec.jobId, technicianUid: `auth-${e.tech}`, technicianName: e.techName, jobSite: spec.customer,
+        date: addDays(today, -(spec.issueBack + 3)), totalHours: e.hours, rate: e.rate, suppliesCost: e.supplies || 0, travelCost: e.travel || 0,
+        status: "approved", laborStatus: "approved", suppliesStatus: "approved", travelStatus: "approved", active: false,
+      });
+    });
+  });
+  return out;
+};
+
+const buildQuotes = () =>
+  ["Accepted", "Accepted", "Converted", "Accepted", "Rejected", "Sent", "Sent"].map((status, i) => ({ id: `demo-q-${i}`, status })) as unknown as Parameters<typeof ReportsView>[0]["quotes"];
+
+const buildAssets = () => {
+  const today = pacificToday();
+  return [
+    { id: "as1", name: "Core switch stack", customerName: "Endor Medical Plaza", site: "Ewok Village Clinic", status: "Active", maintenance: { enabled: true, nextServiceDate: addDays(today, 6), estimatedHours: 2 } },
+    { id: "as2", name: "Rooftop cell booster", customerName: "Tatooine Academy", site: "Main Campus", status: "Active", maintenance: { enabled: true, nextServiceDate: addDays(today, 18), estimatedHours: 3 } },
+    { id: "as3", name: "Camera NVR", customerName: "Echo Base Storage", site: "North Ridge", status: "Active", maintenance: { enabled: true, nextServiceDate: addDays(today, 27), estimatedHours: 1.5 } },
+    { id: "as4", name: "Access point fleet", customerName: "Dagobah Dental Group", site: "Swamp Street Office", status: "Active", maintenance: { enabled: true, nextServiceDate: addDays(today, 75), estimatedHours: 2 } },
+  ] as unknown as Parameters<typeof ReportsView>[0]["assets"];
+};
 
 const money = (value: number) => value.toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -354,6 +414,7 @@ function buildJobs(): LiveJob[] {
       address,
       status: dayOffset === null ? "New" : "Scheduled",
       clientReference: `REQ-${4000 + n}`,
+      estimatedHours: dayOffset === null ? 4 : (Number(end.slice(0, 2)) * 60 + Number(end.slice(3)) - Number(start.slice(0, 2)) * 60 - Number(start.slice(3))) / 60,
       siteContact: "Site contact · (555) 010-0100",
       notes: "Sample work order for demonstration purposes.",
       assignedTechId: techId || "ALL",
@@ -397,8 +458,11 @@ export default function Demo() {
     }
   };
   const timeEntries = useMemo(buildTimeEntries, []);
+  const reportEntries = useMemo(buildReportEntries, []);
+  const quotes = useMemo(buildQuotes, []);
+  const assets = useMemo(buildAssets, []);
   const [contractors, setContractors] = useState(CONTRACTORS);
-  const [jobs, setJobs] = useState<LiveJob[]>(() => [...buildJobs(), ...COMPLETED_JOBS]);
+  const [jobs, setJobs] = useState<LiveJob[]>(() => [...buildJobs(), ...buildCompletedJobs()]);
   const [invoices, setInvoices] = useState<LiveInvoice[]>(buildInvoices);
   const [invoiceJob, setInvoiceJob] = useState<LiveJob | null>(null);
   const [paymentInvoice, setPaymentInvoice] = useState<LiveInvoice | null>(null);
@@ -622,6 +686,31 @@ export default function Demo() {
       onEnter: () => ([...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Payment" && !(b as HTMLButtonElement).disabled) as HTMLElement | undefined)?.click(),
       onLeave: () => (document.querySelector('.fixed [aria-label="Close"]') as HTMLElement | null)?.click(),
     },
+    {
+      tab: "reports",
+      title: "The numbers at a glance",
+      body: "Active jobs, average margin, quote conversion, receivables (with what is overdue) and maintenance due in the next 30 days. They update as you change jobs and invoices on the other tabs.",
+      find: () => document.querySelector('[data-tour="reports"] section.grid'),
+    },
+    {
+      tab: "reports",
+      title: "Which jobs make money",
+      body: "Revenue against direct labor and materials for each job, for this month, last month, this quarter, year to date or a custom range. We picked year to date. Sort by lowest profit to spot jobs that lost money.",
+      find: () => ([...document.querySelectorAll("h3")].find((h) => h.textContent === "Job profitability")?.closest("section") as HTMLElement | null) ?? null,
+      onEnter: () => byText("YTD")()?.click(),
+    },
+    {
+      tab: "reports",
+      title: "Pipeline and receivables",
+      body: "Where every work order sits from New to Complete. Beside it, receivables aging shows how old the unpaid invoices are. Scroll on for hours recorded per job, technician workload and recurring maintenance coming due.",
+      find: () => ([...document.querySelectorAll("h3")].find((h) => h.textContent === "Job pipeline")?.closest("section") as HTMLElement | null) ?? null,
+    },
+    {
+      tab: "reports",
+      title: "Who owes you money",
+      body: "Overdue invoices are listed with the customer, due date and balance, so the follow-up list writes itself.",
+      find: () => ([...document.querySelectorAll("h3")].find((h) => h.textContent === "Receivables requiring attention")?.closest("section") as HTMLElement | null) ?? null,
+    },
     { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
     { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
     { tab: "roster", title: "Timecards", body: "The timecard window opened for you. Each row shows the day, job site, hours, rate, supplies and travel, and whether it is approved or still pending.", find: () => modalCard(), cardAtTop: true, onEnter: () => byText("View History")()?.click(), onLeave: () => modalClose() },
@@ -651,7 +740,7 @@ export default function Demo() {
               </button>
               <button
                 type="button"
-                onClick={() => { setJobs([...buildJobs(), ...COMPLETED_JOBS]); setContractors(CONTRACTORS()); setClient(buildClientData()); setInvoices(buildInvoices()); setScheduleJob(null); setInvoiceJob(null); setPaymentInvoice(null); setResetKey((k) => k + 1); }}
+                onClick={() => { setJobs([...buildJobs(), ...buildCompletedJobs()]); setContractors(CONTRACTORS()); setClient(buildClientData()); setInvoices(buildInvoices()); setScheduleJob(null); setInvoiceJob(null); setPaymentInvoice(null); setResetKey((k) => k + 1); }}
                 className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
               >
                 Reset demo data
@@ -661,7 +750,7 @@ export default function Demo() {
         </div>
         <nav className="border-b border-crm-hairline bg-crm-canvas px-4 sm:px-8">
           <div className="mx-auto flex max-w-[1500px] gap-1">
-            {([["dispatch", "Schedule & Dispatch"], ["client", "Client Requests"], ["invoices", "Invoicing"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
+            {([["dispatch", "Schedule & Dispatch"], ["client", "Client Requests"], ["invoices", "Invoicing"], ["reports", "Reports"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -693,6 +782,10 @@ export default function Demo() {
                 onCreate={setInvoiceJob}
                 onPayment={setPaymentInvoice}
               />
+            </div>
+          ) : tab === "reports" ? (
+            <div data-tour="reports">
+              <ReportsView jobs={jobs} quotes={quotes} invoices={invoices} assets={assets} technicians={activeTechs} timeEntries={reportEntries as any} />
             </div>
           ) : (
             <ContractorRosterAdmin contractors={contractors} jobs={jobs} />
