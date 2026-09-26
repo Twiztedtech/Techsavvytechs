@@ -79,7 +79,7 @@ const buildTimeEntries = () => {
 
 const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
-    id: "t1", authUid: "auth-t1", name: "Alex Rivera", email: "alex.rivera@example.com", specialty: "Fiber & structured cabling",
+    id: "t1", authUid: "auth-t1", name: "Han Solo", email: "han.solo@example.com", specialty: "Fiber & structured cabling",
     rate: 85, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0111",
     profilePhotoUrl: avatar({ bg: ["#0f766e", "#5eead4"], skin: "#e0ac82", hair: "#2b1d14", shirt: "#f59e0b", style: "short", hat: "#facc15" }), onboarding: { status: "approved" }, role: "technician_lead",
     skills: ["Fiber splicing", "Cat6A termination", "Rack dressing", "OTDR testing"],
@@ -87,7 +87,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c1", name: "BICSI Installer 2", expiryDate: "2027-05-01" }, { id: "c2", name: "Fiber Optic Association CFOT", expiryDate: "" }],
   },
   {
-    id: "t2", authUid: "auth-t2", name: "Jordan Lee", email: "jordan.lee@example.com", specialty: "Network & Wi-Fi",
+    id: "t2", authUid: "auth-t2", name: "Leia Organa", email: "leia.organa@example.com", specialty: "Network & Wi-Fi",
     rate: 95, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0122",
     profilePhotoUrl: avatar({ bg: ["#1d4ed8", "#93c5fd"], skin: "#f1c9a5", hair: "#5b3a1e", shirt: "#334155", style: "long" }), onboarding: { status: "approved" },
     skills: ["Wi-Fi surveys", "Firewall configuration", "SD-WAN", "VLAN design"],
@@ -95,7 +95,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c3", name: "CCNA", expiryDate: "2026-10-15" }],
   },
   {
-    id: "t3", authUid: "auth-t3", name: "Sam Patel", email: "sam.patel@example.com", specialty: "Low-voltage & access control",
+    id: "t3", authUid: "auth-t3", name: "Lando Calrissian", email: "lando.calrissian@example.com", specialty: "Low-voltage & access control",
     rate: 80, employmentType: "w2_employee", accessStatus: "Active", active: true, businessPhone: "(555) 010-0133",
     profilePhotoUrl: avatar({ bg: ["#7c3aed", "#d8b4fe"], skin: "#8d5a3b", hair: "#111827", shirt: "#0ea5e9", style: "beard" }), onboarding: { status: "approved" },
     skills: ["Access control wiring", "IP cameras", "Intercom systems", "Conduit runs"],
@@ -103,7 +103,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c4", name: "C-7 Low Voltage License", expiryDate: "2028-01-31" }],
   },
   {
-    id: "t4", authUid: "auth-t4", name: "Casey Morgan", email: "casey.morgan@example.com", specialty: "RF / cell signal",
+    id: "t4", authUid: "auth-t4", name: "Luke Skywalker", email: "luke.skywalker@example.com", specialty: "RF / cell signal",
     rate: 100, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0144",
     profilePhotoUrl: avatar({ bg: ["#b45309", "#fcd34d"], skin: "#f5d3b3", hair: "#a16207", shirt: "#16a34a", style: "short", hat: "#f8fafc" }), onboarding: { status: "submitted" },
     skills: ["Cell booster commissioning", "DAS testing", "RF site survey"],
@@ -111,14 +111,14 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c5", name: "FCC GROL", expiryDate: "" }],
   },
   {
-    id: "t5", authUid: "auth-t5", name: "Riley Chen", email: "riley.chen@example.com", specialty: "Field technician",
+    id: "t5", authUid: "auth-t5", name: "Padme Amidala", email: "padme.amidala@example.com", specialty: "Field technician",
     rate: 65, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0155",
     profilePhotoUrl: avatar({ bg: ["#15803d", "#86efac"], skin: "#c68b64", hair: "#1c1917", shirt: "#dc2626", style: "long" }),
     onboarding: { status: "not_started" },
     skills: ["Equipment install", "Printer setup", "Basic cabling"], tools: ["Hand tools"], certifications: [],
   },
   {
-    id: "t6", authUid: "auth-t6", name: "Morgan Ellis", email: "morgan.ellis@example.com", specialty: "Structured cabling",
+    id: "t6", authUid: "auth-t6", name: "Ahsoka Tano", email: "ahsoka.tano@example.com", specialty: "Structured cabling",
     rate: 70, employmentType: "1099_contractor", accessStatus: "Pending", active: false, onboarding: { status: "not_started" },
     skills: ["Cat6 terminations"], tools: [], certifications: [],
   },
@@ -228,6 +228,14 @@ export default function Demo() {
     { tab: "dispatch", title: "Jobs waiting to be scheduled", body: "New work lands in the dispatch queue. Try it: drag a card down onto a technician's row on the board.", find: () => document.querySelector('[data-tour="queue"]') },
     { tab: "dispatch", title: "Drag to schedule", body: "Drop a card on a technician at the time you want (it snaps to 30 minutes). Drag an existing block to move it or hand it to someone else. Amber blocks overlap.", find: () => document.querySelector('[data-tour="board"]') },
     { tab: "dispatch", title: "Day and week views", body: "Switch between the hourly day view and the week view. In the week view you can drag jobs between days.", find: byText("Week") },
+    {
+      tab: "dispatch",
+      title: "The week view",
+      body: "We switched to the week view for you: Monday to Sunday across the top, one row per technician. Drag a job to another day or technician and it keeps its time. Click a day header to jump into that day.",
+      find: () => document.querySelector('[data-tour="board"]'),
+      onEnter: () => byText("week")()?.click(),
+      onLeave: () => byText("day")()?.click(),
+    },
     { tab: "dispatch", title: "Every job is clickable", body: "Each block on the board opens a detail panel when you click it. Next, we will open one for you.", find: () => document.querySelector('[data-tour="board"] button[draggable="true"]') },
     {
       tab: "dispatch",
