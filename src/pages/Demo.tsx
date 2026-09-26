@@ -23,11 +23,16 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-// Placeholder portraits (initials on a gradient) so the roster shows how photos look.
-const portrait = (initials: string, from: string, to: string) =>
-  `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/><text x="128" y="152" font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="white" text-anchor="middle">${initials}</text></svg>`,
-  )}`;
+// Illustrated portraits (not real people) so the roster shows how photos look.
+type AvatarLook = { bg: [string, string]; skin: string; hair: string; shirt: string; style: "short" | "long" | "beard"; hat?: string };
+const avatar = ({ bg, skin, hair, shirt, style, hat }: AvatarLook) => {
+  const hairBack = style === "long" ? `<path d="M80 104 C68 176 84 190 100 190 L100 112 Z M176 104 C188 176 172 190 156 190 L156 112 Z" fill="${hair}"/>` : "";
+  const hairTop = hat ? "" : `<path d="M82 104 C78 52 178 52 174 104 C164 82 92 82 82 104 Z" fill="${hair}"/>`;
+  const beard = style === "beard" ? `<path d="M88 118 C92 168 164 168 168 118 C156 140 100 140 88 118 Z" fill="${hair}"/>` : "";
+  const hard = hat ? `<path d="M78 96 C80 46 176 46 178 96 Z" fill="${hat}"/><rect x="66" y="92" width="124" height="11" rx="5" fill="${hat}"/><rect x="120" y="52" width="16" height="42" fill="rgba(255,255,255,0.25)"/>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/>${hairBack}<path d="M24 256 C24 204 70 178 128 178 C186 178 232 204 232 256 Z" fill="${shirt}"/><rect x="108" y="146" width="40" height="40" rx="8" fill="${skin}"/><ellipse cx="128" cy="112" rx="45" ry="52" fill="${skin}"/>${beard}${hairTop}${hard}<circle cx="110" cy="116" r="4.5" fill="#1f2937"/><circle cx="146" cy="116" r="4.5" fill="#1f2937"/><path d="M112 140 C120 148 136 148 144 140" stroke="#1f2937" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
 
 // Sample timecards for the past two weeks (weekdays only), matched to contractors by authUid.
 const buildTimeEntries = () => {
@@ -76,7 +81,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t1", authUid: "auth-t1", name: "Alex Rivera", email: "alex.rivera@example.com", specialty: "Fiber & structured cabling",
     rate: 85, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0111",
-    profilePhotoUrl: portrait("AR", "#0f766e", "#14b8a6"), onboarding: { status: "approved" }, role: "technician_lead",
+    profilePhotoUrl: avatar({ bg: ["#0f766e", "#5eead4"], skin: "#e0ac82", hair: "#2b1d14", shirt: "#f59e0b", style: "short", hat: "#facc15" }), onboarding: { status: "approved" }, role: "technician_lead",
     skills: ["Fiber splicing", "Cat6A termination", "Rack dressing", "OTDR testing"],
     tools: ["Fusion splicer", "OTDR", "Fluke DSX-8000"],
     certifications: [{ id: "c1", name: "BICSI Installer 2", expiryDate: "2027-05-01" }, { id: "c2", name: "Fiber Optic Association CFOT", expiryDate: "" }],
@@ -84,7 +89,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t2", authUid: "auth-t2", name: "Jordan Lee", email: "jordan.lee@example.com", specialty: "Network & Wi-Fi",
     rate: 95, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0122",
-    profilePhotoUrl: portrait("JL", "#1d4ed8", "#60a5fa"), onboarding: { status: "approved" },
+    profilePhotoUrl: avatar({ bg: ["#1d4ed8", "#93c5fd"], skin: "#f1c9a5", hair: "#5b3a1e", shirt: "#334155", style: "long" }), onboarding: { status: "approved" },
     skills: ["Wi-Fi surveys", "Firewall configuration", "SD-WAN", "VLAN design"],
     tools: ["Ekahau sidekick", "Laptop with console cable"],
     certifications: [{ id: "c3", name: "CCNA", expiryDate: "2026-10-15" }],
@@ -92,7 +97,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t3", authUid: "auth-t3", name: "Sam Patel", email: "sam.patel@example.com", specialty: "Low-voltage & access control",
     rate: 80, employmentType: "w2_employee", accessStatus: "Active", active: true, businessPhone: "(555) 010-0133",
-    profilePhotoUrl: portrait("SP", "#7c3aed", "#c084fc"), onboarding: { status: "approved" },
+    profilePhotoUrl: avatar({ bg: ["#7c3aed", "#d8b4fe"], skin: "#8d5a3b", hair: "#111827", shirt: "#0ea5e9", style: "beard" }), onboarding: { status: "approved" },
     skills: ["Access control wiring", "IP cameras", "Intercom systems", "Conduit runs"],
     tools: ["Bucket truck", "Conduit bender", "Toner and probe"],
     certifications: [{ id: "c4", name: "C-7 Low Voltage License", expiryDate: "2028-01-31" }],
@@ -100,7 +105,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t4", authUid: "auth-t4", name: "Casey Morgan", email: "casey.morgan@example.com", specialty: "RF / cell signal",
     rate: 100, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0144",
-    profilePhotoUrl: portrait("CM", "#b45309", "#f59e0b"), onboarding: { status: "submitted" },
+    profilePhotoUrl: avatar({ bg: ["#b45309", "#fcd34d"], skin: "#f5d3b3", hair: "#a16207", shirt: "#16a34a", style: "short", hat: "#f8fafc" }), onboarding: { status: "submitted" },
     skills: ["Cell booster commissioning", "DAS testing", "RF site survey"],
     tools: ["Spectrum analyzer", "Signal meter", "Antenna alignment kit"],
     certifications: [{ id: "c5", name: "FCC GROL", expiryDate: "" }],
@@ -108,6 +113,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
     id: "t5", authUid: "auth-t5", name: "Riley Chen", email: "riley.chen@example.com", specialty: "Field technician",
     rate: 65, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0155",
+    profilePhotoUrl: avatar({ bg: ["#15803d", "#86efac"], skin: "#c68b64", hair: "#1c1917", shirt: "#dc2626", style: "long" }),
     onboarding: { status: "not_started" },
     skills: ["Equipment install", "Printer setup", "Basic cabling"], tools: ["Hand tools"], certifications: [],
   },
@@ -222,7 +228,15 @@ export default function Demo() {
     { tab: "dispatch", title: "Jobs waiting to be scheduled", body: "New work lands in the dispatch queue. Try it: drag a card down onto a technician's row on the board.", find: () => document.querySelector('[data-tour="queue"]') },
     { tab: "dispatch", title: "Drag to schedule", body: "Drop a card on a technician at the time you want (it snaps to 30 minutes). Drag an existing block to move it or hand it to someone else. Amber blocks overlap.", find: () => document.querySelector('[data-tour="board"]') },
     { tab: "dispatch", title: "Day and week views", body: "Switch between the hourly day view and the week view. In the week view you can drag jobs between days.", find: byText("Week") },
-    { tab: "dispatch", title: "Open any job", body: "Click a job block to open its side panel: site details, date and time, technicians with conflict warnings, and Unschedule.", find: () => document.querySelector('[data-tour="board"] button[draggable="true"]') },
+    { tab: "dispatch", title: "Every job is clickable", body: "Each block on the board opens a detail panel when you click it. Next, we will open one for you.", find: () => document.querySelector('[data-tour="board"] button[draggable="true"]') },
+    {
+      tab: "dispatch",
+      title: "The job side panel",
+      body: "Site details, date and time with quick length buttons, a searchable technician list with photos, and an amber warning if someone is double-booked. Unschedule sends the job back to the queue.",
+      find: () => document.querySelector(".fixed.inset-y-0.right-0"),
+      onEnter: () => (document.querySelector('[data-tour="board"] button[draggable="true"]') as HTMLElement | null)?.click(),
+      onLeave: () => (document.querySelector('[aria-label="Close panel"]') as HTMLElement | null)?.click(),
+    },
     { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
     { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
     { tab: "roster", title: "Timecards", body: "The timecard window opened for you. Each row shows the day, job site, hours, rate, supplies and travel, and whether it is approved or still pending.", find: () => modalCard(), cardAtTop: true, onEnter: () => byText("View History")()?.click(), onLeave: () => modalClose() },
