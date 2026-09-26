@@ -5,6 +5,11 @@ export type TourStep = {
   title: string;
   body: string;
   find: () => HTMLElement | null;
+  /** Runs shortly after the step is shown (e.g. open a dialog). */
+  onEnter?: () => void;
+  /** Runs when leaving the step or closing the tour (e.g. close that dialog). */
+  onLeave?: () => void;
+  cardAtTop?: boolean;
 };
 
 const CARD_WIDTH = 340;
@@ -29,6 +34,16 @@ export function DemoTour({
   useEffect(() => {
     if (step.tab !== tab) setTab(step.tab);
   }, [step, tab, setTab]);
+
+  useEffect(() => {
+    if (step.tab !== tab) return;
+    const timer = window.setTimeout(() => step.onEnter?.(), 150);
+    return () => {
+      window.clearTimeout(timer);
+      step.onLeave?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, tab]);
 
   useEffect(() => {
     if (step.tab !== tab) return;
@@ -79,7 +94,7 @@ export function DemoTour({
         <div className="absolute inset-0 bg-black/60" />
       )}
       <div
-        className="pointer-events-auto absolute bottom-6 rounded-xl border border-crm-hairline bg-crm-canvas p-4 shadow-2xl"
+        className={`pointer-events-auto absolute ${step.cardAtTop ? "top-6" : "bottom-6"} rounded-xl border border-crm-hairline bg-crm-canvas p-4 shadow-2xl`}
         style={{ width: Math.min(CARD_WIDTH, window.innerWidth - 32), left: Math.max(16, Math.min(cardLeft, window.innerWidth - CARD_WIDTH - 16)) }}
         role="dialog"
         aria-label="Demo guide"

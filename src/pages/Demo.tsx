@@ -212,6 +212,11 @@ export default function Demo() {
 
   const byText = (text: string) => () =>
     ([...document.querySelectorAll("button")].find((b) => b.textContent?.trim().toLowerCase() === text.toLowerCase()) as HTMLElement | undefined) ?? null;
+  const timesheetModal = () =>
+    ([...document.querySelectorAll(".fixed")].find((d) => d.textContent?.includes("Timesheets:")) as HTMLElement | undefined) ?? null;
+  const modalCard = () => (timesheetModal()?.firstElementChild as HTMLElement | null) ?? null;
+  const modalClose = () =>
+    ([...(timesheetModal()?.querySelectorAll("button") ?? [])].find((b) => b.textContent?.trim() === "Close") as HTMLElement | undefined)?.click();
   const steps: TourStep[] = [
     { tab: "dispatch", title: "Who is busy this week", body: "The workload table shows each technician's hours against a 40-hour week, jobs today, and what they are doing next. Red means overbooked.", find: () => document.querySelector('[data-tour="workload"]') },
     { tab: "dispatch", title: "Jobs waiting to be scheduled", body: "New work lands in the dispatch queue. Try it: drag a card down onto a technician's row on the board.", find: () => document.querySelector('[data-tour="queue"]') },
@@ -220,7 +225,7 @@ export default function Demo() {
     { tab: "dispatch", title: "Open any job", body: "Click a job block to open its side panel: site details, date and time, technicians with conflict warnings, and Unschedule.", find: () => document.querySelector('[data-tour="board"] button[draggable="true"]') },
     { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
     { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
-    { tab: "roster", title: "Timecards", body: "View History shows a contractor's submitted timecards, with hours, rates, supplies and travel, and whether each is approved.", find: byText("View History") },
+    { tab: "roster", title: "Timecards", body: "The timecard window opened for you. Each row shows the day, job site, hours, rate, supplies and travel, and whether it is approved or still pending.", find: () => modalCard(), cardAtTop: true, onEnter: () => byText("View History")()?.click(), onLeave: () => modalClose() },
   ];
   const activeTechs = contractors.filter((c) => c.accessStatus === "Active");
   const active = scheduleJob ? jobs.find((item) => item.id === scheduleJob.id) || scheduleJob : null;
