@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
+import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { DispatchDemoContext } from "../features/admin/demoContext";
-import { DemoTour, type TourStep } from "./DemoTour";
+import { DemoTour, type DemoTab, type TourStep } from "./DemoTour";
 import {
   LiveScheduleBoard,
   LiveSchedulingQueue,
@@ -34,15 +35,91 @@ const avatar = ({ bg, skin, hair, shirt, style, hat }: AvatarLook) => {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
+// Sample client-portal data: requests, portal users, organizations, appointments.
+const buildClientData = () => {
+  const today = pacificToday();
+  const dow = new Date(`${today}T12:00:00Z`).getUTCDay();
+  const anchor = addDays(today, dow === 6 ? 2 : dow === 0 ? 1 : 0);
+  const now = new Date().toISOString();
+  const org = (id: string, name: string, domain: string, prefix: string, contact: string, email: string) => ({
+    id, name, approvedDomains: [domain], referencePrefixes: [prefix], defaultContactPolicy: "techsavvy_only", billingEmail: email,
+    personnel: [{ id: `${id}-p1`, name: contact, email, role: "primary_contact", active: true }],
+  });
+  const request = (n: number, status: string, companyName: string, siteName: string, requesterName: string, requesterEmail: string, scopeSummary: string, extra: Record<string, unknown> = {}) => ({
+    id: `demo-req-${n}`, requestNumber: `REQ-DEMO-${4100 + n}`, status, companyName, siteName, requesterName, requesterEmail,
+    clientReference: `PO-${7700 + n}`, scopeSummary, createdAt: now,
+    requestedWindows: [{ date: addDays(anchor, n), start: "08:00", end: "17:00" }],
+    scopeTasks: [], equipment: [], packages: [], deliverables: [], attachments: [], ...extra,
+  });
+  return {
+    requests: [
+      request(1, "requested", "Naboo Palace Apartments", "Royal Courtyard Leasing Office", "Padme's Property Manager", "manager@naboo.example",
+        "Install two new access points and re-terminate the leasing office patch panel.", {
+          urgent: true,
+          scopeTasks: ["Survey coverage in the leasing office and lobby", "Mount and configure two access points", "Re-terminate and label the patch panel", "Test and document all drops"],
+          equipment: [{ description: "Ubiquiti U6 Pro access point", quantity: 2, providedBy: "client", serial: "NAB-0042" }, { description: "Cat6A patch cables (3 ft)", quantity: 24, providedBy: "techsavvy" }],
+          deliverables: ["Signed test report", "Updated patch panel labeling sheet"],
+          attachments: [{ id: "a1" }],
+        }),
+      request(2, "requested", "Mos Eisley Coworking", "Cantina Suite 4", "Wuher Tolliver", "wuher@moseisley.example",
+        "Run six Cat6A drops and mount a wall rack for the new tenant suite.", {
+          scopeTasks: ["Pull six Cat6A cables to the suite", "Mount a 12U wall rack", "Terminate, test and label"],
+          equipment: [{ description: "12U wall-mount rack", quantity: 1, providedBy: "techsavvy" }],
+        }),
+      request(3, "clarification_needed", "Endor Medical Plaza", "Ewok Village Clinic", "Wicket W. Warrick", "wicket@endor.example",
+        "Boost cell signal in the basement imaging suite.", {
+          scopeTasks: ["Survey signal in the basement", "Install donor antenna and booster", "Commission and document coverage"],
+          packages: [{ carrier: "UPS", trackingNumber: "1Z999AA10123456784", destination: "site", description: "Signal booster kit" }],
+        }),
+      request(4, "reviewing", "Dagobah Dental Group", "Swamp Street Office", "Yoda Master", "yoda@dagobahdental.example",
+        "Replace the aging firewall and re-check VLAN segmentation.", {
+          scopeTasks: ["Configure replacement firewall", "Migrate rules and VLANs", "Verify guest network isolation"],
+        }),
+    ] as any[],
+    organizations: [
+      org("org-1", "Naboo Palace Apartments", "naboo.example", "NAB-", "Padme's Property Manager", "manager@naboo.example"),
+      org("org-2", "Mos Eisley Coworking", "moseisley.example", "MEC-", "Wuher Tolliver", "wuher@moseisley.example"),
+      org("org-3", "Dagobah Dental Group", "dagobahdental.example", "DDG-", "Yoda Master", "yoda@dagobahdental.example"),
+      org("org-4", "Endor Medical Plaza", "endor.example", "EMP-", "Wicket W. Warrick", "wicket@endor.example"),
+    ] as any[],
+    users: [
+      { id: "u1", displayName: "Bail Organa", email: "bail@naboo.example", status: "pending", customerId: "org-1", emailVerified: true, phoneVerified: true, suggestedRoles: ["company_admin"], requestedRoles: ["company_admin"] },
+      { id: "u2", displayName: "Shmi Skywalker", email: "shmi@moseisley.example", status: "pending", customerId: "org-2", emailVerified: true, phoneVerified: false, phoneVerificationDeferred: true, requestedRoles: ["project_viewer"] },
+      { id: "u3", displayName: "Mon Mothma", email: "mon@endor.example", status: "active", customerId: "org-4", roles: ["company_admin"], emailVerified: true, phoneVerified: true },
+      { id: "u4", displayName: "Wedge Antilles", email: "wedge@dagobahdental.example", status: "active", customerId: "org-3", roles: ["billing"], emailVerified: true, phoneVerified: true },
+      { id: "u5", displayName: "Jar Jar Binks", email: "jarjar@naboo.example", status: "suspended", customerId: "org-1", roles: ["project_viewer"], emailVerified: true, phoneVerified: true },
+    ] as any[],
+    appointments: [
+      { id: "demo-appt-1", jobId: "demo-1", status: "scheduled", confirmedStart: `${addDays(anchor, 0)}T15:00:00.000Z`, confirmedEnd: `${addDays(anchor, 0)}T19:00:00.000Z`, technicianId: "t1", requestedWindows: [] },
+      { id: "demo-appt-2", jobId: "demo-3", status: "requested", technicianId: "t3", requestedWindows: [{ date: addDays(anchor, 0), start: "13:00", end: "17:00" }] },
+      { id: "demo-appt-3", jobId: "demo-9", status: "requested", technicianId: "", requestedWindows: [{ date: addDays(anchor, 3), start: "08:00", end: "12:00" }] },
+    ] as any[],
+    failedNotifications: [
+      { id: "n1", channel: "email", type: "appointment_confirmed", createdAt: now, recipients: ["frontdesk@endor.example"], error: JSON.stringify({ message: "Mailbox full (sample failure)." }) },
+    ] as any[],
+    scopeChanges: [] as any[],
+    settings: { enabled: true, pilotOnly: false },
+  };
+};
+
+const pacificParts = (iso: string) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+      .formatToParts(new Date(iso))
+      .map((part) => [part.type, part.value]),
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+};
+
 // Sample timecards for the past two weeks (weekdays only), matched to contractors by authUid.
 const buildTimeEntries = () => {
   const today = pacificToday();
   const sites: Record<string, string[]> = {
-    t1: ["Harbor Dental Group", "Maple Grove School", "Lakeside Credit Union"],
-    t2: ["Northgate Apartments", "Pinecrest Law Offices", "Foundry Coworking"],
-    t3: ["Summit Storage", "Riverside Logistics", "Cedar Point Clinic"],
-    t4: ["Bayview Medical Plaza", "Summit Storage"],
-    t5: ["Seaside Apartments", "Cedar Point Clinic"],
+    t1: ["Dagobah Dental Group", "Tatooine Academy", "Alderaan Credit Union"],
+    t2: ["Naboo Palace Apartments", "Coruscant Law Offices", "Mos Eisley Coworking"],
+    t3: ["Echo Base Storage", "Jabba's Logistics", "Hoth Wellness Clinic"],
+    t4: ["Endor Medical Plaza", "Echo Base Storage"],
+    t5: ["Kamino Seaside Apartments", "Hoth Wellness Clinic"],
   };
   const rates: Record<string, number> = { t1: 85, t2: 95, t3: 80, t4: 100, t5: 65 };
   const entries: Array<Record<string, any>> = [];
@@ -154,22 +231,25 @@ function buildJobs(): LiveJob[] {
       schedule: dayOffset === null ? undefined : { date: addDays(anchor, dayOffset), start, end },
     }) as LiveJob;
   return [
-    job(1, "Cat6A drops — second floor", "Harbor Dental Group", "120 Bay St, Sample City", "t1", 0, "08:00", "12:00"),
-    job(2, "Wi-Fi survey and AP install", "Northgate Apartments", "48 Oak Ave, Sample City", "t2", 0, "09:00", "13:00"),
-    job(3, "Camera install (6 units)", "Summit Storage", "900 Ridge Rd, Sample City", "t3", 0, "13:00", "17:00"),
-    job(4, "Cell booster commissioning", "Bayview Medical Plaza", "77 Harbor Blvd, Sample City", "t4", 0, "10:00", "14:00"),
-    job(5, "Rack dressing and labeling", "Lakeside Credit Union", "15 Main St, Sample City", "t1", 1, "09:00", "15:00"),
-    job(6, "Firewall replacement", "Pinecrest Law Offices", "310 Pine St, Sample City", "t2", 1, "10:00", "12:00"),
-    job(7, "Access control panel wiring", "Riverside Logistics", "5 Dock Way, Sample City", "t3", 2, "08:00", "16:00"),
-    job(8, "Fiber splice and OTDR test", "Maple Grove School", "22 Maple Ln, Sample City", "t1", 2, "08:00", "11:00"),
-    job(9, "Printer and network install", "Seaside Apartments", "2000 Coast Cir, Sample City", null, null),
-    job(10, "Conference room AV cabling", "Foundry Coworking", "8 Foundry Ct, Sample City", null, null),
-    job(11, "Wi-Fi coverage check", "Cedar Point Clinic", "61 Cedar Pt, Sample City", "t5", null),
+    job(1, "Cat6A drops — second floor", "Dagobah Dental Group", "120 Bay St, Sample City", "t1", 0, "08:00", "12:00"),
+    job(2, "Wi-Fi survey and AP install", "Naboo Palace Apartments", "48 Oak Ave, Sample City", "t2", 0, "09:00", "13:00"),
+    job(3, "Camera install (6 units)", "Echo Base Storage", "900 Ridge Rd, Sample City", "t3", 0, "13:00", "17:00"),
+    job(4, "Cell booster commissioning", "Endor Medical Plaza", "77 Harbor Blvd, Sample City", "t4", 0, "10:00", "14:00"),
+    job(5, "Rack dressing and labeling", "Alderaan Credit Union", "15 Main St, Sample City", "t1", 1, "09:00", "15:00"),
+    job(6, "Firewall replacement", "Coruscant Law Offices", "310 Pine St, Sample City", "t2", 1, "10:00", "12:00"),
+    job(7, "Access control panel wiring", "Jabba's Logistics", "5 Dock Way, Sample City", "t3", 2, "08:00", "16:00"),
+    job(8, "Fiber splice and OTDR test", "Tatooine Academy", "22 Maple Ln, Sample City", "t1", 2, "08:00", "11:00"),
+    job(9, "Printer and network install", "Kamino Seaside Apartments", "2000 Coast Cir, Sample City", null, null),
+    job(10, "Conference room AV cabling", "Mos Eisley Coworking", "8 Foundry Ct, Sample City", null, null),
+    job(11, "Wi-Fi coverage check", "Hoth Wellness Clinic", "61 Cedar Pt, Sample City", "t5", null),
   ];
 }
 
 export default function Demo() {
-  const [tab, setTab] = useState<"dispatch" | "roster">("dispatch");
+  const [tab, setTab] = useState<DemoTab>("dispatch");
+  const [client, setClient] = useState(buildClientData);
+  const clientRef = useRef(client);
+  clientRef.current = client;
   const [touring, setTouring] = useState(() => {
     try {
       return localStorage.getItem("techsavvy-demo-tour-seen") !== "1";
@@ -189,7 +269,110 @@ export default function Demo() {
   const timeEntries = useMemo(buildTimeEntries, []);
   const [contractors, setContractors] = useState(CONTRACTORS);
   const [jobs, setJobs] = useState<LiveJob[]>(buildJobs);
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
+  const clientApi = useCallback(async (action: string, options: RequestInit = {}) => {
+    const body = options.body ? JSON.parse(String(options.body)) : {};
+    const patchRequest = (id: string, patch: Record<string, unknown>) =>
+      setClient((current) => ({ ...current, requests: current.requests.map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
+    const patchUser = (id: string, patch: Record<string, unknown>) =>
+      setClient((current) => ({ ...current, users: current.users.map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
+    if (action === "dashboard") {
+      const data = clientRef.current;
+      return {
+        ...data,
+        appointments: data.appointments.map((appointment) => {
+          const job = jobsRef.current.find((item) => item.id === appointment.jobId);
+          return {
+            ...appointment,
+            workOrderNumber: job?.workOrderNumber || "",
+            jobName: job?.name || "",
+            clientName: job?.vendorName || "",
+            jobAddress: job?.address || "",
+            clientReference: job?.clientReference || "",
+          };
+        }),
+      };
+    }
+    if (action === "request-status") {
+      patchRequest(body.requestId, { status: body.status, reviewNote: body.reviewNote || "" });
+      return { success: true };
+    }
+    if (action === "convert") {
+      const request = clientRef.current.requests.find((r) => r.id === body.requestId);
+      if (!request) throw new Error("Request not found.");
+      const n = jobsRef.current.length + 1;
+      const techId = body.technicianLeadId || "";
+      const job = {
+        id: `demo-job-${n}`,
+        workOrderNumber: `WO-DEMO-${2000 + n}`,
+        name: request.siteName,
+        vendorName: request.companyName,
+        address: `${request.siteName}, Sample City`,
+        clientReference: request.clientReference,
+        status: "New",
+        siteContact: `${request.requesterName} \u00b7 (555) 010-0199`,
+        notes: request.scopeSummary,
+        sourceRequestId: request.id,
+        assignedTechId: techId || "ALL",
+        assignedTechIds: [techId || "ALL"],
+      } as unknown as LiveJob;
+      setJobs((current) => [...current, job]);
+      patchRequest(request.id, { status: "converted", convertedJobId: job.id });
+      setClient((current) => ({
+        ...current,
+        appointments: [
+          ...current.appointments,
+          { id: `demo-appt-${current.appointments.length + 1}`, jobId: job.id, status: "requested", technicianId: techId, requestedWindows: request.requestedWindows },
+        ],
+      }));
+      return { success: true };
+    }
+    if (action === "schedule") {
+      const start = pacificParts(body.start);
+      const end = pacificParts(body.end);
+      const appointment = clientRef.current.appointments.find((a) => a.id === body.appointmentId);
+      setClient((current) => ({
+        ...current,
+        appointments: current.appointments.map((a) =>
+          a.id === body.appointmentId ? { ...a, status: "scheduled", confirmedStart: body.start, confirmedEnd: body.end, technicianId: body.technicianId || a.technicianId } : a,
+        ),
+      }));
+      if (appointment) {
+        setJobs((current) =>
+          current.map((job) =>
+            job.id === appointment.jobId
+              ? ({
+                  ...job,
+                  status: !job.status || job.status === "New" ? "Scheduled" : job.status,
+                  schedule: { date: start.date, start: start.time, end: end.date === start.date ? end.time : "23:59" },
+                  ...(body.technicianId ? { assignedTechId: body.technicianId, assignedTechIds: [body.technicianId] } : {}),
+                } as LiveJob)
+              : job,
+          ),
+        );
+      }
+      return { success: true };
+    }
+    if (action === "approve-member") {
+      patchUser(body.uid, { status: "active", roles: body.roles || ["project_viewer"] });
+      return { success: true };
+    }
+    if (action === "update-member-access") {
+      if (body.change === "roles") patchUser(body.uid, { roles: body.roles });
+      if (body.change === "suspend") patchUser(body.uid, { status: "suspended" });
+      if (body.change === "restore") patchUser(body.uid, { status: "active" });
+      return { success: true };
+    }
+    if (action === "dismiss-notifications") {
+      setClient((current) => ({ ...current, failedNotifications: current.failedNotifications.filter((f) => !(body.ids || []).includes(f.id)) }));
+      return { success: true };
+    }
+    if (action === "resend-welcome") return { success: true };
+    throw new Error("Not available in the demo \u2014 this is sample data only.");
+  }, []);
+
   const api = useMemo(
     () => ({
       updateJob: (jobId: string, patch: Record<string, unknown>) =>
@@ -199,8 +382,9 @@ export default function Demo() {
       addContractor: (record: Record<string, unknown>) =>
         setContractors((current) => [...current, record as Technician & Record<string, any>]),
       timeEntries,
+      clientApi,
     }),
-    [timeEntries],
+    [timeEntries, clientApi],
   );
 
   useEffect(() => {
@@ -223,6 +407,8 @@ export default function Demo() {
   const modalCard = () => (timesheetModal()?.firstElementChild as HTMLElement | null) ?? null;
   const modalClose = () =>
     ([...(timesheetModal()?.querySelectorAll("button") ?? [])].find((b) => b.textContent?.trim() === "Close") as HTMLElement | undefined)?.click();
+  const innerTab = (label: string) => () =>
+    ([...document.querySelectorAll("button")].find((b) => b.querySelector("svg") && b.textContent?.trim().startsWith(label) && b.className.includes("rounded-lg")) as HTMLElement | undefined) ?? null;
   const steps: TourStep[] = [
     { tab: "dispatch", title: "Who is busy this week", body: "The workload table shows each technician's hours against a 40-hour week, jobs today, and what they are doing next. Red means overbooked.", find: () => document.querySelector('[data-tour="workload"]') },
     { tab: "dispatch", title: "Jobs waiting to be scheduled", body: "New work lands in the dispatch queue. Try it: drag a card down onto a technician's row on the board.", find: () => document.querySelector('[data-tour="queue"]') },
@@ -245,6 +431,34 @@ export default function Demo() {
       onEnter: () => (document.querySelector('[data-tour="board"] button[draggable="true"]') as HTMLElement | null)?.click(),
       onLeave: () => (document.querySelector('[aria-label="Close panel"]') as HTMLElement | null)?.click(),
     },
+    {
+      tab: "client",
+      title: "The client requests inbox",
+      body: "Requests from the client portal land here with scope, equipment, shipments, deliverables and a preferred window. Review, ask for clarification, decline, or convert. Try the buttons on any card.",
+      find: () => document.querySelector('[data-tour="client"] article'),
+      onEnter: () => innerTab("Requests")()?.click(),
+    },
+    {
+      tab: "client",
+      title: "Convert to a work order",
+      body: "We opened the convert form for you. Pick a technician and rates, then Create work order. The job appears in the dispatch queue and the request gets a scheduling appointment.",
+      find: () => byText("Create work order")()?.parentElement ?? null,
+      onEnter: () => ([...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Convert to work order" && !(b as HTMLButtonElement).disabled) as HTMLElement | undefined)?.click(),
+    },
+    {
+      tab: "client",
+      title: "Approve portal access",
+      body: "Client staff who ask for portal access wait here. Choose their access level and approve. Active users can be re-roled, paused or sent a fresh welcome.",
+      find: () => [...document.querySelectorAll("h3")].find((h) => h.textContent?.includes("Pending memberships"))?.parentElement ?? null,
+      onEnter: () => innerTab("Approvals")()?.click(),
+    },
+    {
+      tab: "client",
+      title: "Scheduling",
+      body: "Every appointment names its work order, job, client and address. Confirm a time with the calendar picker and it flows onto the dispatch board.",
+      find: () => [...document.querySelectorAll("h3")].find((h) => h.textContent?.includes("Scheduling"))?.parentElement ?? null,
+      onEnter: () => innerTab("Scheduling")()?.click(),
+    },
     { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
     { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
     { tab: "roster", title: "Timecards", body: "The timecard window opened for you. Each row shows the day, job site, hours, rate, supplies and travel, and whether it is approved or still pending.", find: () => modalCard(), cardAtTop: true, onEnter: () => byText("View History")()?.click(), onLeave: () => modalClose() },
@@ -261,7 +475,7 @@ export default function Demo() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-crm-warning">Interactive demo · sample data only</p>
               <h1 className="text-lg font-bold text-crm-ink">TechSavvy CRM</h1>
               <p className="text-[11px] text-crm-muted">
-                Try dispatching jobs on the board, or open the Contractor Roster to search skills and edit a profile. Nothing here is connected to real customers, technicians or jobs, and changes reset when you reload.
+                Dispatch jobs on the board, work the Client Requests inbox, or search the Contractor Roster. Nothing here is connected to real customers, technicians or jobs, and changes reset when you reload.
               </p>
             </div>
             <div className="flex gap-2">
@@ -274,7 +488,7 @@ export default function Demo() {
               </button>
               <button
                 type="button"
-                onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setScheduleJob(null); }}
+                onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setClient(buildClientData()); setScheduleJob(null); }}
                 className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
               >
                 Reset demo data
@@ -284,7 +498,7 @@ export default function Demo() {
         </div>
         <nav className="border-b border-crm-hairline bg-crm-canvas px-4 sm:px-8">
           <div className="mx-auto flex max-w-[1500px] gap-1">
-            {([["dispatch", "Schedule & Dispatch"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
+            {([["dispatch", "Schedule & Dispatch"], ["client", "Client Requests"], ["roster", "Contractor Roster"]] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -303,6 +517,10 @@ export default function Demo() {
               <div data-tour="queue"><LiveSchedulingQueue jobs={jobs} onSchedule={setScheduleJob} /></div>
               <div data-tour="board"><LiveScheduleBoard jobs={jobs} technicians={activeTechs} onSchedule={setScheduleJob} /></div>
             </>
+          ) : tab === "client" ? (
+            <div data-tour="client">
+              <ClientRequestsAdmin contractors={activeTechs.map((c) => ({ id: c.id, name: c.name || "", email: String(c.email || "") }))} />
+            </div>
           ) : (
             <ContractorRosterAdmin contractors={contractors} jobs={jobs} />
           )}

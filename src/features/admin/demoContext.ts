@@ -7,5 +7,7 @@ export type DispatchDemoApi = {
   updateContractor?: (contractorId: string, patch: Record<string, unknown>) => void;
   addContractor?: (record: Record<string, unknown>) => void;
   timeEntries?: Array<Record<string, any>>;
+  /** Replaces the client-portal admin API with in-memory sample data. */
+  clientApi?: (action: string, options?: RequestInit) => Promise<any>;
 };
 export const DispatchDemoContext = createContext<DispatchDemoApi | null>(null);

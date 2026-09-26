@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import {
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
 import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 import { ClientCompanyEditor } from "./ClientCompanyEditor";
 import { CrmButton, CrmModalShell } from "../crm/ui";
+import { DispatchDemoContext } from "../admin/demoContext";
 
 type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
 type RequestFilter = "all" | "requested" | "clarification_needed";
@@ -68,6 +69,9 @@ export function ClientRequestsAdmin({
 }: {
   contractors: ContractorOption[];
 }) {
+  const demo = useContext(DispatchDemoContext);
+  const api = (action: string, options: RequestInit = {}) =>
+    demo?.clientApi ? demo.clientApi(action, options) : adminApi(action, options);
   const [data, setData] = useState<any>({
     requests: [],
     organizations: [],
@@ -105,7 +109,7 @@ export function ClientRequestsAdmin({
   const load = async () => {
     setLoading(true);
     try {
-      setData(await adminApi("dashboard"));
+      setData(await api("dashboard"));
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Could not load requests.",
@@ -123,7 +127,7 @@ export function ClientRequestsAdmin({
   ): Promise<AdminActionResult> => {
     setNotice("");
     try {
-      await adminApi(action, { method: "POST", body: JSON.stringify(body) });
+      await api(action, { method: "POST", body: JSON.stringify(body) });
       await load();
       setNotice("Saved successfully.");
       return { ok: true };
@@ -164,7 +168,7 @@ export function ClientRequestsAdmin({
   };
   const previewRelink = async (user: any) => {
     try {
-      const result = await adminApi("relink-company", {
+      const result = await api("relink-company", {
         method: "POST",
         body: JSON.stringify({ fromCustomerId: user.customerId, toCustomerId: relink[user.id]?.to, dryRun: true }),
       });
@@ -376,7 +380,7 @@ export function ClientRequestsAdmin({
         })}
       </div>
       <div className="flex flex-wrap gap-1 rounded-xl border border-crm-hairline bg-crm-surface-soft p-1">
-        {tabs.map((item) => {
+        {tabs.filter((item) => !(demo && item.id === "settings")).map((item) => {
           const Icon = item.icon;
           const active = tab === item.id;
           return (

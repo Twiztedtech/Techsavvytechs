@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
+export type DemoTab = "dispatch" | "client" | "roster";
+
 export type TourStep = {
-  tab: "dispatch" | "roster";
+  tab: DemoTab;
   title: string;
   body: string;
   find: () => HTMLElement | null;
@@ -23,8 +25,8 @@ export function DemoTour({
   onClose,
 }: {
   steps: TourStep[];
-  tab: "dispatch" | "roster";
-  setTab: (tab: "dispatch" | "roster") => void;
+  tab: DemoTab;
+  setTab: (tab: DemoTab) => void;
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(0);
