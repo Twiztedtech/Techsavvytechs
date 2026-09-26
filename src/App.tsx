@@ -30,6 +30,7 @@ import BlogPost from "./pages/BlogPost";
 
 const ContractorDashboard = lazy(() => import('./pages/ContractorDashboard'));
 const CRM = lazy(() => import('./pages/CRM'));
+const Demo = lazy(() => import('./pages/Demo'));
 const CustomerDocument = lazy(() => import('./pages/CustomerDocument'));
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal'));
 const ContractorOnboarding = lazy(() => import('./pages/ContractorOnboarding'));
@@ -60,7 +61,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname.startsWith('/surveys');
+  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname === '/demo' || pathname.startsWith('/surveys');
   const isSecureCustomerDocument = pathname.startsWith('/customer/');
 
   return (
@@ -89,6 +90,7 @@ function AppShell() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/crm" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading CRM command center…</div>}><CRM /></Suspense>} />
+            <Route path="/demo" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading demo…</div>}><Demo /></Suspense>} />
             <Route path="/surveys" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading survey workspace…</div>}><SiteSurveys /></Suspense>} />
             <Route path="/surveys/:surveyId" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading site survey…</div>}><SiteSurveys /></Suspense>} />
             <Route path="/customer/document" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading secure document…</div>}><CustomerDocument /></Suspense>} />

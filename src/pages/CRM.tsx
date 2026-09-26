@@ -1,4 +1,4 @@
-import { DragEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { createContext, DragEvent, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -214,7 +214,12 @@ type LiveCustomer = {
   referencePrefixes?: string[];
   defaultContactPolicy?: string;
 };
-type LiveJob = {
+// Demo mode: when provided, the dispatch components change local state only and
+// never touch Firestore or any API. Used by the public /demo page.
+export type DispatchDemoApi = { updateJob: (jobId: string, patch: Record<string, unknown>) => void };
+export const DispatchDemoContext = createContext<DispatchDemoApi | null>(null);
+
+export type LiveJob = {
   sourceRequestId?: string;
   id: string;
   customerId?: string;
@@ -266,7 +271,7 @@ type LiveQuote = {
   sourceSurveyId?: string;
   sourceSurveyNumber?: string;
 };
-type Technician = {
+export type Technician = {
   id: string;
   name?: string;
   companyName?: string;
@@ -3348,10 +3353,12 @@ const toMinutes = (time?: string) => {
 const fromMinutes = (total: number) =>
   `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 
-function TechWorkloadSummary({ jobs, technicians }: { jobs: LiveJob[]; technicians: Technician[] }) {
+export function TechWorkloadSummary({ jobs, technicians }: { jobs: LiveJob[]; technicians: Technician[] }) {
   const [open, setOpen] = useState(true);
   const today = localDate();
-  const weekStart = mondayOf(today);
+  // On weekends "this week" means the coming work week.
+  const todayDow = new Date(`${today}T12:00:00Z`).getUTCDay();
+  const weekStart = mondayOf(addDays(today, todayDow === 6 ? 2 : todayDow === 0 ? 1 : 0));
   const weekEnd = addDays(weekStart, 6);
   const WEEK_CAPACITY_HOURS = 40;
   const active = jobs.filter((job) => !isClosedJob(job));
@@ -3468,7 +3475,7 @@ function TechWorkloadSummary({ jobs, technicians }: { jobs: LiveJob[]; technicia
   );
 }
 
-function LiveSchedulingQueue({
+export function LiveSchedulingQueue({
   jobs,
   onSchedule,
 }: {
@@ -3529,7 +3536,7 @@ function LiveSchedulingQueue({
   );
 }
 
-function LiveScheduleBoard({
+export function LiveScheduleBoard({
   jobs,
   technicians,
   onSchedule,
@@ -3539,6 +3546,7 @@ function LiveScheduleBoard({
   onSchedule: (job: LiveJob) => void;
 }) {
   const [date, setDate] = useState(() => localDate());
+  const demo = useContext(DispatchDemoContext);
   const [fullDay, setFullDay] = useState(false);
   const [view, setView] = useState<"day" | "week">("day");
   const step = view === "week" ? 7 : 1;
@@ -3629,6 +3637,16 @@ function LiveScheduleBoard({
     const isAll = tech.id === "ALL";
     const techName = tech.name || tech.companyName || "Technician";
     setBoardNotice("");
+    if (demo) {
+      demo.updateJob(job.id, {
+        ...(isAll ? {} : { assignedTechId: tech.id, assignedTechIds: [tech.id], assignedTechName: techName }),
+        targetCompletion: date,
+        schedule: { date, start, end },
+        status: !job.status || job.status === "New" ? "Scheduled" : job.status,
+      });
+      setBoardNotice(`${job.workOrderNumber || job.name || "Job"} → ${techName}, ${date} ${start}–${end}`);
+      return;
+    }
     try {
       await updateDoc(doc(db, "jobs", job.id), {
         ...(isAll
@@ -6133,7 +6151,7 @@ function QuoteModal({
   );
 }
 
-function ScheduleModal({
+export function ScheduleModal({
   job,
   jobs,
   technicians,
@@ -6153,6 +6171,7 @@ function ScheduleModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [techSearch, setTechSearch] = useState("");
+  const demo = useContext(DispatchDemoContext);
   const isScheduled = Boolean(job.schedule?.date);
   const job_ = job as LiveJob & { siteContact?: string; clientVisibleNotes?: string; clientProjectManager?: string };
 
@@ -6205,6 +6224,18 @@ function ScheduleModal({
     if (!selectedTechs.length) return;
     const leadTech = selectedTechs[0];
     const techNames = selectedTechs.map((tech) => tech.name || tech.companyName || "Technician");
+    if (demo) {
+      demo.updateJob(job.id, {
+        assignedTechId: leadTech.id,
+        assignedTechIds: selectedTechs.map((tech) => tech.id),
+        assignedTechName: techNames.join(", "),
+        targetCompletion: date,
+        schedule: { date, start, end },
+        status: !job.status || job.status === "New" ? "Scheduled" : job.status,
+      });
+      onClose();
+      return;
+    }
     setSaving(true);
     try {
       await updateDoc(doc(db, "jobs", job.id), {
@@ -6229,6 +6260,11 @@ function ScheduleModal({
   };
 
   const unschedule = async () => {
+    if (demo) {
+      demo.updateJob(job.id, { schedule: { date: "", start: "", end: "" }, targetCompletion: "" });
+      onClose();
+      return;
+    }
     if (!window.confirm(`Remove ${job.workOrderNumber || job.id} from the schedule? It goes back to the dispatch queue.`)) return;
     setSaving(true);
     setError("");
@@ -6267,9 +6303,11 @@ function ScheduleModal({
             {job_.siteContact && <p><span className="text-crm-muted">Contact:</span> {job_.siteContact}</p>}
             {job.clientReference && <p><span className="text-crm-muted">Client ref:</span> {job.clientReference}</p>}
             {(job_.clientVisibleNotes || job.notes) && <p className="whitespace-pre-line text-crm-body">{job_.clientVisibleNotes || job.notes}</p>}
-            <button type="button" onClick={() => { onClose(); onOpenJob(job); }} className="pt-1 text-[10px] font-bold underline underline-offset-2">
-              Open full job details →
-            </button>
+            {!demo && (
+              <button type="button" onClick={() => { onClose(); onOpenJob(job); }} className="pt-1 text-[10px] font-bold underline underline-offset-2">
+                Open full job details →
+              </button>
+            )}
           </section>
 
           <section>
