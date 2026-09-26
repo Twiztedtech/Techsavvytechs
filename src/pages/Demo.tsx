@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { DispatchDemoContext } from "../features/admin/demoContext";
+import { DemoTour, type TourStep } from "./DemoTour";
 import {
   LiveScheduleBoard,
   LiveSchedulingQueue,
@@ -28,9 +29,52 @@ const portrait = (initials: string, from: string, to: string) =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/><text x="128" y="152" font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="white" text-anchor="middle">${initials}</text></svg>`,
   )}`;
 
+// Sample timecards for the past two weeks (weekdays only), matched to contractors by authUid.
+const buildTimeEntries = () => {
+  const today = pacificToday();
+  const sites: Record<string, string[]> = {
+    t1: ["Harbor Dental Group", "Maple Grove School", "Lakeside Credit Union"],
+    t2: ["Northgate Apartments", "Pinecrest Law Offices", "Foundry Coworking"],
+    t3: ["Summit Storage", "Riverside Logistics", "Cedar Point Clinic"],
+    t4: ["Bayview Medical Plaza", "Summit Storage"],
+    t5: ["Seaside Apartments", "Cedar Point Clinic"],
+  };
+  const rates: Record<string, number> = { t1: 85, t2: 95, t3: 80, t4: 100, t5: 65 };
+  const entries: Array<Record<string, any>> = [];
+  let n = 0;
+  Object.keys(sites).forEach((techId, ti) => {
+    let count = 0;
+    for (let back = 1; back <= 14 && count < 5; back += 1) {
+      const date = addDays(today, -back);
+      const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+      if (dow === 0 || dow === 6 || (back + ti) % 3 === 0) continue;
+      const list = sites[techId];
+      const hours = [4, 6.5, 8, 5.5, 7][(back + ti) % 5];
+      const approved = back > 4;
+      n += 1;
+      count += 1;
+      entries.push({
+        id: `demo-te-${n}`,
+        technicianUid: `auth-${techId}`,
+        date,
+        jobSite: list[(back + ti) % list.length],
+        totalHours: hours,
+        rate: rates[techId],
+        suppliesCost: (back + ti) % 4 === 0 ? 42.5 : 0,
+        travelCost: (back + ti) % 3 === 1 ? 35 : 0,
+        status: approved ? "approved" : "pending",
+        laborStatus: approved ? "approved" : "pending",
+        suppliesStatus: approved ? "approved" : "pending",
+        travelStatus: approved ? "approved" : "pending",
+      });
+    }
+  });
+  return entries.sort((a, b) => b.date.localeCompare(a.date));
+};
+
 const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
   {
-    id: "t1", name: "Alex Rivera", email: "alex.rivera@example.com", specialty: "Fiber & structured cabling",
+    id: "t1", authUid: "auth-t1", name: "Alex Rivera", email: "alex.rivera@example.com", specialty: "Fiber & structured cabling",
     rate: 85, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0111",
     profilePhotoUrl: portrait("AR", "#0f766e", "#14b8a6"), onboarding: { status: "approved" }, role: "technician_lead",
     skills: ["Fiber splicing", "Cat6A termination", "Rack dressing", "OTDR testing"],
@@ -38,7 +82,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c1", name: "BICSI Installer 2", expiryDate: "2027-05-01" }, { id: "c2", name: "Fiber Optic Association CFOT", expiryDate: "" }],
   },
   {
-    id: "t2", name: "Jordan Lee", email: "jordan.lee@example.com", specialty: "Network & Wi-Fi",
+    id: "t2", authUid: "auth-t2", name: "Jordan Lee", email: "jordan.lee@example.com", specialty: "Network & Wi-Fi",
     rate: 95, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0122",
     profilePhotoUrl: portrait("JL", "#1d4ed8", "#60a5fa"), onboarding: { status: "approved" },
     skills: ["Wi-Fi surveys", "Firewall configuration", "SD-WAN", "VLAN design"],
@@ -46,7 +90,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c3", name: "CCNA", expiryDate: "2026-10-15" }],
   },
   {
-    id: "t3", name: "Sam Patel", email: "sam.patel@example.com", specialty: "Low-voltage & access control",
+    id: "t3", authUid: "auth-t3", name: "Sam Patel", email: "sam.patel@example.com", specialty: "Low-voltage & access control",
     rate: 80, employmentType: "w2_employee", accessStatus: "Active", active: true, businessPhone: "(555) 010-0133",
     profilePhotoUrl: portrait("SP", "#7c3aed", "#c084fc"), onboarding: { status: "approved" },
     skills: ["Access control wiring", "IP cameras", "Intercom systems", "Conduit runs"],
@@ -54,7 +98,7 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c4", name: "C-7 Low Voltage License", expiryDate: "2028-01-31" }],
   },
   {
-    id: "t4", name: "Casey Morgan", email: "casey.morgan@example.com", specialty: "RF / cell signal",
+    id: "t4", authUid: "auth-t4", name: "Casey Morgan", email: "casey.morgan@example.com", specialty: "RF / cell signal",
     rate: 100, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0144",
     profilePhotoUrl: portrait("CM", "#b45309", "#f59e0b"), onboarding: { status: "submitted" },
     skills: ["Cell booster commissioning", "DAS testing", "RF site survey"],
@@ -62,13 +106,13 @@ const CONTRACTORS = (): Array<Technician & Record<string, any>> => [
     certifications: [{ id: "c5", name: "FCC GROL", expiryDate: "" }],
   },
   {
-    id: "t5", name: "Riley Chen", email: "riley.chen@example.com", specialty: "Field technician",
+    id: "t5", authUid: "auth-t5", name: "Riley Chen", email: "riley.chen@example.com", specialty: "Field technician",
     rate: 65, employmentType: "1099_contractor", accessStatus: "Active", active: true, businessPhone: "(555) 010-0155",
     onboarding: { status: "not_started" },
     skills: ["Equipment install", "Printer setup", "Basic cabling"], tools: ["Hand tools"], certifications: [],
   },
   {
-    id: "t6", name: "Morgan Ellis", email: "morgan.ellis@example.com", specialty: "Structured cabling",
+    id: "t6", authUid: "auth-t6", name: "Morgan Ellis", email: "morgan.ellis@example.com", specialty: "Structured cabling",
     rate: 70, employmentType: "1099_contractor", accessStatus: "Pending", active: false, onboarding: { status: "not_started" },
     skills: ["Cat6 terminations"], tools: [], certifications: [],
   },
@@ -120,6 +164,23 @@ function buildJobs(): LiveJob[] {
 
 export default function Demo() {
   const [tab, setTab] = useState<"dispatch" | "roster">("dispatch");
+  const [touring, setTouring] = useState(() => {
+    try {
+      return localStorage.getItem("techsavvy-demo-tour-seen") !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const endTour = () => {
+    setTouring(false);
+    setTab("dispatch");
+    try {
+      localStorage.setItem("techsavvy-demo-tour-seen", "1");
+    } catch {
+      /* private mode: the tour simply shows again next visit */
+    }
+  };
+  const timeEntries = useMemo(buildTimeEntries, []);
   const [contractors, setContractors] = useState(CONTRACTORS);
   const [jobs, setJobs] = useState<LiveJob[]>(buildJobs);
   const [scheduleJob, setScheduleJob] = useState<LiveJob | null>(null);
@@ -131,8 +192,9 @@ export default function Demo() {
         setContractors((current) => current.map((item) => (item.id === contractorId ? { ...item, ...patch } : item))),
       addContractor: (record: Record<string, unknown>) =>
         setContractors((current) => [...current, record as Technician & Record<string, any>]),
+      timeEntries,
     }),
-    [],
+    [timeEntries],
   );
 
   useEffect(() => {
@@ -148,6 +210,18 @@ export default function Demo() {
     };
   }, []);
 
+  const byText = (text: string) => () =>
+    ([...document.querySelectorAll("button")].find((b) => b.textContent?.trim().toLowerCase() === text.toLowerCase()) as HTMLElement | undefined) ?? null;
+  const steps: TourStep[] = [
+    { tab: "dispatch", title: "Who is busy this week", body: "The workload table shows each technician's hours against a 40-hour week, jobs today, and what they are doing next. Red means overbooked.", find: () => document.querySelector('[data-tour="workload"]') },
+    { tab: "dispatch", title: "Jobs waiting to be scheduled", body: "New work lands in the dispatch queue. Try it: drag a card down onto a technician's row on the board.", find: () => document.querySelector('[data-tour="queue"]') },
+    { tab: "dispatch", title: "Drag to schedule", body: "Drop a card on a technician at the time you want (it snaps to 30 minutes). Drag an existing block to move it or hand it to someone else. Amber blocks overlap.", find: () => document.querySelector('[data-tour="board"]') },
+    { tab: "dispatch", title: "Day and week views", body: "Switch between the hourly day view and the week view. In the week view you can drag jobs between days.", find: byText("Week") },
+    { tab: "dispatch", title: "Open any job", body: "Click a job block to open its side panel: site details, date and time, technicians with conflict warnings, and Unschedule.", find: () => document.querySelector('[data-tour="board"] button[draggable="true"]') },
+    { tab: "roster", title: "Find people by skill", body: "Search the roster by name, skill, tool or certification. Try \"fiber\" or \"otdr\".", find: () => document.querySelector('input[placeholder^="Search name"]') },
+    { tab: "roster", title: "Profiles with photos", body: "Open a profile to add a photo, skills, tools and certifications. Contractors can also edit these themselves in their own portal.", find: byText("Profile") },
+    { tab: "roster", title: "Timecards", body: "View History shows a contractor's submitted timecards, with hours, rates, supplies and travel, and whether each is approved.", find: byText("View History") },
+  ];
   const activeTechs = contractors.filter((c) => c.accessStatus === "Active");
   const active = scheduleJob ? jobs.find((item) => item.id === scheduleJob.id) || scheduleJob : null;
 
@@ -163,13 +237,22 @@ export default function Demo() {
                 Try dispatching jobs on the board, or open the Contractor Roster to search skills and edit a profile. Nothing here is connected to real customers, technicians or jobs, and changes reset when you reload.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setScheduleJob(null); }}
-              className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
-            >
-              Reset demo data
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setScheduleJob(null); setTab("dispatch"); setTouring(true); }}
+                className="rounded bg-crm-primary px-3 py-2 text-xs font-bold text-crm-on-primary"
+              >
+                Take the guided tour
+              </button>
+              <button
+                type="button"
+                onClick={() => { setJobs(buildJobs()); setContractors(CONTRACTORS()); setScheduleJob(null); }}
+                className="rounded border border-crm-hairline px-3 py-2 text-xs font-bold text-crm-ink hover:border-crm-ink"
+              >
+                Reset demo data
+              </button>
+            </div>
           </div>
         </div>
         <nav className="border-b border-crm-hairline bg-crm-canvas px-4 sm:px-8">
@@ -189,14 +272,15 @@ export default function Demo() {
         <main className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-8">
           {tab === "dispatch" ? (
             <>
-              <TechWorkloadSummary jobs={jobs} technicians={activeTechs} />
-              <LiveSchedulingQueue jobs={jobs} onSchedule={setScheduleJob} />
-              <LiveScheduleBoard jobs={jobs} technicians={activeTechs} onSchedule={setScheduleJob} />
+              <div data-tour="workload"><TechWorkloadSummary jobs={jobs} technicians={activeTechs} /></div>
+              <div data-tour="queue"><LiveSchedulingQueue jobs={jobs} onSchedule={setScheduleJob} /></div>
+              <div data-tour="board"><LiveScheduleBoard jobs={jobs} technicians={activeTechs} onSchedule={setScheduleJob} /></div>
             </>
           ) : (
             <ContractorRosterAdmin contractors={contractors} jobs={jobs} />
           )}
         </main>
+        {touring && <DemoTour steps={steps} tab={tab} setTab={setTab} onClose={endTour} />}
         {active && (
           <div key={active.id}>
             <ScheduleModal job={active} jobs={jobs} technicians={activeTechs} onClose={() => setScheduleJob(null)} onOpenJob={() => undefined} />

@@ -41,7 +41,7 @@ export function ContractorRosterAdmin({ contractors, jobs }: { contractors: Cont
   const [qboConnected, setQboConnected] = useState(false);
   const [qboRealmId, setQboRealmId] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
-  const [timeEntries, setTimeEntries] = useState<any[]>([]);
+  const [timeEntries, setTimeEntries] = useState<any[]>(demo?.timeEntries ?? []);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
