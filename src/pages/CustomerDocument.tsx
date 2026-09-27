@@ -119,10 +119,10 @@ export default function CustomerDocument() {
             <p className="text-2xl font-bold uppercase tracking-wide">
               {type}
             </p>
-            <p className="mt-1 font-mono text-sm text-[#66dc14]">{document.number}</p>
+            <p className="mt-1 font-mono text-sm text-[#8DC63F]">{document.number}</p>
           </div>
         </header>
-        <div className="h-1.5 bg-[#66dc14]" />
+        <div className="h-1.5 bg-[#8DC63F]" />
         <section className="p-6 sm:p-8">
           <div className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-6 sm:flex-row">
             <div>
@@ -208,7 +208,7 @@ export default function CustomerDocument() {
               <b>{money(document.total)}</b>
             </div>
             {type === "invoice" && (
-              <div className="-mx-2 flex justify-between rounded bg-[#66dc14] px-3 py-2 text-sm font-bold text-black">
+              <div className="-mx-2 flex justify-between rounded bg-[#8DC63F] px-3 py-2 text-sm font-bold text-black">
                 <span>Balance due</span>
                 <b>{money(document.balance)}</b>
               </div>
@@ -273,7 +273,7 @@ export default function CustomerDocument() {
           {type === "invoice" && document.balance > 0 && (
             <div className="mt-7 border-t border-slate-200 pt-6">
               {document.paymentLink ? (
-                <a href={document.paymentLink} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded border-2 border-[#66dc14] bg-black px-5 py-4 text-sm font-bold text-[#66dc14] hover:bg-[#0d1a05]">
+                <a href={document.paymentLink} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded border-2 border-[#8DC63F] bg-black px-5 py-4 text-sm font-bold text-[#8DC63F] hover:bg-[#0d1a05]">
                   Pay securely online (card, bank/ACH or Apple Pay)
                 </a>
               ) : (
@@ -283,7 +283,7 @@ export default function CustomerDocument() {
               )}
             </div>
           )}
-          <footer className="mt-8 flex items-center gap-2 border-t-2 border-[#66dc14] pt-5 text-[10px] text-slate-500">
+          <footer className="mt-8 flex items-center gap-2 border-t-2 border-[#8DC63F] pt-5 text-[10px] text-slate-500">
             <ShieldCheck className="h-4 w-4 text-tech-green-deep" /> Secure
             document provided by TechSavvy LLC · (707) 653-6702 · Questions?
             support@techsavvytechs.com

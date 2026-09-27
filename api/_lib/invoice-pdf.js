@@ -31,13 +31,13 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
     pdf.setFontSize(20);
     pdf.text("TECHSAVVY", 16, 24);
   }
-  pdf.setFillColor(102, 220, 20);
+  pdf.setFillColor(141, 198, 63);
   pdf.rect(0, 44, 210, 1.6, "F");
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(22);
   pdf.text(docLabel, 194, 20, { align: "right" });
   pdf.setFontSize(10);
-  pdf.setTextColor(120, 230, 40);
+  pdf.setTextColor(167, 211, 100);
   pdf.text(docNumber, 194, 28, { align: "right" });
   pdf.setFontSize(8);
   pdf.setTextColor(200, 205, 201);
@@ -121,7 +121,7 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
   pdf.text("Total", 145, y);
   pdf.text(money(invoice.total), 174, y);
   y += 8;
-  pdf.setFillColor(102, 220, 20);
+  pdf.setFillColor(141, 198, 63);
   pdf.rect(125, y - 6, 69, 10, "F");
   pdf.setTextColor(0, 0, 0);
   pdf.text(isQuote ? "Quote Total" : "Balance Due", 128, y + 1);
@@ -141,7 +141,7 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
       pdf.addPage();
       y = 24;
     }
-    pdf.setFillColor(102, 220, 20);
+    pdf.setFillColor(141, 198, 63);
     pdf.rect(16, y - 5, 1.6, 7, "F");
     pdf.setFontSize(10);
     pdf.setTextColor(20, 25, 22);

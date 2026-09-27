@@ -7091,7 +7091,7 @@ function AccessGate({
           alt="TechSavvy LLC — Wired for What's Next."
           className="mx-auto h-24 w-auto"
         />
-        <div className="mt-4 h-0.5 bg-[#66dc14]" />
+        <div className="mt-4 h-0.5 bg-[#8DC63F]" />
         <p className="mt-6 text-[10px] font-mono uppercase tracking-[.25em] text-crm-ink">
           Protected workspace
         </p>
