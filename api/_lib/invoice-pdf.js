@@ -27,7 +27,7 @@ export function buildInvoicePdfDocument(invoice, billingEmail = "billing@techsav
   try {
     pdf.addImage(`data:image/png;base64,${INVOICE_LOGO_PNG_BASE64}`, "PNG", 10, 3, logoH / INVOICE_LOGO_RATIO, logoH);
   } catch {
-    pdf.setTextColor(34, 197, 94);
+    pdf.setTextColor(141, 198, 63);
     pdf.setFontSize(20);
     pdf.text("TECHSAVVY", 16, 24);
   }

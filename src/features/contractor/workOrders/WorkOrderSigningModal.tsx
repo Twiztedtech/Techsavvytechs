@@ -174,7 +174,7 @@ export function WorkOrderSigningModal({
       }
       const completedAt = new Date().toISOString();
       const document = new jsPDF({ unit: "pt", format: "letter" });
-      const green: [number, number, number] = [22, 163, 74];
+      const green: [number, number, number] = [98, 142, 31];
       const dark: [number, number, number] = [15, 23, 42];
       const margin = 44;
       let y = 54;

@@ -1150,7 +1150,7 @@ export default async function handler(req, res) {
                   subject: `Timecard Approved: ${updatedTimecard.jobSite} (${updatedTimecard.date})`,
                   html: `
                     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55">
-                      <h1 style="color:#16a34a;font-size:24px">Timecard Approved</h1>
+                      <h1 style="color:#628E1F;font-size:24px">Timecard Approved</h1>
                       <p>Hello ${techName || 'there'},</p>
                       <p>Your timecard and expense items for <strong>${updatedTimecard.jobSite}</strong> have been reviewed and approved.</p>
                       <div style="background:#f8fafc;padding:15px;border-radius:6px;margin:15px 0;border:1px solid #e2e8f0">
@@ -1159,7 +1159,7 @@ export default async function handler(req, res) {
                         <strong>Total Approved Payable:</strong> $${totalPayable.toFixed(2)}
                       </div>
                       <p><strong>Payment Terms:</strong> Payment will be disbursed within <strong>15 days</strong> of task completion.</p>
-                      <p><strong>Estimated Payout Date:</strong> <span style="color:#16a34a;font-weight:700">${formattedDueDate}</span></p>
+                      <p><strong>Estimated Payout Date:</strong> <span style="color:#628E1F;font-weight:700">${formattedDueDate}</span></p>
                     </div>
                   `
                 })

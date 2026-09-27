@@ -50,7 +50,7 @@ export const Footer = () => {
           © 2026 Tech Savvy LLC. All Rights Reserved.
         </p>
         <div className="flex items-center gap-3 text-slate-500 text-[10px] font-mono uppercase tracking-widest bg-brand-slate/30 px-4 py-2 rounded-full border border-white/5">
-          <span className="w-2 h-2 bg-tech-green rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+          <span className="w-2 h-2 bg-tech-green rounded-full animate-pulse shadow-[0_0_8px_rgba(141,198,63,0.5)]" />
           Systems: Operational
         </div>
       </div>

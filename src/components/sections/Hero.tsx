@@ -61,7 +61,7 @@ export const Hero = () => {
           <motion.div 
             animate={{ top: ['0%', '100%', '0%'] }}
             transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-            className="absolute left-0 right-0 h-[1px] bg-tech-green/40 z-30 shadow-[0_0_10px_rgba(34,197,94,0.5)] pointer-events-none"
+            className="absolute left-0 right-0 h-[1px] bg-tech-green/40 z-30 shadow-[0_0_10px_rgba(141,198,63,0.5)] pointer-events-none"
           />
 
           {/* HUD Elements */}

@@ -899,7 +899,7 @@ async function sendVerificationEmail(req, res) {
     to: email,
     subject: "Verify your TechSavvy Client Portal email",
     text: `Verify your TechSavvy Client Portal email by opening this secure link:\n${verificationLink}\n\nIf you did not create this account, you can ignore this email.`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="color:#16a34a;font-size:24px">TechSavvy Client Portal</h1><p>Confirm that this email belongs to you.</p><p><a href="${safeLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:700">Verify email address</a></p><p style="color:#475569">If you did not create this account, you can ignore this message.</p></div>`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55"><h1 style="color:#628E1F;font-size:24px">TechSavvy Client Portal</h1><p>Confirm that this email belongs to you.</p><p><a href="${safeLink}" style="display:inline-block;background:#628E1F;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:700">Verify email address</a></p><p style="color:#475569">If you did not create this account, you can ignore this message.</p></div>`,
     type: "client_email_verification",
   });
   if (delivery.skipped)

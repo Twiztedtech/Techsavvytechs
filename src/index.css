@@ -11,8 +11,20 @@
 
   --color-brand-black: #030505;
   --color-brand-slate: #151916;
-  --color-tech-green: #22C55E;
-  --color-tech-green-deep: #15803D;
+  --color-tech-green: #8DC63F;
+  --color-tech-green-deep: #628E1F;
+  /* Tailwind "green" retuned to the logo hue so status/badge greens match the brand. */
+  --color-green-50: #F4FBE9;
+  --color-green-100: #E9F6D5;
+  --color-green-200: #D4ECB1;
+  --color-green-300: #BEE08A;
+  --color-green-400: #A7D364;
+  --color-green-500: #8DC63F;
+  --color-green-600: #628E1F;
+  --color-green-700: #4D6E1C;
+  --color-green-800: #3B5318;
+  --color-green-900: #2D3D14;
+  --color-green-950: #19210D;
   --color-safety-orange: #FF8C00;
   --color-brand-white: #F9FAFB;
 
@@ -124,7 +136,7 @@
 .crm-display-sm { font-family: "Inter", sans-serif; font-weight: 600; font-size: 28px; line-height: 1.2; letter-spacing: -0.5px; }
 
 .blueprint-grid {
-  background-image: radial-gradient(rgba(34, 197, 94, 0.1) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(141, 198, 63, 0.1) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 
@@ -133,7 +145,7 @@
 }
 
 .glow-green {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 20px rgba(141, 198, 63, 0.3);
 }
 
 .glow-orange {
@@ -155,7 +167,7 @@
 }
 
 .glass-green {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(141, 198, 63, 0.2) 0%, rgba(141, 198, 63, 0.05) 100%);
   @apply border-tech-green/30;
 }
 

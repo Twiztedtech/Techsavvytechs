@@ -59,13 +59,13 @@ const ServiceAreas = () => {
             <svg viewBox="0 0 400 400" className="w-full h-full text-slate-800 transition-transform duration-1000 group-hover:scale-105">
               <path d="M100,50 L150,80 L200,60 L250,90 L280,150 L260,250 L220,320 L180,350 L120,330 L80,280 L60,180 Z" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
               
-              <circle cx="150" cy="120" r="6" fill="#22C55E" className="animate-pulse" />
-              <circle cx="210" cy="90" r="4" fill="#22C55E" />
-              <circle cx="110" cy="200" r="4" fill="#22C55E" />
+              <circle cx="150" cy="120" r="6" fill="#8DC63F" className="animate-pulse" />
+              <circle cx="210" cy="90" r="4" fill="#8DC63F" />
+              <circle cx="110" cy="200" r="4" fill="#8DC63F" />
               <circle cx="90" cy="280" r="4" fill="#FF8C00" />
 
-              <line x1="150" y1="120" x2="210" y2="90" stroke="#22C55E" strokeWidth="1" opacity="0.4" />
-              <line x1="150" y1="120" x2="110" y2="200" stroke="#22C55E" strokeWidth="1" opacity="0.4" />
+              <line x1="150" y1="120" x2="210" y2="90" stroke="#8DC63F" strokeWidth="1" opacity="0.4" />
+              <line x1="150" y1="120" x2="110" y2="200" stroke="#8DC63F" strokeWidth="1" opacity="0.4" />
               <line x1="110" y1="200" x2="90" y2="280" stroke="#FF8C00" strokeWidth="1" opacity="0.4" />
             </svg>
 
