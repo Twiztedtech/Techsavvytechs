@@ -27,6 +27,29 @@ const ACCESS_ROLE_OPTIONS: [string, string][] = [
   ["project_viewer", "Viewer (their own jobs only)"],
 ];
 
+// Native date/time inputs give raw ISO values (2026-10-02, 15:10) which read
+// like database output. Displayed dates use "Month D, YYYY"; times stay
+// 24-hour throughout, matching how they're stored, instead of the browser's
+// locale default (often 12-hour with AM/PM).
+function formatDate(value?: string) {
+  if (!value) return "";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+function formatWindow(date?: string, start?: string, end?: string) {
+  const day = formatDate(date);
+  if (!day) return "Not specified";
+  const range = start && end ? ` · ${start}–${end}` : start ? ` · ${start}` : "";
+  return `${day}${range}`;
+}
+function formatDateTime(value?: string) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return `${parsed.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${parsed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
 function failureReason(raw: unknown) {
   const text = String(raw || "");
   try {
@@ -286,9 +309,7 @@ export function ClientRequestsAdmin({
                       <p className="font-bold text-crm-ink">
                         {item.channel === "sms" ? "Text message" : "Email"} ·{" "}
                         {String(item.type || "").replace(/_/g, " ")} ·{" "}
-                        {item.createdAt
-                          ? new Date(item.createdAt).toLocaleString()
-                          : ""}
+                        {item.createdAt ? formatDateTime(item.createdAt) : ""}
                       </p>
                       {Array.isArray(item.recipients) &&
                         item.recipients.length > 0 && (
@@ -562,9 +583,11 @@ export function ClientRequestsAdmin({
                     </p>
                   )}
                   <p className="mt-2 text-[10px] text-crm-muted">
-                    Preferred: {request.requestedWindows?.[0]?.date}{" "}
-                    {request.requestedWindows?.[0]?.start}–
-                    {request.requestedWindows?.[0]?.end}
+                    Preferred: {formatWindow(
+                      request.requestedWindows?.[0]?.date,
+                      request.requestedWindows?.[0]?.start,
+                      request.requestedWindows?.[0]?.end,
+                    )}
                   </p>
                 </div>
                 <span className="rounded-full bg-crm-warning/10 px-3 py-1 text-xs capitalize text-crm-warning">
@@ -720,10 +743,10 @@ export function ClientRequestsAdmin({
               )}
               {appointment.requestedWindows?.[0]?.date && !appointment.confirmedStart && (
                 <p className="mt-1 text-[10px] text-crm-muted">
-                  Preferred: {appointment.requestedWindows[0].date}
-                  {appointment.requestedWindows[0].start
-                    ? ` ${appointment.requestedWindows[0].start}`
-                    : ""}
+                  Preferred: {formatWindow(
+                    appointment.requestedWindows[0].date,
+                    appointment.requestedWindows[0].start,
+                  )}
                 </p>
               )}
               <p className="mt-1 text-[10px] capitalize text-crm-muted">
@@ -731,7 +754,7 @@ export function ClientRequestsAdmin({
               </p>
               {appointment.confirmedStart && (
                 <p className="mt-2 text-xs text-crm-success">
-                  {new Date(appointment.confirmedStart).toLocaleString()}
+                  {formatDateTime(appointment.confirmedStart)}
                 </p>
               )}
               <button
@@ -1223,8 +1246,11 @@ export function ClientRequestsAdmin({
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Preferred window</p>
               <p className="mt-1 text-crm-ink">
-                {viewRequest.requestedWindows?.[0]?.date} {viewRequest.requestedWindows?.[0]?.start}
-                –{viewRequest.requestedWindows?.[0]?.end}
+                {formatWindow(
+                  viewRequest.requestedWindows?.[0]?.date,
+                  viewRequest.requestedWindows?.[0]?.start,
+                  viewRequest.requestedWindows?.[0]?.end,
+                )}
               </p>
             </div>
           </div>

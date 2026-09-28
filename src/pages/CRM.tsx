@@ -672,7 +672,7 @@ export default function CRM() {
     );
   return (
     <div className={`min-h-screen bg-crm-surface-soft text-crm-body ${crmTheme === "dark" ? "dark" : ""}`}>
-      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-crm-hairline bg-crm-canvas px-3 text-crm-ink lg:px-5">
+      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-crm-hairline bg-crm-canvas px-3 text-crm-ink shadow-sm lg:px-5">
         <button
           onClick={() => setMobileNav(!mobileNav)}
           className="mr-2 rounded-lg p-2 text-crm-muted lg:hidden"
