@@ -91,6 +91,8 @@ export function ClientRequestsAdmin({
     status: "clarification_needed" | "declined";
     note: string;
   } | null>(null);
+  const [viewRequest, setViewRequest] = useState<RequestRecord | null>(null);
+  const [openingAttachment, setOpeningAttachment] = useState<number | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   const [showFailures, setShowFailures] = useState(false);
   const [convert, setConvert] = useState({
@@ -136,6 +138,19 @@ export function ClientRequestsAdmin({
         error instanceof Error ? error.message : "Could not save.";
       setNotice(message);
       return { ok: false, error: message };
+    }
+  };
+  const openAttachment = async (requestId: string, index: number) => {
+    setOpeningAttachment(index);
+    setNotice("");
+    try {
+      const result = await api(`request-attachment&requestId=${encodeURIComponent(requestId)}&index=${index}`);
+      const win = window.open(result.url, "_blank", "noopener");
+      if (!win) setNotice("Your browser blocked the pop-up. Allow pop-ups for this site to view attachments.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not open the attachment.");
+    } finally {
+      setOpeningAttachment(null);
     }
   };
   if (loading)
@@ -557,6 +572,12 @@ export function ClientRequestsAdmin({
                 </span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setViewRequest(request)}
+                  className="rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body"
+                >
+                  View
+                </button>
                 <button
                   onClick={() =>
                     post("request-status", {
@@ -1082,6 +1103,143 @@ export function ClientRequestsAdmin({
                 : noteDialog.status === "declined"
                   ? "Decline & notify"
                   : "Send request"}
+            </CrmButton>
+          </div>
+        </CrmModalShell>
+      )}
+      {viewRequest && (
+        <CrmModalShell
+          title={`${viewRequest.requestNumber} · ${viewRequest.siteName}`}
+          onClose={() => setViewRequest(null)}
+        >
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1 text-xs text-crm-body">
+            <div className="flex flex-wrap items-center gap-2">
+              {viewRequest.urgent && (
+                <span className="rounded bg-crm-error/15 px-2 py-0.5 text-[9px] font-bold text-crm-error">
+                  URGENT
+                </span>
+              )}
+              <span className="rounded-full bg-crm-warning/10 px-3 py-1 text-[10px] capitalize text-crm-warning">
+                {viewRequest.status.replace(/_/g, " ")}
+              </span>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Requester</p>
+              <p className="mt-1 text-crm-ink">
+                {viewRequest.companyName} · {viewRequest.clientReference} · {viewRequest.requesterName}
+              </p>
+              {viewRequest.requesterEmail && <p className="text-crm-muted">{viewRequest.requesterEmail}</p>}
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Scope</p>
+              <p className="mt-1 whitespace-pre-wrap text-crm-ink">{viewRequest.scopeSummary}</p>
+            </div>
+            {viewRequest.scopeTasks?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Scope tasks</p>
+                <ol className="mt-1 list-decimal space-y-1 pl-4">
+                  {viewRequest.scopeTasks.map((task: string, index: number) => (
+                    <li key={`${index}-${task}`}>{task}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {viewRequest.equipment?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Equipment and materials</p>
+                <ul className="mt-1 space-y-1">
+                  {viewRequest.equipment.map((item: any, index: number) => (
+                    <li key={`${index}-${item.description}`}>
+                      <span className="font-bold text-crm-ink">
+                        {item.quantity ? `${item.quantity} × ` : ""}
+                        {item.description}
+                      </span>{" "}
+                      <span className="text-crm-muted">
+                        — {item.providedBy === "techsavvy" ? "TechSavvy provided" : "Client provided"}
+                        {item.upc ? ` · UPC ${item.upc}` : ""}
+                        {item.serial ? ` · SN ${item.serial}` : ""}
+                      </span>
+                      {item.notes && <span className="block text-crm-muted">{item.notes}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {viewRequest.packages?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Packages / shipments</p>
+                <ul className="mt-1 space-y-1">
+                  {viewRequest.packages.map((pkg: any, index: number) => (
+                    <li key={`${index}-${pkg.trackingNumber || pkg.description}`}>
+                      <span className="font-bold text-crm-ink">
+                        {pkg.destination === "office" ? "To TechSavvy office" : "To site"}
+                      </span>{" "}
+                      <span className="text-crm-muted">
+                        {pkg.carrier ? `— ${pkg.carrier}` : ""}
+                        {pkg.trackingNumber ? ` #${pkg.trackingNumber}` : ""}
+                      </span>
+                      {pkg.description && <span className="block text-crm-muted">{pkg.description}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {viewRequest.deliverables?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Required deliverables</p>
+                <ul className="mt-1 list-disc space-y-1 pl-4">
+                  {viewRequest.deliverables.map((item: string, index: number) => (
+                    <li key={`${index}-${item}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {viewRequest.attachments?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Attached documents</p>
+                <ul className="mt-1 space-y-1">
+                  {viewRequest.attachments.map((file: any, index: number) => (
+                    <li key={`${index}-${file.name}`}>
+                      <button
+                        onClick={() => openAttachment(viewRequest.id, index)}
+                        disabled={openingAttachment === index}
+                        className="flex items-center gap-1.5 text-crm-accent underline decoration-dotted hover:text-crm-ink disabled:opacity-50"
+                      >
+                        <Paperclip className="h-3 w-3" />
+                        {file.name}
+                        {openingAttachment === index ? " · opening…" : ""}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {viewRequest.reviewNote && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Last note sent to requester</p>
+                <p className="mt-1 text-crm-ink">{viewRequest.reviewNote}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Preferred window</p>
+              <p className="mt-1 text-crm-ink">
+                {viewRequest.requestedWindows?.[0]?.date} {viewRequest.requestedWindows?.[0]?.start}
+                –{viewRequest.requestedWindows?.[0]?.end}
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <CrmButton variant="secondary" onClick={() => setViewRequest(null)}>
+              Close
+            </CrmButton>
+            <CrmButton
+              disabled={Boolean(viewRequest.convertedJobId)}
+              onClick={() => {
+                setConvert((v) => ({ ...v, requestId: viewRequest.id }));
+                setViewRequest(null);
+              }}
+            >
+              {viewRequest.convertedJobId ? "Converted" : "Convert to work order"}
             </CrmButton>
           </div>
         </CrmModalShell>

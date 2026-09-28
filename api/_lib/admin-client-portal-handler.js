@@ -1,4 +1,4 @@
-import { adminDb, requireStaffRole } from "./firebase-admin.js";
+import { adminDb, adminStorage, requireStaffRole } from "./firebase-admin.js";
 import { writeAudit } from "./audit.js";
 import {
   CLIENT_ROLES,
@@ -1027,6 +1027,25 @@ async function syncJobAppointment(req, res, admin) {
   return res.status(200).json({ success: true, appointments: snapshot.size });
 }
 
+// A request's attachments are stored server-only (client-request-documents
+// rule is `if false`), so viewing one goes through a short-lived signed URL
+// rather than a direct download link.
+async function requestAttachmentUrl(req, res) {
+  const requestId = clean(req.query?.requestId, 200);
+  const index = Number(req.query?.index);
+  const doc = await adminDb.collection("vendor_requests").doc(requestId).get();
+  if (!doc.exists)
+    throw Object.assign(new Error("Request not found."), { statusCode: 404 });
+  const attachment = (doc.data().attachments || [])[index];
+  if (!attachment?.storagePath)
+    throw Object.assign(new Error("Attachment not found."), { statusCode: 404 });
+  const [url] = await adminStorage.file(attachment.storagePath).getSignedUrl({
+    action: "read",
+    expires: Date.now() + 10 * 60 * 1000,
+  });
+  return res.status(200).json({ url });
+}
+
 export default async function handler(req, res) {
   try {
     // Dispatchers get view-only access to the "requests" dashboard; every
@@ -1034,12 +1053,15 @@ export default async function handler(req, res) {
     // Admin/Assistant Admin only, per the RBAC role matrix.
     const admin = await requireStaffRole(req, ["assistant_admin", "dispatcher"]);
     const action = clean(req.query?.action, 60);
+    const viewOnlyGetActions = new Set(["dashboard", "request-attachment"]);
     const isViewOnlyRole = admin.admin !== true && admin.staffRole === "dispatcher";
-    if (isViewOnlyRole && !(req.method === "GET" && action === "dashboard")) {
+    if (isViewOnlyRole && !(req.method === "GET" && viewOnlyGetActions.has(action))) {
       return res.status(403).json({ error: "You do not have access to this feature." });
     }
     if (req.method === "GET" && action === "dashboard")
       return await listDashboard(res);
+    if (req.method === "GET" && action === "request-attachment")
+      return await requestAttachmentUrl(req, res);
     if (req.method === "POST" && action === "organization")
       return await saveOrganization(req, res, admin);
     if (req.method === "POST" && action === "approve-member")
