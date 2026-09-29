@@ -32,6 +32,29 @@ const getUser = async (req) => {
   return user;
 };
 
+// Admin/Assistant Admin can log or complete hours for a technician who forgot
+// to (a customer walkthrough, an onsite emergency, etc.) without the entry
+// silently being attributed to whoever is signed in and doing the paperwork.
+// `technicianUid` on the resulting entry always identifies whose hours these
+// are; `loggedByUid` separately records who actually performed the write.
+// Only usable on a technician genuinely assigned to the job, so an admin
+// can't misattribute hours to an unrelated contractor.
+async function resolveOnBehalfOf(contractorId, job) {
+  const assignedIds = new Set([
+    ...(Array.isArray(job.data().assignedTechIds) ? job.data().assignedTechIds : []),
+    job.data().assignedTechId,
+    job.data().technicianLeadId,
+  ].filter(Boolean));
+  if (!assignedIds.has(contractorId)) {
+    throw Object.assign(new Error('That technician is not assigned to this work order.'), { status: 422 });
+  }
+  const contractorSnap = await adminDb.collection('contractors').doc(contractorId).get();
+  if (!contractorSnap.exists) throw Object.assign(new Error('Technician not found.'), { status: 404 });
+  const authUid = contractorSnap.data().authUid;
+  if (!authUid) throw Object.assign(new Error('This technician has no portal account to attribute hours to.'), { status: 422 });
+  return { technicianUid: authUid, technicianLabel: contractorSnap.data().name || contractorSnap.data().email || contractorId };
+}
+
 const workOrdersFor = async (user) => {
   const jobs = await adminDb.collection('jobs').get();
   if (isAdminTier(user)) return jobs.docs;
@@ -861,14 +884,26 @@ export default async function handler(req, res) {
       const allowedExceptionReasons = new Set(['customer_unavailable', 'customer_declined', 'remote_unattended', 'not_required_for_visit', 'other']);
       const signatureExceptionReason = allowedExceptionReasons.has(req.body?.signatureExceptionReason) ? req.body.signatureExceptionReason : '';
       const signatureExceptionNotes = cleanReason(req.body?.signatureExceptionNotes);
+      const onBehalfOfContractorId = clean(req.body?.onBehalfOfContractorId, 200);
+      if (onBehalfOfContractorId && !isAdminTier(user)) {
+        return res.status(403).json({ error: 'Only an administrator can log hours on behalf of another technician.' });
+      }
 
       let assignedJob = null;
       let existingLiveEntry = null;
+      let onBehalfOf = null;
       if (jobId) {
         assignedJob = (await workOrdersFor(user)).find((candidate) => candidate.id === jobId) || null;
         if (!assignedJob) return res.status(403).json({ error: 'You are not assigned to this work order.' });
         if (['voided', 'completed', 'closed', 'cancelled', 'canceled'].includes(String(assignedJob.data().status || '').toLowerCase())) {
           return res.status(409).json({ error: 'This work order is no longer open for new submissions.' });
+        }
+        if (onBehalfOfContractorId) {
+          try {
+            onBehalfOf = await resolveOnBehalfOf(onBehalfOfContractorId, assignedJob);
+          } catch (error) {
+            return res.status(error.status || 400).json({ error: error.message });
+          }
         }
         // Manual entry creates the same billable hours as clocking in, so it
         // can't be used to get around the deposit.
@@ -882,13 +917,13 @@ export default async function handler(req, res) {
         // clock-derived hours. If it came from an earlier manual submission
         // instead, a second one really would duplicate hours -- reject that.
         const alreadyLoggedToday = await adminDb.collection('time_entries')
-          .where('technicianUid', '==', user.uid)
+          .where('technicianUid', '==', onBehalfOf ? onBehalfOf.technicianUid : user.uid)
           .where('jobId', '==', jobId)
           .where('date', '==', date || businessDate(new Date()))
           .get();
         const existingNonVoided = alreadyLoggedToday.docs.find((doc) => doc.data().status !== 'voided');
         if (existingNonVoided && !existingNonVoided.data().clockInAt) {
-          return res.status(409).json({ error: 'You already have hours logged for this job today.' });
+          return res.status(409).json({ error: onBehalfOf ? `${onBehalfOf.technicianLabel} already has hours logged for this job today.` : 'You already have hours logged for this job today.' });
         }
         existingLiveEntry = existingNonVoided || null;
       }
@@ -919,7 +954,7 @@ export default async function handler(req, res) {
           completedByUid: user.uid,
           signatureStatus: hasSignedWorkOrder ? 'signed' : 'technician_exception',
           updatedAt: completedAt,
-          ...(!hasSignedWorkOrder ? { signatureException: { reason: signatureExceptionReason, notes: signatureExceptionNotes, technicianUid: user.uid, createdAt: completedAt } } : {}),
+          ...(!hasSignedWorkOrder ? { signatureException: { reason: signatureExceptionReason, notes: signatureExceptionNotes, technicianUid: onBehalfOf ? onBehalfOf.technicianUid : user.uid, createdAt: completedAt } } : {}),
         };
       }
 
@@ -974,7 +1009,8 @@ export default async function handler(req, res) {
         completionIntent,
         signatureDisposition: completionIntent === 'final' ? (completionUpdate?.signatureStatus || 'signed') : 'not_applicable',
         ...(completionIntent === 'final' && completionUpdate?.signatureStatus === 'technician_exception' ? { signatureExceptionReason, signatureExceptionNotes } : {}),
-        technicianUid: user.uid,
+        technicianUid: onBehalfOf ? onBehalfOf.technicianUid : user.uid,
+        ...(onBehalfOf ? { loggedByUid: user.uid, loggedByLabel: user.email || user.name || 'Administrator', loggedOnBehalfOf: true } : {}),
         active: false,
         createdAt: existingData?.createdAt || now.toISOString(),
         updatedAt: now.toISOString(),

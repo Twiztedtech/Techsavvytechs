@@ -970,6 +970,7 @@ export default function CRM() {
           depositInvoices={liveInvoices.filter((invoice) => invoice.jobId === selectedJob.id)}
           canBill={access === "admin" || access === "assistant_admin" || access === "office_billing"}
           canWaive={access === "admin" || access === "assistant_admin"}
+          canLogHours={access === "admin" || access === "assistant_admin"}
         />
       )}
       {previewJob && (
@@ -4179,6 +4180,134 @@ function DepositBanner({ job, customer, invoices, canBill, canWaive }: { job: Li
   );
 }
 
+// Lets Admin/Assistant Admin log or close out hours for a technician who
+// forgot to (onsite emergency, phone handed off, etc.) without the hours
+// landing on whoever is doing the paperwork instead of the assigned tech.
+// The server enforces this: technicianUid on the entry is always the chosen
+// technician's, and who actually submitted it is recorded separately.
+function AdminLogHoursPanel({ job, technicianOptions }: { job: LiveJob; technicianOptions: Technician[] }) {
+  const [open, setOpen] = useState(false);
+  const [contractorId, setContractorId] = useState(technicianOptions[0]?.id || "");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [clockIn, setClockIn] = useState("07:00");
+  const [clockOut, setClockOut] = useState("15:30");
+  const [breakMinutes, setBreakMinutes] = useState("30");
+  const [notes, setNotes] = useState("");
+  const [markComplete, setMarkComplete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  if (!technicianOptions.length || job.status === "voided") return null;
+  const totalHours = (() => {
+    const [inH, inM] = clockIn.split(":").map(Number);
+    const [outH, outM] = clockOut.split(":").map(Number);
+    const raw = (outH * 60 + outM - (inH * 60 + inM)) / 60;
+    return Math.max(0, raw - Number(breakMinutes || 0) / 60).toFixed(2);
+  })();
+  const submit = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const technicianName = technicianOptions.find((tech) => tech.id === contractorId)?.name || contractorId;
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/portal/time-clock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          action: "submit_manual_log",
+          onBehalfOfContractorId: contractorId,
+          jobId: job.id,
+          jobSite: job.name,
+          address: job.address,
+          date,
+          clockIn,
+          clockOut,
+          breakMinutes: Number(breakMinutes || 0),
+          totalHours,
+          notes: notes.trim(),
+          completionIntent: markComplete ? "final" : "progress",
+          ...(markComplete ? { signatureExceptionReason: "other", signatureExceptionNotes: "Logged administratively by staff on the technician's behalf; see audit trail." } : {}),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not log hours.");
+      await recordAudit("hours-logged-on-behalf", "job", job.id, `Logged ${totalHours} hr for ${technicianName} on ${job.workOrderNumber || job.id}${markComplete ? " and marked it complete" : ""}`, { onBehalfOfContractorId: contractorId, totalHours, markComplete });
+      setOpen(false);
+      setNotes("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not log hours.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body hover:bg-crm-surface-soft"
+      >
+        Log hours for a technician…
+      </button>
+    );
+  }
+  return (
+    <div className="mt-4 rounded border border-crm-hairline bg-crm-surface-soft p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Log hours on behalf of a technician</p>
+        <button type="button" onClick={() => setOpen(false)} className="text-[10px] text-crm-muted">Cancel</button>
+      </div>
+      <p className="mt-1 text-[10px] text-crm-muted">
+        For when staff closes a job out for a tech who couldn't. Hours are credited to the technician you pick below, not to you; the audit trail records that you logged it.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Technician
+          <select value={contractorId} onChange={(e) => setContractorId(e.target.value)} className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs">
+            {technicianOptions.map((tech) => <option key={tech.id} value={tech.id}>{tech.name || tech.id}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Date
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs" />
+        </label>
+        <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Clock in
+          <input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs" />
+        </label>
+        <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Clock out
+          <input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs" />
+        </label>
+        <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Break (minutes)
+          <input type="number" min="0" value={breakMinutes} onChange={(e) => setBreakMinutes(e.target.value)} className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs" />
+        </label>
+        <div className="grid gap-1 text-[10px] font-semibold text-crm-body">
+          Total hours
+          <p className="rounded border border-crm-hairline bg-crm-canvas px-2 py-2 text-xs">{totalHours}</p>
+        </div>
+      </div>
+      <label className="mt-2 grid gap-1 text-[10px] font-semibold text-crm-body">
+        Notes
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="rounded border border-crm-hairline bg-crm-canvas p-2 text-xs" />
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-[10px] font-semibold text-crm-body">
+        <input type="checkbox" checked={markComplete} onChange={(e) => setMarkComplete(e.target.checked)} />
+        Also mark this job complete
+      </label>
+      {error && <p className="mt-2 text-[10px] font-bold text-crm-error">{error}</p>}
+      <button
+        type="button"
+        disabled={saving}
+        onClick={submit}
+        className="mt-3 rounded bg-crm-primary px-4 py-2 text-[10px] font-bold text-crm-on-primary hover:bg-crm-primary-active disabled:opacity-40"
+      >
+        {saving ? "Saving…" : "Log hours"}
+      </button>
+    </div>
+  );
+}
+
 function JobDetailModal({
   job,
   customers,
@@ -4192,6 +4321,7 @@ function JobDetailModal({
   depositInvoices,
   canBill,
   canWaive,
+  canLogHours,
 }: {
   job: LiveJob;
   customers: LiveCustomer[];
@@ -4205,6 +4335,7 @@ function JobDetailModal({
   depositInvoices: LiveInvoice[];
   canBill: boolean;
   canWaive: boolean;
+  canLogHours: boolean;
 }) {
   const [form, setForm] = useState({
     name: job.name || "",
@@ -4777,6 +4908,14 @@ function JobDetailModal({
             </b>
           </div>
         </div>
+        {canLogHours && (
+          <AdminLogHoursPanel
+            job={job}
+            technicianOptions={technicians.filter(
+              (tech) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id || job.technicianLeadId === tech.id,
+            )}
+          />
+        )}
         {canMessage && (
           <div className="mt-6">
             <CrmJobMessagesPanel jobId={job.id} canSendClientVisible={canSendClientVisible} />
