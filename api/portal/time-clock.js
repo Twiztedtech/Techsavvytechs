@@ -222,7 +222,7 @@ const refreshJobBillingReadiness = async (jobId) => {
     await jobRef.set({ status: 'Ready to Invoice', billingStatus: 'ready', billingReadyAt: jobSnapshot.data().billingReadyAt || now, billingEntryIds: entriesSnapshot.docs.filter((entry) => entry.data().status !== 'voided').map((entry) => entry.id), updatedAt: now }, { merge: true });
     return true;
   } else if (currentStatus === 'ready to invoice' && !approved) {
-    await jobRef.set({ status: 'completed', billingStatus: 'review_required', billingReadyAt: '', updatedAt: now }, { merge: true });
+    await jobRef.set({ status: 'Completed', billingStatus: 'review_required', billingReadyAt: '', updatedAt: now }, { merge: true });
   }
   return false;
 };
@@ -948,7 +948,7 @@ export default async function handler(req, res) {
         }
         const completedAt = new Date().toISOString();
         completionUpdate = {
-          status: 'completed',
+          status: 'Completed',
           completionStatus: 'completed',
           completedAt,
           completedByUid: user.uid,

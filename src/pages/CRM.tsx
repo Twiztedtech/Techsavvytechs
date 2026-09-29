@@ -178,6 +178,55 @@ const tones: Record<string, string> = {
   slate: "border-crm-hairline bg-crm-surface-card text-crm-muted",
 };
 
+// Canonical job-status vocabulary. Case-insensitive lookup so a status
+// written in any casing (older records, a future bug) still displays
+// correctly instead of dumping the raw stored string; the app's own writes
+// use these exact labels, this is the display-side safety net.
+const JOB_STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  scheduled: "Scheduled",
+  assigned: "Assigned",
+  "in progress": "In Progress",
+  onsite: "On Site",
+  "on site": "On Site",
+  completed: "Completed",
+  complete: "Complete",
+  "field complete": "Completed",
+  "ready to invoice": "Ready to Invoice",
+  invoiced: "Invoiced",
+  paid: "Paid",
+  "partially paid": "Partially Paid",
+  voided: "Voided",
+  cancelled: "Cancelled",
+  canceled: "Canceled",
+  closed: "Closed",
+};
+function formatJobStatus(status?: string): string {
+  const raw = status || "New";
+  return JOB_STATUS_LABELS[raw.toLowerCase()] || raw.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+const JOB_STATUS_TONE: Record<string, string> = {
+  new: "bg-crm-surface-card text-crm-muted",
+  scheduled: "bg-crm-accent-soft-bg text-crm-accent-soft-text",
+  assigned: "bg-crm-accent-soft-bg text-crm-accent-soft-text",
+  "in progress": "bg-crm-warning-soft-bg text-crm-warning-soft-text",
+  onsite: "bg-crm-warning-soft-bg text-crm-warning-soft-text",
+  "on site": "bg-crm-warning-soft-bg text-crm-warning-soft-text",
+  completed: "bg-crm-success-soft-bg text-crm-success-soft-text",
+  complete: "bg-crm-success-soft-bg text-crm-success-soft-text",
+  "field complete": "bg-crm-success-soft-bg text-crm-success-soft-text",
+  "ready to invoice": "bg-crm-warning-soft-bg text-crm-warning-soft-text",
+  invoiced: "bg-crm-accent-soft-bg text-crm-accent-soft-text",
+  paid: "bg-crm-success-soft-bg text-crm-success-soft-text",
+  "partially paid": "bg-crm-accent-soft-bg text-crm-accent-soft-text",
+  voided: "bg-crm-error-soft-bg text-crm-error-soft-text",
+  cancelled: "bg-crm-error-soft-bg text-crm-error-soft-text",
+  canceled: "bg-crm-error-soft-bg text-crm-error-soft-text",
+};
+function jobStatusTone(status?: string): string {
+  return JOB_STATUS_TONE[(status || "New").toLowerCase()] || "bg-crm-surface-card text-crm-muted";
+}
+
 type CatalogItem = {
   id: string;
   name: string;
@@ -4066,8 +4115,8 @@ function LiveJobsView({
                     </p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-crm-surface-card px-2 py-1 text-[9px]">
-                      {job.status || "New"}
+                    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${jobStatusTone(job.status)}`}>
+                      {formatJobStatus(job.status)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-[10px]">
@@ -5105,7 +5154,7 @@ export function InvoicesView({
           </option>
           {candidates.map((job) => (
             <option key={job.id} value={job.id}>
-              {job.workOrderNumber || job.id} · {job.vendorName || job.name}{job.status !== "Ready to Invoice" ? ` · OVERRIDE (${job.status || "New"})` : ""}
+              {job.workOrderNumber || job.id} · {job.vendorName || job.name}{job.status !== "Ready to Invoice" ? ` · OVERRIDE (${formatJobStatus(job.status)})` : ""}
             </option>
           ))}
         </select>
@@ -5746,7 +5795,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
             <p className="text-xs text-crm-muted">
               {job.vendorName} · {job.name}
             </p>
-            {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-2 text-[10px] font-bold text-crm-warning-soft-text">Early billing override · current job status: {job.status || 'New'}</p>}
+            {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-2 text-[10px] font-bold text-crm-warning-soft-text">Early billing override · current job status: {formatJobStatus(job.status)}</p>}
             {!job.customerBillRate && <p className="mt-2 rounded border border-crm-error/30 bg-crm-error-soft-bg p-2 text-[10px] font-bold text-crm-error">No customer bill rate set on this job — labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
           </div>
           <button type="button" onClick={onClose}>
@@ -6448,7 +6497,7 @@ export function ScheduleModal({
         </header>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
           <section className="space-y-1 rounded border border-crm-hairline-soft bg-crm-surface-soft p-3 text-[11px]">
-            {job.status && <p><span className="text-crm-muted">Status:</span> <strong>{job.status}</strong></p>}
+            {job.status && <p><span className="text-crm-muted">Status:</span> <strong>{formatJobStatus(job.status)}</strong></p>}
             {job.address && <p><span className="text-crm-muted">Site:</span> {job.address}</p>}
             {job_.siteContact && <p><span className="text-crm-muted">Contact:</span> {job_.siteContact}</p>}
             {job.clientReference && <p><span className="text-crm-muted">Client ref:</span> {job.clientReference}</p>}
