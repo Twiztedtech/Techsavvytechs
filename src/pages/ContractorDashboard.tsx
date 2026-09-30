@@ -1862,6 +1862,33 @@ export default function ContractorDashboard() {
               </div>
             </div>
 
+            {(activeInvoice.notes || (Array.isArray(activeInvoice.photos) && activeInvoice.photos.length > 0)) && (
+              <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Your notes & photos</p>
+                {activeInvoice.notes && <p className="whitespace-pre-wrap text-xs text-slate-300">{activeInvoice.notes}</p>}
+                {Array.isArray(activeInvoice.photos) && activeInvoice.photos.length > 0 && (() => {
+                  const lost = activeInvoice.photos.filter((url) => url.startsWith('blob:')).length;
+                  const viewable = activeInvoice.photos.filter((url) => !url.startsWith('blob:'));
+                  return (
+                    <>
+                      {viewable.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {viewable.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt={`Job photo ${i + 1}`} className="h-16 w-16 rounded-lg border border-slate-700 object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {lost > 0 && (
+                        <p className="text-[10px] font-semibold text-red-400">{lost} photo{lost === 1 ? '' : 's'} from this submission couldn't be saved and can't be recovered. Retake and resubmit if still needed.</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* QUICKBOOKS ACTION */}
             <div className="space-y-3">
               <div className="p-3 bg-slate-950/60 rounded border border-slate-800 text-xs text-slate-400 flex items-center gap-3">
