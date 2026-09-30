@@ -46,5 +46,15 @@ service firebase.storage {
     match /site-surveys/{surveyId}/{fileName} {
       allow read, write: if false;
     }
+
+    // Photos attached to a time entry (manual log form). Compressed and
+    // uploaded directly from the browser, same pattern as signed-work-orders.
+    match /time-entry-photos/{jobId}/{fileName} {
+      allow read: if isAdmin() || isContractor();
+      allow create: if (isAdmin() || isContractor())
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isAdmin();
+    }
   }
 }

@@ -318,6 +318,31 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                   </div>
                 )}
                 <div className="text-[11px] text-crm-muted font-mono">{techEmail}</div>
+                {entry.notes && (
+                  <p className="whitespace-pre-wrap rounded border border-crm-hairline-soft bg-crm-surface-soft p-2 text-[11px] text-crm-body">{entry.notes}</p>
+                )}
+                {Array.isArray(entry.photos) && entry.photos.length > 0 && (() => {
+                  // Older submissions saved blob: URLs, which only ever existed in the
+                  // technician's own browser tab and can never load anywhere else.
+                  const lost = entry.photos.filter((url: string) => url.startsWith("blob:")).length;
+                  const viewable = entry.photos.filter((url: string) => !url.startsWith("blob:"));
+                  return (
+                    <div className="space-y-1 pt-1">
+                      {viewable.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {viewable.map((url: string, index: number) => (
+                            <a key={`${entry.id}-photo-${index}`} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt={`Job photo ${index + 1}`} className="h-14 w-14 rounded border border-crm-hairline object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {lost > 0 && (
+                        <p className="text-[10px] font-semibold text-crm-error">{lost} photo{lost === 1 ? "" : "s"} from this submission couldn't be saved and can't be recovered.</p>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2 items-center mt-1">
                   <span className="text-[11px] text-crm-muted">QBO status:</span>
                   {entry.status === "voided" ? (

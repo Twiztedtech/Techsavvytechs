@@ -1,6 +1,8 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { auth } from '../lib/firebase';
+import { auth, storage } from '../lib/firebase';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { getDownloadURL, ref, uploadString } from 'firebase/storage';
+import { compressSurveyPhoto } from '../features/surveys/photo';
 import { Link, useNavigate } from 'react-router';
 import { SupportTicketModal } from '../features/contractor/support/SupportTicketModal';
 import type { NotificationProfile } from '../features/contractor/types';
@@ -158,6 +160,7 @@ export default function ContractorDashboard() {
   const [travelCost, setTravelCost] = useState('0.00');
   const [notes, setNotes] = useState('');
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [photoUploadState, setPhotoUploadState] = useState({ uploading: 0, error: '' });
 
   // Active Clock-In / Live Shift Tracking
   const [activeShift, setActiveShift] = useState({
@@ -442,10 +445,31 @@ export default function ContractorDashboard() {
 
   const calculatedHours = calculateHours(clockIn, clockOut, breakMinutes);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // A blob: URL only exists inside this browser tab and disappears the moment
+  // the page closes -- earlier versions of this form saved those directly to
+  // the time entry, which silently lost every photo once the tab closed. Each
+  // photo is now compressed and actually uploaded to Storage immediately on
+  // selection, and only the resulting durable URL is kept.
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.currentTarget.files ?? []) as File[];
-    const filePreviews = files.map(file => URL.createObjectURL(file));
-    setUploadedPhotos(prev => [...prev, ...filePreviews]);
+    e.currentTarget.value = '';
+    if (!files.length) return;
+    setPhotoUploadState((state) => ({ uploading: state.uploading + files.length, error: '' }));
+    for (const file of files) {
+      try {
+        const dataUrl = await compressSurveyPhoto(file);
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-') || 'photo.jpg';
+        const path = `time-entry-photos/${selectedJobId || 'ad-hoc'}/${Date.now()}-${safeName}`;
+        const fileRef = ref(storage, path);
+        await uploadString(fileRef, dataUrl, 'data_url');
+        const url = await getDownloadURL(fileRef);
+        setUploadedPhotos((prev) => [...prev, url]);
+      } catch (error) {
+        setPhotoUploadState((state) => ({ ...state, error: error instanceof Error ? error.message : 'A photo failed to upload.' }));
+      } finally {
+        setPhotoUploadState((state) => ({ ...state, uploading: Math.max(0, state.uploading - 1) }));
+      }
+    }
   };
 
   const handleSubmitLog = async (e) => {
@@ -453,6 +477,10 @@ export default function ContractorDashboard() {
     const finalJobName = isCustomJob ? customJobSite : selectedJobObj?.name;
     const finalAddress = isCustomJob ? customJobAddress : selectedJobObj?.address;
     if (!finalJobName) return;
+    if (photoUploadState.uploading > 0) {
+      alert('Photos are still uploading. Wait for them to finish before submitting.');
+      return;
+    }
     const hasSignedWorkOrder = Boolean(selectedJobObj?.signedWorkOrders?.length);
     if (completionIntent === 'final' && isCustomJob) {
       alert('Choose an administrator-issued work order before marking a job complete. Custom sites can receive progress entries only.');
@@ -1498,13 +1526,17 @@ export default function ContractorDashboard() {
                         </div>
                       </div>
 
-                      {uploadedPhotos.length > 0 && (
+                      {(uploadedPhotos.length > 0 || photoUploadState.uploading > 0) && (
                         <div className="flex gap-2 overflow-x-auto pt-2">
                           {uploadedPhotos.map((src, i) => (
                             <img key={i} src={src} alt="Upload preview" className="w-16 h-16 object-cover rounded-lg border border-slate-700 shrink-0" />
                           ))}
+                          {Array.from({ length: photoUploadState.uploading }).map((_, i) => (
+                            <div key={`uploading-${i}`} className="grid w-16 h-16 shrink-0 place-items-center rounded-lg border border-dashed border-slate-700 text-[9px] text-slate-500">Uploading…</div>
+                          ))}
                         </div>
                       )}
+                      {photoUploadState.error && <p className="text-[10px] text-red-400">{photoUploadState.error}</p>}
                     </div>
 
                     {!isCustomJob && selectedJobObj && (
