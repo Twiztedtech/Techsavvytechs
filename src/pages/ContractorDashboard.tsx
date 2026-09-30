@@ -1515,7 +1515,6 @@ export default function ContractorDashboard() {
                           type="file"
                           multiple
                           accept="image/*"
-                          capture="environment"
                           onChange={handlePhotoUpload}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
