@@ -981,8 +981,11 @@ export default async function handler(req, res) {
         ...(existingLiveEntry ? {
           clockIn: existingData.clockIn,
           clockOut: existingData.clockOut,
-          clockInAt: existingData.clockInAt,
-          clockOutAt: existingData.clockOutAt,
+          // A manual-origin entry never had these -- Firestore rejects an
+          // explicit `undefined` field outright, so this must be `null`, not
+          // left as whatever existingData.clockInAt happens to be.
+          clockInAt: existingData.clockInAt ?? null,
+          clockOutAt: existingData.clockOutAt ?? null,
           breakMinutes: existingData.breakMinutes,
           totalHours: existingData.totalHours,
         } : {
