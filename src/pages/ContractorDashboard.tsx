@@ -1906,7 +1906,30 @@ export default function ContractorDashboard() {
                 >
                   Close
                 </button>
+                {activeInvoice.status !== 'voided' && activeInvoice.qbStatus !== 'synced' && activeInvoice.jobId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomJob(false);
+                      setSelectedJobId(activeInvoice.jobId);
+                      setLogDate(activeInvoice.date);
+                      setClockIn(activeInvoice.clockIn || '07:00');
+                      setClockOut(activeInvoice.clockOut || '15:30');
+                      setNotes(activeInvoice.notes || '');
+                      setUploadedPhotos(Array.isArray(activeInvoice.photos) ? activeInvoice.photos.filter((url) => !url.startsWith('blob:')) : []);
+                      setContractorTab('logger');
+                      setContractorJobTab('form');
+                      setActiveInvoice(null);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition"
+                  >
+                    Edit / add photos & complete →
+                  </button>
+                )}
               </div>
+              {(activeInvoice.status === 'voided' || activeInvoice.qbStatus === 'synced') && (
+                <p className="text-center text-[10px] text-slate-500">{activeInvoice.qbStatus === 'synced' ? 'This entry is already synced to QuickBooks and can no longer be edited here.' : 'This entry has been voided and can no longer be edited.'}</p>
+              )}
             </div>
           </div>
         </div>
