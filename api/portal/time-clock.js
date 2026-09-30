@@ -1035,6 +1035,13 @@ export default async function handler(req, res) {
       } else {
         await entryRef.set(entry);
       }
+      // A job can be marked complete with its time entry already approved from
+      // earlier (e.g. the tech logged progress, an admin approved the labor
+      // line, then the tech comes back and finalizes it) -- completion alone
+      // never used to re-check billing readiness, so a job could sit fully
+      // done and fully approved but permanently stuck out of "Ready to
+      // Invoice" until someone happened to touch an approval again.
+      if (assignedJob && completionUpdate) await refreshJobBillingReadiness(assignedJob.id);
 
       if (notifyCompletion) {
         await sendCompletionNotifications({
