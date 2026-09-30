@@ -908,23 +908,19 @@ export default async function handler(req, res) {
         // Manual entry creates the same billable hours as clocking in, so it
         // can't be used to get around the deposit.
         if ((await depositGateFor(assignedJob)).blocked) return res.status(409).json({ error: DEPOSIT_DUE_MESSAGE, depositRequired: true });
-        // Manual entry is only a fallback for a forgotten clock-in, but techs
-        // routinely still use this same form afterward to attach supplies,
-        // travel, notes, photos, or mark the job complete for a shift they
-        // already clocked. So: if today's existing entry for this job came
-        // from the time clock (has clockInAt), this submission updates it in
-        // place -- adding the extras without touching the authoritative
-        // clock-derived hours. If it came from an earlier manual submission
-        // instead, a second one really would duplicate hours -- reject that.
+        // Techs routinely revisit today's entry for this job afterward to
+        // attach supplies, travel, notes, photos, or mark it complete --
+        // whether that entry came from the time clock or an earlier manual
+        // submission. Either way this submission updates that same entry in
+        // place (below, the clock-derived hours/times are always kept as-is
+        // when one exists) rather than creating a second, competing entry, so
+        // there's no double-counting risk from allowing it.
         const alreadyLoggedToday = await adminDb.collection('time_entries')
           .where('technicianUid', '==', onBehalfOf ? onBehalfOf.technicianUid : user.uid)
           .where('jobId', '==', jobId)
           .where('date', '==', date || businessDate(new Date()))
           .get();
         const existingNonVoided = alreadyLoggedToday.docs.find((doc) => doc.data().status !== 'voided');
-        if (existingNonVoided && !existingNonVoided.data().clockInAt) {
-          return res.status(409).json({ error: onBehalfOf ? `${onBehalfOf.technicianLabel} already has hours logged for this job today.` : 'You already have hours logged for this job today.' });
-        }
         existingLiveEntry = existingNonVoided || null;
       }
       // A technician's self-reported rate is only used for ad-hoc entries with
