@@ -4,6 +4,7 @@ import {
   CLIENT_ROLES,
   alertRecipients,
   clean,
+  emailDomain,
   hashValue,
   notifyMembershipApproved,
   nowIso,
@@ -13,6 +14,18 @@ import {
   sendSms,
   syncCalendarAppointment,
 } from "./client-portal.js";
+
+// Converting a request auto-approves the requester's email domain for portal
+// sign-up, so a brand-new customer isn't stuck with "no approved company
+// matches this email domain" until someone notices and fixes it by hand.
+// Never auto-approve a shared public webmail domain -- that would let any
+// stranger with a Gmail address self-register into this customer's jobs and
+// invoices.
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
+  "icloud.com", "me.com", "live.com", "msn.com", "protonmail.com",
+  "proton.me", "mail.com", "gmx.com", "yandex.com",
+]);
 
 async function listDashboard(res) {
   const [
@@ -353,7 +366,11 @@ async function convertRequest(req, res, admin) {
     updatedAt: nowIso(),
   };
   const batch = adminDb.batch();
-  if (!customerExists) batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], depositPolicy: 'required', createdAt: nowIso(), updatedAt: nowIso() }, { merge: true });
+  if (!customerExists) {
+    const requesterDomain = emailDomain(request.requesterEmail || "");
+    const approvedDomains = requesterDomain && !FREE_EMAIL_DOMAINS.has(requesterDomain) ? [requesterDomain] : [];
+    batch.set(customerRef, { name: request.companyName, contact: request.requesterName || '', email: request.requesterEmail || '', sites: request.address ? [request.address] : [], depositPolicy: 'required', approvedDomains, createdAt: nowIso(), updatedAt: nowIso() }, { merge: true });
+  }
   batch.set(jobRef, job);
   batch.set(adminDb.collection("scope_versions").doc(`${jobRef.id}_1`), {
     jobId: jobRef.id,
