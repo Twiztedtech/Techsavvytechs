@@ -311,7 +311,7 @@ async function convertRequest(req, res, admin) {
     notes: request.accessInstructions || request.scopeSummary,
     clientVisibleNotes: request.scopeSummary,
     workOrderNumber,
-    clientReference: request.clientReference,
+    clientReference: request.clientReference || "",
     clientProjectManager: request.clientProjectManager || "",
     vendorName: request.companyName,
     customerId: customerRef.id,
