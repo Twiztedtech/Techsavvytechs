@@ -4284,7 +4284,12 @@ function DepositBanner({ job, customer, invoices, canBill, canWaive }: { job: Li
 function AdminLogHoursPanel({ job, technicianOptions, onCompleted }: { job: LiveJob; technicianOptions: Technician[]; onCompleted: () => void }) {
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState(technicianOptions[0]?.id || "");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Default to the job's own scheduled date, not today -- if the job already
+  // has an entry (the normal case: a tech logged progress, this panel is just
+  // closing it out), that's the date it's filed under. Defaulting to today
+  // instead silently created a second, duplicate entry for a day nobody
+  // actually worked (this happened in production).
+  const [date, setDate] = useState(() => job.schedule?.date || job.targetCompletion || new Date().toISOString().slice(0, 10));
   const [clockIn, setClockIn] = useState("07:00");
   const [clockOut, setClockOut] = useState("15:30");
   const [breakMinutes, setBreakMinutes] = useState("30");
@@ -4361,6 +4366,9 @@ function AdminLogHoursPanel({ job, technicianOptions, onCompleted }: { job: Live
       </div>
       <p className="mt-1 text-[10px] text-crm-muted">
         For when staff closes a job out for a tech who couldn't. Hours are credited to the technician you pick below, not to you; the audit trail records that you logged it.
+      </p>
+      <p className="mt-1 text-[10px] text-crm-warning">
+        If this job already has hours logged, keep the same date below to update that entry — a different date creates a second, separate one.
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <label className="grid gap-1 text-[10px] font-semibold text-crm-body">
