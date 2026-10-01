@@ -37,6 +37,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   increment,
   limit,
   onSnapshot,
@@ -4280,7 +4281,7 @@ function DepositBanner({ job, customer, invoices, canBill, canWaive }: { job: Li
 // landing on whoever is doing the paperwork instead of the assigned tech.
 // The server enforces this: technicianUid on the entry is always the chosen
 // technician's, and who actually submitted it is recorded separately.
-function AdminLogHoursPanel({ job, technicianOptions }: { job: LiveJob; technicianOptions: Technician[] }) {
+function AdminLogHoursPanel({ job, technicianOptions, onCompleted }: { job: LiveJob; technicianOptions: Technician[]; onCompleted: () => void }) {
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState(technicianOptions[0]?.id || "");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -4326,6 +4327,13 @@ function AdminLogHoursPanel({ job, technicianOptions }: { job: LiveJob; technici
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not log hours.");
       await recordAudit("hours-logged-on-behalf", "job", job.id, `Logged ${totalHours} hr for ${technicianName} on ${job.workOrderNumber || job.id}${markComplete ? " and marked it complete" : ""}`, { onBehalfOfContractorId: contractorId, totalHours, markComplete });
+      // Marking the job complete happens server-side, outside this modal's own
+      // form state -- the Job Details form's "Status" field was captured when
+      // the modal opened and has no idea this just changed. Leaving the modal
+      // open risks a later "Save job" silently reverting the job back to its
+      // old status with stale data (this already happened once in production).
+      // Closing it forces a fresh reopen instead.
+      if (markComplete) { onCompleted(); return; }
       setOpen(false);
       setNotes("");
     } catch (reason) {
@@ -4453,6 +4461,13 @@ function JobDetailModal({
     targetCompletion: job.targetCompletion || "",
     signatureRequired: job.signatureRequired ?? false,
   });
+  // The status the form was opened with. If the dropdown is never touched,
+  // save() re-reads the live status instead of blindly writing this back --
+  // otherwise a completion that happened elsewhere while this modal sat open
+  // (e.g. "Log hours for a technician...", or a technician completing it
+  // live) gets silently reverted to whatever was stale on open. This already
+  // happened once in production.
+  const [initialStatus] = useState(job.status || "New");
   const [materials, setMaterials] = useState(
     job.equipment?.length
       ? job.equipment.map((item) => ({
@@ -4498,6 +4513,17 @@ function JobDetailModal({
     }
     setSaving(true);
     try {
+      // If the admin never touched the Status dropdown, don't blindly write
+      // back whatever it was when the modal opened -- re-check what the job's
+      // status actually is right now, in case it changed elsewhere (a
+      // technician completing it, or an admin logging hours on their behalf)
+      // while this modal sat open. Only a deliberate change to the dropdown
+      // itself should ever overwrite status.
+      let statusToSave = form.status;
+      if (form.status === initialStatus) {
+        const liveJob = await getDoc(doc(db, "jobs", job.id));
+        statusToSave = liveJob.data()?.status || form.status;
+      }
       const equipment = materials
         .filter((x) => x.description.trim())
         .map((x) => ({
@@ -4527,7 +4553,7 @@ function JobDetailModal({
           vendorName: form.customer.trim(),
           customerId: selectedCustomer.id,
           address: form.address.trim(),
-          status: form.status,
+          status: statusToSave,
           notes: form.notes.trim(),
           quotedValue: quoted,
           hourlyRate: Number(form.hourlyRate || 0),
@@ -4557,7 +4583,7 @@ function JobDetailModal({
         estimatedCost: laborCost + materialCost,
         margin,
       });
-      await recordAudit("updated", "job", job.id, `Updated job ${job.workOrderNumber || job.id}`, { status: form.status, margin });
+      await recordAudit("updated", "job", job.id, `Updated job ${job.workOrderNumber || job.id}`, { status: statusToSave, margin });
       onClose();
     } finally {
       setSaving(false);
@@ -5009,6 +5035,7 @@ function JobDetailModal({
             technicianOptions={technicians.filter(
               (tech) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id || job.technicianLeadId === tech.id,
             )}
+            onCompleted={onClose}
           />
         )}
         {canMessage && (
