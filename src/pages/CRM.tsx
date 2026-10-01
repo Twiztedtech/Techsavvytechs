@@ -66,6 +66,7 @@ import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
 import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
 import { buildImportPlan, detectColumns, parseCsv, type ColumnMap, type ImportField, type ParsedCsv } from "../features/catalog/importPriceList";
 import { creditToApply, depositAmount, depositBlocksClockIn, isDepositInvoice, isDepositPaid } from "../../api/_lib/deposit-policy.js";
+import { jobsNeedingCloseout, jobsNeedingInvoice } from "../../api/_lib/job-alerts.js";
 import { requestDeposit } from "../features/billing/requestDeposit";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { CrmThemeToggle } from "../features/crm/ui";
@@ -972,7 +973,7 @@ export default function CRM() {
             ) : module === "team" ? (
               <StaffAccessAdmin />
             ) : module === "reminders" ? (
-              <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} />
+              <RemindersView customers={liveCustomers} jobs={liveJobs} quotes={liveQuotes} invoices={liveInvoices} assets={assets} deliveries={reminderDeliveries} onOpenJob={(job) => { setSelectedJob(job); go("jobs"); }} />
             ) : module === "dashboard" ? (
               <><LiveJobsView jobs={liveJobs.filter((job) => [job.name, job.vendorName, job.workOrderNumber].join(' ').toLowerCase().includes(query.toLowerCase()))} onOpen={setSelectedJob} onSchedule={setScheduleJob} />{access === "admin" && <AuditTrailView logs={auditLogs} />}</>
             ) : (
@@ -1913,8 +1914,10 @@ function CustomerEditModal({
   );
 }
 
-function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries }: { customers: LiveCustomer[]; jobs: LiveJob[]; quotes: LiveQuote[]; invoices: LiveInvoice[]; assets: CustomerAsset[]; deliveries: ReminderDelivery[] }) {
+function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries, onOpenJob }: { customers: LiveCustomer[]; jobs: LiveJob[]; quotes: LiveQuote[]; invoices: LiveInvoice[]; assets: CustomerAsset[]; deliveries: ReminderDelivery[]; onOpenJob: (job: LiveJob) => void }) {
   const [sending, setSending] = useState("");
+  const closeoutAlerts = jobsNeedingCloseout(jobs);
+  const invoiceAlerts = jobsNeedingInvoice(jobs, invoices);
   const [preferenceCustomer, setPreferenceCustomer] = useState("");
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
@@ -1950,6 +1953,49 @@ function RemindersView({ customers, jobs, quotes, invoices, assets, deliveries }
   };
   const recent = [...deliveries].sort((a, b) => String(b.sentAt || b.createdAt || "").localeCompare(String(a.sentAt || a.createdAt || ""))).slice(0, 12);
   return <div className="space-y-5">
+    <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded bg-crm-warning-soft-bg text-crm-warning-soft-text"><AlertTriangle className="h-5 w-5" /></span>
+        <div>
+          <h2 className="text-sm font-bold">Job alerts (internal)</h2>
+          <p className="mt-1 text-[10px] text-crm-muted">Daily at 8:00 AM Pacific, bundled with the reminder run above · goes to the office, not the customer</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-crm-muted">Needs closeout — past scheduled date ({closeoutAlerts.length})</p>
+          {closeoutAlerts.length ? (
+            <div className="mt-2 max-h-72 divide-y divide-crm-hairline-soft overflow-y-auto rounded border border-crm-hairline">
+              {closeoutAlerts.map(({ job, daysOverdue }) => (
+                <button key={job.id} type="button" onClick={() => onOpenJob(job)} className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-crm-surface-soft">
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-bold text-crm-ink">{job.workOrderNumber || job.name || job.id}</p>
+                    <p className="truncate text-[9px] text-crm-muted">{job.vendorName || "Customer pending"}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-crm-error-soft-bg px-2 py-1 text-[9px] font-bold text-crm-error-soft-text">{daysOverdue}d overdue</span>
+                </button>
+              ))}
+            </div>
+          ) : <p className="mt-2 text-[10px] text-crm-muted">Nothing overdue to close out.</p>}
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-crm-muted">Needs invoicing — closed out, not yet billed ({invoiceAlerts.length})</p>
+          {invoiceAlerts.length ? (
+            <div className="mt-2 max-h-72 divide-y divide-crm-hairline-soft overflow-y-auto rounded border border-crm-hairline">
+              {invoiceAlerts.map(({ job, daysWaiting }) => (
+                <button key={job.id} type="button" onClick={() => onOpenJob(job)} className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-crm-surface-soft">
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-bold text-crm-ink">{job.workOrderNumber || job.name || job.id}</p>
+                    <p className="truncate text-[9px] text-crm-muted">{job.vendorName || "Customer pending"}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-crm-warning-soft-bg px-2 py-1 text-[9px] font-bold text-crm-warning-soft-text">{daysWaiting}d waiting</span>
+                </button>
+              ))}
+            </div>
+          ) : <p className="mt-2 text-[10px] text-crm-muted">Nothing closed out is waiting on an invoice.</p>}
+        </div>
+      </div>
+    </section>
     <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded bg-crm-surface-card text-crm-ink"><Clock3 className="h-5 w-5"/></span><div><h2 className="text-sm font-bold">Automated customer reminders</h2><p className="mt-1 text-[10px] text-crm-muted">Daily at 8:00 AM Pacific · appointments, quotes, overdue invoices and recurring maintenance</p><p className="mt-1 text-[10px] text-crm-muted">Overdue invoices escalate: weekly &amp; friendly for the first 2 weeks, weekly &amp; firmer through day 29, then every 3 days &amp; urgent (office CC'd) from day 30 on.</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{["appointment", "quote", "invoice", "maintenance"].map((type) => <div key={type} className="rounded bg-crm-surface-soft p-3"><p className="text-[8px] font-bold uppercase text-crm-muted">{type}</p><p className="mt-1 crm-display-sm">{items.filter((item) => item.type === type).length}</p><p className="text-[8px] text-crm-muted">currently actionable</p></div>)}</div></section>
     <div className="grid gap-5 xl:grid-cols-2"><section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm"><header className="border-b border-crm-hairline-soft p-4"><h3 className="text-sm font-bold">Send reminder now</h3><p className="mt-1 text-[9px] text-crm-muted">Manual sends are separately recorded and do not disable scheduled duplicate protection.</p></header>{items.length ? <div className="max-h-[520px] divide-y divide-crm-hairline-soft overflow-y-auto">{items.map((item) => <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 p-4"><div><span className="rounded bg-crm-surface-card px-2 py-1 text-[8px] font-bold uppercase text-crm-muted">{item.type}</span><p className="mt-2 text-[11px] font-bold">{item.title}</p><p className="mt-1 text-[9px] text-crm-muted">{item.detail}</p></div><button onClick={() => void send(item)} disabled={sending === `${item.type}-${item.id}`} className="whitespace-nowrap rounded bg-crm-primary hover:bg-crm-primary-active px-3 py-2 text-[9px] font-bold text-crm-on-primary disabled:opacity-40">{sending === `${item.type}-${item.id}` ? "Sending…" : "Send now"}</button></div>)}</div> : <ReportEmpty text="No reminders currently require action."/>}</section>
     <section className="rounded border border-crm-hairline bg-crm-canvas p-5 shadow-sm"><h3 className="text-sm font-bold">Customer preferences</h3><p className="mt-1 text-[9px] text-crm-muted">All reminder types are enabled unless explicitly turned off.</p><select value={preferenceCustomer} onChange={(event) => setPreferenceCustomer(event.target.value)} className="mt-4 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{selected && <div className="mt-4 divide-y divide-crm-hairline-soft">{(["enabled", "appointment", "quote", "invoice", "maintenance"] as const).map((key) => { const enabled = selected.reminderPreferences?.[key] !== false; return <button key={key} onClick={() => void togglePreference(key)} className="flex w-full items-center justify-between py-3 text-left"><span className="text-[10px] font-semibold capitalize">{key === "enabled" ? "All reminders" : `${key} reminders`}</span><span className={`rounded-full px-2.5 py-1 text-[8px] font-bold uppercase ${enabled ? "bg-crm-success-soft-bg text-crm-success-soft-text" : "bg-crm-surface-card text-crm-muted"}`}>{enabled ? "Enabled" : "Off"}</span></button>; })}</div>}</section></div>

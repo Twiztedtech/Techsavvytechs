@@ -4,7 +4,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
 import { reportOperationalError, runOperationalHealthCheck } from './_lib/monitoring.js';
-import { uploadInlineFiles } from './_lib/client-portal.js';
+import { alertRecipients, uploadInlineFiles } from './_lib/client-portal.js';
+import { jobsNeedingCloseout, jobsNeedingInvoice } from './_lib/job-alerts.js';
 import { buildInvoicePdf, invoicePdfFileName } from './_lib/invoice-pdf.js';
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
@@ -668,6 +669,64 @@ async function reminderCandidates() {
   return candidates.filter((candidate) => candidate.customer);
 }
 
+// Internal, staff-facing alerts -- jobs overdue to be closed out, and jobs
+// closed out but not yet invoiced. Separate from the customer-facing
+// reminders above: this goes to the office (alertRecipients), not the
+// customer. One combined digest per day, deduped the same way as everything
+// else in this file, so the cron can run as often as it likes without
+// spamming.
+async function sendJobAlertsDigest() {
+  const today = new Date();
+  const [jobsSnapshot, invoicesSnapshot] = await Promise.all([
+    adminDb.collection("jobs").get(),
+    adminDb.collection("invoices").get(),
+  ]);
+  const jobs = jobsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const invoices = invoicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const closeout = jobsNeedingCloseout(jobs, { today });
+  const invoicing = jobsNeedingInvoice(jobs, invoices, { today });
+  if (!closeout.length && !invoicing.length) return { sent: false, closeout: 0, invoicing: 0 };
+
+  const { emails } = await alertRecipients();
+  if (!emails.length) return { skipped: "no-recipients", closeout: closeout.length, invoicing: invoicing.length };
+
+  const deliveryId = `job_alerts_${today.toISOString().slice(0, 10)}`;
+  const deliveryRef = adminDb.collection("reminder_deliveries").doc(deliveryId);
+  const existing = await deliveryRef.get();
+  if (existing.exists && ["sent", "sending"].includes(existing.data()?.status)) return { skipped: "duplicate", closeout: closeout.length, invoicing: invoicing.length };
+  await deliveryRef.set({ type: "job_alerts", status: "sending", recipients: emails, createdAt: new Date().toISOString() });
+
+  const label = (job) => job.workOrderNumber || job.name || job.id;
+  const row = (title, detail) => `<tr><td style="padding:6px 12px 6px 0;font-weight:700">${escapeHtml(title)}</td><td style="padding:6px 0;color:#475569">${escapeHtml(detail)}</td></tr>`;
+  const closeoutRows = closeout.map(({ job, daysOverdue }) => row(label(job), `${job.vendorName || "Customer pending"} · ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} past scheduled date`)).join("");
+  const invoicingRows = invoicing.map(({ job, daysWaiting }) => row(label(job), `${job.vendorName || "Customer pending"} · closed out ${daysWaiting} day${daysWaiting === 1 ? "" : "s"} ago, not yet invoiced`)).join("");
+  const section = (heading, count, rowsHtml) => count ? `<h3 style="margin:22px 0 6px;font-size:14px">${escapeHtml(heading)} (${count})</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${rowsHtml}</table>` : "";
+  const textLines = [
+    closeout.length ? `Needs closeout (${closeout.length}):\n${closeout.map(({ job, daysOverdue }) => `- ${label(job)} — ${job.vendorName || "Customer pending"}, ${daysOverdue}d overdue`).join("\n")}` : "",
+    invoicing.length ? `Needs invoicing (${invoicing.length}):\n${invoicing.map(({ job, daysWaiting }) => `- ${label(job)} — ${job.vendorName || "Customer pending"}, waiting ${daysWaiting}d`).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `techsavvy-${deliveryId}`, "User-Agent": "TechSavvy-CRM/1.0" },
+    body: JSON.stringify({
+      from: customerSender(),
+      to: emails,
+      subject: `TechSavvy job alerts: ${closeout.length} to close${invoicing.length ? `, ${invoicing.length} to invoice` : ""}`,
+      text: `${textLines}\n\nOpen: ${appUrl}/crm?module=jobs`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#17201a;line-height:1.5"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#8DC63F;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">DAILY JOB ALERTS</div></div><div style="padding:24px;border:1px solid #e2e8f0">${section("Needs closeout — past scheduled date", closeout.length, closeoutRows)}${section("Needs invoicing — closed out, not yet billed", invoicing.length, invoicingRows)}<p style="margin-top:22px"><a href="${appUrl}/crm?module=jobs" style="display:inline-block;background:#8DC63F;color:#071009;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">Open Jobs in the CRM</a></p></div></div>`,
+    }),
+  });
+  if (!response.ok) {
+    await deliveryRef.set({ status: "failed", error: await response.text(), failedAt: new Date().toISOString() }, { merge: true });
+    return { failed: true };
+  }
+  const result = await response.json();
+  await deliveryRef.set({ status: "sent", emailId: result.id, sentAt: new Date().toISOString() }, { merge: true });
+  return { sent: true, closeout: closeout.length, invoicing: invoicing.length };
+}
+
 async function runReminderCycle(req, res) {
   if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).json({ error: "Unauthorized" });
@@ -686,7 +745,10 @@ async function runReminderCycle(req, res) {
     await writeAudit({ actor: { email: "Scheduled reconciliation" }, action: "reconciled", entityType: "quickbooks", entityId: "invoices", summary: `Scheduled reconciliation checked ${reconciliation.checked} QuickBooks invoice${reconciliation.checked === 1 ? "" : "s"}; ${reconciliation.updated} balance${reconciliation.updated === 1 ? "" : "s"} changed; ${reconciliation.imported || 0} new invoice${reconciliation.imported === 1 ? "" : "s"} imported from QuickBooks`, details: { checked: reconciliation.checked, updated: reconciliation.updated, imported: reconciliation.imported || 0 }, source: "scheduled-reminder" });
   }
   catch (error) { reconciliation = { failed: true, error: error.message }; }
-  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length, reconciliation });
+  let jobAlerts = { skipped: true };
+  try { jobAlerts = await sendJobAlertsDigest(); }
+  catch (error) { jobAlerts = { failed: true, error: error.message }; }
+  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length, reconciliation, jobAlerts });
 }
 
 async function sendManualReminder(req, res) {
