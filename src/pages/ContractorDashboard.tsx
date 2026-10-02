@@ -1138,21 +1138,37 @@ export default function ContractorDashboard() {
                         </div>
                       )}
 
-                      {/* GOOGLE MAPS ADDRESS LINK */}
+                      {/* GOOGLE MAPS ADDRESS LINK + AREA PREVIEW */}
                       {!isCustomJob && selectedJobObj?.address && selectedJobObj.address !== 'Address on file' && (
-                        <div className="bg-slate-950/80 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs text-slate-300">
-                          <div className="flex items-center gap-2 truncate mr-2">
-                            <span className="text-amber-500">📍</span>
-                            <span className="truncate text-slate-400">{selectedJobObj.address}</span>
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-lg overflow-hidden">
+                          <div className="p-2.5 flex items-center justify-between text-xs text-slate-300">
+                            <div className="flex items-center gap-2 truncate mr-2">
+                              <span className="text-amber-500">📍</span>
+                              <span className="truncate text-slate-400">{selectedJobObj.address}</span>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={gettingDirections}
+                              onClick={() => void openDirections(selectedJobObj.address)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold rounded text-[11px] transition shrink-0 flex items-center gap-1 disabled:opacity-60"
+                            >
+                              <span>🗺️ {gettingDirections ? 'Locating…' : 'Get Directions'}</span>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            disabled={gettingDirections}
-                            onClick={() => void openDirections(selectedJobObj.address)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold rounded text-[11px] transition shrink-0 flex items-center gap-1 disabled:opacity-60"
-                          >
-                            <span>🗺️ {gettingDirections ? 'Locating…' : 'Get Directions'}</span>
-                          </button>
+                          {/* A quiet area preview, not a route -- just "where is this". No API
+                              key/billing needed: the key-less google.com/maps "output=embed"
+                              iframe format, same no-setup approach as every other map link in
+                              this app already uses. Swap to the official Maps Embed API (set
+                              VITE_GOOGLE_MAPS_EMBED_API_KEY) if this ever needs to change. */}
+                          <iframe
+                            title="Job site area"
+                            width="100%"
+                            height="160"
+                            className="border-0 block"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedJobObj.address)}&z=15&output=embed`}
+                          />
                         </div>
                       )}
 
