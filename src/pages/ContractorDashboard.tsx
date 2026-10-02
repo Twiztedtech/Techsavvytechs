@@ -12,7 +12,7 @@ import { TechSelfProfile } from '../features/contractor/profile/TechSelfProfile'
 import { MyCrewPanel } from '../features/contractor/crew/MyCrewPanel';
 import { JobMessagesPanel } from '../features/contractor/messages/JobMessagesPanel';
 import type { SelfProfile } from '../features/contractor/types';
-import { formatElapsed, getEntryTotals, getGoogleMapsUrl } from '../features/contractor/timesheets/calculations';
+import { formatElapsed, getDirectionsUrl, getEntryTotals } from '../features/contractor/timesheets/calculations';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
 import { type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
 
@@ -335,6 +335,21 @@ export default function ContractorDashboard() {
         { timeout: 8000, maximumAge: 60000 },
       );
     });
+
+  const [gettingDirections, setGettingDirections] = useState(false);
+  // Fetches a fresh GPS fix (same source as the clock-in/out stamps, never a
+  // stale/stored one) to use as the directions origin. Never blocks opening
+  // directions -- if location fails or is denied, it still opens with no
+  // origin, which Google Maps itself fills in from the device's location.
+  const openDirections = async (address: string) => {
+    setGettingDirections(true);
+    try {
+      const location = await captureLocation();
+      window.open(getDirectionsUrl(address, location), '_blank', 'noopener');
+    } finally {
+      setGettingDirections(false);
+    }
+  };
 
   const handleStartShift = async () => {
     const now = new Date();
@@ -1124,20 +1139,20 @@ export default function ContractorDashboard() {
                       )}
 
                       {/* GOOGLE MAPS ADDRESS LINK */}
-                      {!isCustomJob && selectedJobObj?.address && (
+                      {!isCustomJob && selectedJobObj?.address && selectedJobObj.address !== 'Address on file' && (
                         <div className="bg-slate-950/80 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs text-slate-300">
                           <div className="flex items-center gap-2 truncate mr-2">
                             <span className="text-amber-500">📍</span>
                             <span className="truncate text-slate-400">{selectedJobObj.address}</span>
                           </div>
-                          <a
-                            href={getGoogleMapsUrl(selectedJobObj.address)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold rounded text-[11px] transition shrink-0 flex items-center gap-1"
+                          <button
+                            type="button"
+                            disabled={gettingDirections}
+                            onClick={() => void openDirections(selectedJobObj.address)}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold rounded text-[11px] transition shrink-0 flex items-center gap-1 disabled:opacity-60"
                           >
-                            <span>🗺️ Get Directions</span>
-                          </a>
+                            <span>🗺️ {gettingDirections ? 'Locating…' : 'Get Directions'}</span>
+                          </button>
                         </div>
                       )}
 

@@ -40,3 +40,13 @@ export function formatElapsed(seconds: number) {
 export function getGoogleMapsUrl(address: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
+
+// A key-less Google Maps directions deep link -- no Maps API/SDK needed.
+// Omitting origin still works correctly: Google Maps (app or mobile web)
+// falls back to using the device's own current location automatically, so
+// this degrades gracefully when geolocation isn't available.
+export function getDirectionsUrl(address: string, origin?: { lat: number; lng: number }) {
+  const params = new URLSearchParams({ api: '1', destination: address, travelmode: 'driving' });
+  if (origin) params.set('origin', `${origin.lat},${origin.lng}`);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
