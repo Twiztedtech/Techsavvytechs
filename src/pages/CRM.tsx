@@ -264,6 +264,7 @@ type LiveCustomer = {
   qboCustomerId?: string;
   personnel?: CustomerPersonnel[];
   billingRecipientEmails?: string[];
+  invoiceCcEmails?: string[];
   approvedDomains?: string[];
   referencePrefixes?: string[];
   defaultContactPolicy?: string;
@@ -1506,6 +1507,7 @@ TechSavvy LLC`;
 
 type DocumentEmailPreview = {
   to: string;
+  cc?: string[];
   validRecipient: boolean;
   from: string;
   replyTo: string;
@@ -1609,6 +1611,12 @@ function DocumentEmailModal({
               />
             </label>
             <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 text-[11px]">
+              {!!preview.cc?.length && (
+                <>
+                  <dt className="font-bold uppercase text-crm-muted">Cc</dt>
+                  <dd className="text-crm-body">{preview.cc.join(", ")}</dd>
+                </>
+              )}
               <dt className="font-bold uppercase text-crm-muted">From</dt>
               <dd className="text-crm-body">{preview.from}</dd>
               <dt className="font-bold uppercase text-crm-muted">Reply to</dt>
@@ -1787,6 +1795,7 @@ function CustomerEditModal({
     lifetimeValue: String(customer.lifetimeValue || ""),
     depositPolicy: (customer.depositPolicy || "") as "" | "required" | "waived",
     depositHours: String(customer.depositHours || ""),
+    invoiceCc: (customer.invoiceCcEmails || []).join(", "),
   });
   const [personnel, setPersonnel] = useState<CustomerPersonnel[]>(
     customer.personnel?.length ? customer.personnel.map((p) => ({ ...p, active: p.active !== false })) : [],
@@ -1801,6 +1810,9 @@ function CustomerEditModal({
     const cleanPersonnel = personnel
       .filter((p) => p.name.trim() || p.email.trim())
       .map((p) => ({ id: p.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: p.name.trim(), email: p.email.trim().toLowerCase(), role: p.role || "other", active: p.active !== false }));
+    const invoiceCcEmails: string[] = Array.from(new Set<string>(form.invoiceCc.split(/[\s,;]+/).map((value) => value.trim().toLowerCase()).filter(Boolean)));
+    const badCc = invoiceCcEmails.find((value) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
+    if (badCc) { alert(`"${badCc}" is not a valid email address in the invoice copy list.`); return; }
     const incomplete = cleanPersonnel.find((p) => !p.name || !p.email);
     if (incomplete) { alert("Each person needs both a name and an email address."); return; }
     setSaving(true);
@@ -1812,6 +1824,7 @@ function CustomerEditModal({
         phone: form.phone.trim(),
         lifetimeValue: Number(form.lifetimeValue || 0),
         personnel: cleanPersonnel,
+        invoiceCcEmails,
         ...(form.depositPolicy ? { depositPolicy: form.depositPolicy } : {}),
         depositHours: Number(form.depositHours) > 0 ? Number(form.depositHours) : null,
         updatedAt: serverTimestamp(),
@@ -1839,6 +1852,10 @@ function CustomerEditModal({
           <Field label="Primary contact" value={form.contact} onChange={(v) => setForm({ ...form, contact: v })} />
           <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
           <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+          <div>
+            <Field label="Also copy invoices to (e.g. their AP department)" value={form.invoiceCc} onChange={(v) => setForm({ ...form, invoiceCc: v })} />
+            <p className="mt-1 text-[9px] text-crm-muted">Separate several addresses with commas. They are copied (Cc) on every invoice and overdue reminder, never on quotes.</p>
+          </div>
           <Field label="Lifetime value" value={form.lifetimeValue} onChange={(v) => setForm({ ...form, lifetimeValue: v })} type="number" />
         </div>
         <div className="mt-5 rounded border border-crm-hairline bg-crm-surface-soft p-3">

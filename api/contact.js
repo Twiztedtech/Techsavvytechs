@@ -103,6 +103,16 @@ function documentReplyTo(type) {
     : process.env.SUPPORT_EMAIL || "support@techsavvytechs.com";
 }
 
+// Extra addresses a customer wants copied on every invoice (e.g. their AP
+// department). Invoices only, valid addresses only, never the main recipient.
+function invoiceCcFor(customerData, type, toEmail) {
+  if (type !== "invoice" || !Array.isArray(customerData?.invoiceCcEmails)) return [];
+  const seen = new Set([String(toEmail || "").toLowerCase()]);
+  return customerData.invoiceCcEmails
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && !seen.has(value) && seen.add(value));
+}
+
 // A PDF problem must never block an invoice from going out, so a failure
 // sends the email without the attachment (and the caller reports that).
 function tryInvoicePdf(document) {
@@ -164,6 +174,7 @@ async function previewCustomerDocument(req, res) {
   const number = type === "quote" ? document.quoteNumber || documentId : document.invoiceNumber || documentId;
   const total = Number(document.total || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   const attachment = tryInvoicePdf(document);
+  const cc = invoiceCcFor(customerSnapshot.docs[0]?.data(), type, email);
   const { subject, html } = renderCustomerDocumentEmail({
     type,
     document,
@@ -176,6 +187,7 @@ async function previewCustomerDocument(req, res) {
   return res.status(200).json({
     to: email,
     validRecipient: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    cc,
     from: documentSender(type),
     replyTo: documentReplyTo(type),
     subject,
@@ -257,6 +269,7 @@ async function sendCustomerDocument(req, res) {
   const sender = documentSender(type);
   const replyTo = documentReplyTo(type);
   const attachment = tryInvoicePdf(document);
+  const cc = invoiceCcFor(customerSnapshot.docs[0]?.data(), type, email);
   const { subject, text, html } = renderCustomerDocumentEmail({
     type,
     document,
@@ -277,6 +290,7 @@ async function sendCustomerDocument(req, res) {
       from: sender,
       reply_to: replyTo,
       to: [email],
+      ...(cc.length ? { cc } : {}),
       subject,
       text,
       html,
@@ -634,11 +648,12 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
     const billingEmail = process.env.BILLING_EMAIL || "billing@techsavvytechs.com";
     // Once an invoice is seriously overdue, loop the office in on every
     // escalation email so a human knows to step in and follow up directly.
-    const ccAddresses = invoiceEscalation === "urgent" ? (process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") || [supportEmail]) : undefined;
+    const officeCc = invoiceEscalation === "urgent" ? (process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") || [supportEmail]) : [];
+    const ccAddresses = [...officeCc, ...invoiceCcFor(customer, type, email)].filter((value, index, all) => all.indexOf(value) === index);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": `techsavvy-${deliveryId}`, "User-Agent": "TechSavvy-CRM/1.0" },
-      body: JSON.stringify({ from: sender, reply_to: type === "invoice" ? billingEmail : supportEmail, to: [email], ...(ccAddresses ? { cc: ccAddresses } : {}), subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#8DC63F;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#8DC63F;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
+      body: JSON.stringify({ from: sender, reply_to: type === "invoice" ? billingEmail : supportEmail, to: [email], ...(ccAddresses.length ? { cc: ccAddresses } : {}), subject: subjects[type], text: `Hello ${customer.contact || customer.name},\n\n${detail}\n\n${actionLabel}: ${actionUrl}\n\nQuestions? Reply to this email.`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#17201a;line-height:1.55"><div style="background:#0b0f0c;padding:22px;color:#fff"><strong style="color:#8DC63F;font-size:22px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">SERVICE REMINDER</div></div><div style="padding:28px;border:1px solid #e2e8f0"><p>Hello ${escapeHtml(customer.contact || customer.name)},</p><p>${escapeHtml(detail)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#8DC63F;color:#071009;padding:13px 20px;border-radius:5px;text-decoration:none;font-weight:700">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#64748b">Questions? Reply to this email. To change reminder preferences, contact TechSavvy support.</p></div></div>` }),
     });
     if (!response.ok) throw new Error("Reminder email failed: " + (await response.text()));
     const result = await response.json();
