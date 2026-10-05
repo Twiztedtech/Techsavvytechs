@@ -943,8 +943,11 @@ export default async function handler(req, res) {
           return res.status(422).json({ error: 'Explain the customer-signature exception.' });
         }
         const completedAt = new Date().toISOString();
+        // Hours logged against a job that is already invoiced/paid must not drag
+        // it back to Completed (and from there to Ready to Invoice).
+        const alreadyBilled = ['invoiced', 'paid'].includes(String(assignedJob.data().status || '').toLowerCase());
         completionUpdate = {
-          status: 'Completed',
+          ...(alreadyBilled ? {} : { status: 'Completed' }),
           completionStatus: 'completed',
           completedAt,
           completedByUid: user.uid,
