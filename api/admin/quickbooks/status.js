@@ -1,9 +1,11 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
+import { handleAppCors } from '../../_lib/cors.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
 import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers } from '../../_lib/qbo-helper.js';
 import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

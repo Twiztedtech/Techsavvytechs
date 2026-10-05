@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { handleAppCors } from '../../_lib/cors.js';
 import { adminAuth, adminDb, adminStorage, requireAdmin } from '../../_lib/firebase-admin.js';
 import { writeAudit } from '../../_lib/audit.js';
 
@@ -425,6 +426,7 @@ async function handleOnboardingReview(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.query?.adminOperation === 'lifecycle') {
     try {
       return await handleLifecycle(req, res);

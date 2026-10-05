@@ -1,8 +1,10 @@
 import { randomBytes } from 'crypto';
+import { handleAppCors } from '../_lib/cors.js';
 import { requireAdmin } from '../_lib/firebase-admin.js';
 import googleCalendarAuthHandler from '../_lib/google-calendar-auth-handler.js';
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.query?.authProvider === 'googleCalendar') return googleCalendarAuthHandler(req, res);
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
