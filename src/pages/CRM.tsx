@@ -55,6 +55,8 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate, needsDispatch } from "../features/crm/record-links";
+import { buildLaborLines } from "../features/billing/laborLines";
+import { jobMargin } from "../features/crm/job-margin";
 import { saveJob } from "../features/jobs/saveJob";
 import { buildJobRecord } from "../features/jobs/buildJobRecord";
 import { SupportTicketsAdmin } from "../features/admin/SupportTicketsAdmin";
@@ -618,30 +620,6 @@ export default function CRM() {
     }
     return () => stops.forEach((stop) => stop());
   }, [access]);
-  const jobsForTable = useMemo(
-    () =>
-      liveJobs
-        .map((job) => ({
-          no: job.workOrderNumber || job.id,
-          customer: job.vendorName || "Customer not assigned",
-          site: job.address || "Site address pending",
-          description: job.name || "Untitled work order",
-          stage: job.status || "New",
-          technician: job.assignedTechName || "Unassigned",
-          due: job.targetCompletion || "Not set",
-          cost: job.quotedValue
-            ? `$${job.quotedValue.toLocaleString()}`
-            : "Not costed",
-          margin: job.margin ? `${job.margin}%` : "—",
-        }))
-        .filter((job) =>
-          Object.values(job)
-            .join(" ")
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-        ),
-    [liveJobs, query],
-  );
   const liveLifecycle = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -2076,8 +2054,13 @@ export function ReportsView({
   const collected = invoices.reduce((sum, invoice) => sum + Number(invoice.amountPaid || 0), 0);
   const activeJobs = jobs.filter((job) => !isClosedJob(job));
   const completedJobs = jobs.filter((job) => isClosedJob(job) && !['Cancelled', 'voided'].includes(job.status || ''));
-  const marginJobs = jobs.filter((job) => Number.isFinite(Number(job.margin)) && Number(job.margin) !== 0);
-  const averageMargin = marginJobs.length ? marginJobs.reduce((sum, job) => sum + Number(job.margin || 0), 0) / marginJobs.length : 0;
+  // Live per-job margin (invoiced revenue vs. technician cost), never the
+  // figure saved on the job document, which goes stale after the last Save.
+  const marginJobs = jobs
+    .filter((job) => !['voided', 'cancelled'].includes((job.status || '').toLowerCase()))
+    .map((job) => jobMargin(job, invoices, timeEntries))
+    .filter((m) => m.marginPct !== null);
+  const averageMargin = marginJobs.length ? marginJobs.reduce((sum, m) => sum + (m.marginPct as number), 0) / marginJobs.length : 0;
   const unassigned = activeJobs.filter(needsDispatch).length;
   const maintenanceAssets = assets.filter((asset) => asset.maintenance?.enabled);
   const dueMaintenance = maintenanceAssets.filter((asset) => asset.maintenance?.nextServiceDate && new Date(`${asset.maintenance.nextServiceDate}T00:00:00`) <= new Date(today.getTime() + 30 * 86400000));
@@ -4504,9 +4487,11 @@ function JobDetailModal({
     0,
   );
   const recordedHours = laborSummary(timeEntries);
-  const laborCost =
-    recordedHours.approved *
-    Number(form.hourlyRate || 0);
+  // Labor cost from what each time entry actually paid (its own rate), not
+  // today's rate on the job form, so editing the job can't rewrite history.
+  const laborCost = timeEntries
+    .filter((entry) => entry.status !== "voided" && entry.status !== "rejected")
+    .reduce((sum, entry) => sum + getEntryTotals(entry).labor, 0);
   const quoted = Number(form.quotedValue || 0);
   const margin = quoted
     ? Math.round(((quoted - laborCost - materialCost) / quoted) * 100)
@@ -5741,27 +5726,15 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
   // sees headcount and hours, never who specifically worked. Billed at the
   // customer rate, which is deliberately a different number than what the
   // technician is paid (job.hourlyRate) -- never conflate the two here.
-  const laborByDate = new Map<string, number[]>();
-  approvedEntries.filter(approvedLabor).forEach((entry) => {
-    const date = entry.date || "Unspecified date";
-    const hours = Number(entry.totalHours || 0);
-    if (!hours) return;
-    if (!laborByDate.has(date)) laborByDate.set(date, []);
-    laborByDate.get(date)!.push(hours);
-  });
-  Array.from(laborByDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .forEach(([date, hoursList]) => {
-      const totalHours = hoursList.reduce((sum, h) => sum + h, 0);
-      const uniform = hoursList.every((h) => h === hoursList[0]);
-      const description =
-        hoursList.length === 1
-          ? `${date} — 1 technician — ${hoursList[0].toFixed(2)} hrs`
-          : uniform
-            ? `${date} — ${hoursList.length} technicians @ ${hoursList[0].toFixed(2)} hrs each — ${totalHours.toFixed(2)} hrs total`
-            : `${date} — ${hoursList.length} technicians — ${totalHours.toFixed(2)} hrs total`;
-      defaultItems.push({ description, quantity: totalHours, unitPrice: billRate, kind: "labor" });
-    });
+  // Night/weekend hours bill at the night rate and the agreement's minimum
+  // applies per technician (see features/billing/laborLines.ts).
+  const laborEntries = approvedEntries.filter(approvedLabor);
+  buildLaborLines(laborEntries, {
+    billRate,
+    nightRate: Number(job.customerNightBillRate) || Number(invoiceCustomer?.rateAgreement?.nightRate) || 0,
+    minimumHours: Number(invoiceCustomer?.rateAgreement?.minimumHours) || 0,
+  }).forEach((line) => defaultItems.push(line));
+  const laborDates = laborEntries.filter((entry) => Number(entry.totalHours || 0)).map((entry) => entry.date || "Unspecified date");
   approvedEntries.forEach((entry, index) => {
     if (entry.travelStatus === 'approved' && Number(entry.travelCost || 0) > 0) defaultItems.push({ description: `Approved travel${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.travelCost), kind: 'service' });
     if (entry.suppliesStatus === 'approved' && Number(entry.suppliesCost || 0) > 0) defaultItems.push({ description: `Approved field supplies${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.suppliesCost), kind: 'material' });
@@ -5810,7 +5783,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
   // Some customers' AP departments require an explicit "date of service" on
   // the invoice, not just billing issue/due dates -- default to the earliest
   // approved labor date worked, falling back to the job's target completion.
-  const earliestServiceDate = Array.from(laborByDate.keys()).sort()[0] || job.targetCompletion || today;
+  const earliestServiceDate = [...laborDates].sort()[0] || job.targetCompletion || today;
   const [dates, setDates] = useState({ issueDate: today, dueDate: dueDefault, serviceDate: earliestServiceDate });
   const [taxRate, setTaxRate] = useState("0");
   const [accounting, setAccounting] = useState({
