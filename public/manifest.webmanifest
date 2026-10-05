@@ -1,0 +1,20 @@
+{
+  "name": "TechSavvy Field Portal",
+  "short_name": "TechSavvy",
+  "description": "Jobs, time tracking, site surveys and directions for TechSavvy technicians.",
+  "id": "/contractor/dashboard",
+  "start_url": "/contractor/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#030505",
+  "theme_color": "#030505",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Site surveys", "short_name": "Surveys", "url": "/surveys" }
+  ]
+}
