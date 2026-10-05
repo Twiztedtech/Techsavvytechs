@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, storage } from '../lib/firebase';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signInWithGoogle } from '../lib/googleSignIn';
 import { getDownloadURL, ref, uploadString } from 'firebase/storage';
 import { compressSurveyPhoto } from '../features/surveys/photo';
 import { Link, useNavigate } from 'react-router';
@@ -713,9 +714,7 @@ export default function ContractorDashboard() {
                 setAuthMessage(null);
                 setIsGoogleSigningIn(true);
                 try {
-                  const provider = new GoogleAuthProvider();
-                  provider.setCustomParameters({ prompt: 'select_account' });
-                  await signInWithPopup(auth, provider);
+                  await signInWithGoogle(auth);
                 } catch (error) {
                   setAuthMessage({ tone: 'error', text: getAuthErrorMessage(error) });
                 } finally {

@@ -20,6 +20,8 @@
     "studio:schema": "npm --prefix studio run schema:deploy"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@google/genai": "^1.29.0",
     "@portabletext/react": "^5.0.0",
     "@sanity/client": "^7.0.0",
