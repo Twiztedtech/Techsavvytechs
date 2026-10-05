@@ -1,7 +1,8 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { auth, storage } from '../lib/firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
-import { signInWithGoogle } from '../lib/googleSignIn';
+import { signInWithGoogle } from '../lib/googleSignIn'
+import { isNativeApp } from '../lib/native';
 import { getDownloadURL, ref, uploadString } from 'firebase/storage';
 import { compressSurveyPhoto } from '../features/surveys/photo';
 import { Link, useNavigate } from 'react-router';
@@ -327,15 +328,26 @@ export default function ContractorDashboard() {
   // Best-effort GPS stamp for clock-in/out. Never blocks the action it's
   // attached to -- a denied permission, timeout, or unsupported browser just
   // means no location gets recorded, not a failed clock-in/out.
+  // A phone's first GPS fix can take 10+ seconds (found testing the Android
+  // app: two 8s attempts timed out, the third worked), so one quick try that
+  // accepts a recent fix is followed by one precise try before giving up.
   const captureLocation = (): Promise<{ lat: number; lng: number; accuracy?: number } | undefined> =>
     new Promise((resolve) => {
       if (!navigator.geolocation) return resolve(undefined);
+      const done = (position: GeolocationPosition) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
       navigator.geolocation.getCurrentPosition(
-        (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy }),
-        () => resolve(undefined),
-        { timeout: 8000, maximumAge: 60000 },
+        done,
+        () => navigator.geolocation.getCurrentPosition(done, () => resolve(undefined), { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }),
+        { timeout: 6000, maximumAge: 120000 },
       );
     });
+
+  // In the installed app, start warming up the GPS as soon as a job is open, so
+  // the clock-in tap finds a recent fix instead of waiting on a cold start.
+  useEffect(() => {
+    if (!isNativeApp || !selectedJobObj?.id || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 20000, maximumAge: 120000 });
+  }, [selectedJobObj?.id]);
 
   const [gettingDirections, setGettingDirections] = useState(false);
   // Fetches a fresh GPS fix (same source as the clock-in/out stamps, never a
