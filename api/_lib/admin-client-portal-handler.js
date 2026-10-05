@@ -284,15 +284,20 @@ async function convertRequest(req, res, admin) {
   // never had a customerId to begin with.
   let customerRef;
   let customerExists = false;
+  // What this customer is billed (their signed rate agreement) -- never the
+  // technician pay rate (hourlyRate below). Left unset when no agreement exists.
+  let billingRates = null;
   if (request.customerId) {
     const existing = await adminDb.collection('customers').doc(request.customerId).get();
     customerRef = adminDb.collection('customers').doc(request.customerId);
     customerExists = existing.exists;
+    billingRates = existing.data()?.rateAgreement || null;
   } else {
     const customerMatches = await adminDb.collection('customers').where('name', '==', request.companyName).get();
     if (customerMatches.size > 1) return res.status(409).json({ error: 'Multiple CRM customers match this company. Resolve the duplicate customer records before converting.' });
     customerRef = customerMatches.empty ? adminDb.collection('customers').doc() : customerMatches.docs[0].ref;
     customerExists = !customerMatches.empty;
+    billingRates = customerMatches.empty ? null : customerMatches.docs[0].data().rateAgreement || null;
   }
   const deliverables = Array.isArray(request.deliverables) ? request.deliverables : String(request.deliverables || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const jobRef = adminDb.collection("jobs").doc();
@@ -323,6 +328,8 @@ async function convertRequest(req, res, admin) {
     workOrderTemplate: request.serviceType || "general",
     hourlyRate: Number(req.body?.hourlyRate || 55),
     travelRate: Number(req.body?.travelRate || 35),
+    customerBillRate: Number(billingRates?.standardRate) || 0,
+    customerNightBillRate: Number(billingRates?.nightRate) || 0,
     equipment: request.equipment || [],
     packages: request.packages || [],
     scopeTasks: request.scopeTasks?.length

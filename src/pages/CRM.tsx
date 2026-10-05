@@ -5733,6 +5733,10 @@ function InvoiceEditModal({ invoice, onClose }: { invoice: LiveInvoice; onClose:
 function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job: LiveJob; timeEntries: BillingTimeEntry[]; customers: LiveCustomer[]; invoices: LiveInvoice[]; onClose: () => void }) {
   const approvedEntries = timeEntries.filter((entry) => entry.active !== true && !['voided', 'rejected'].includes(entry.status || '') && (approvedLabor(entry) || entry.suppliesStatus === 'approved' || entry.travelStatus === 'approved'));
   const defaultItems: InvoiceLine[] = [];
+  const invoiceCustomer = customerFor(job, customers) as LiveCustomer | undefined;
+  // What the CUSTOMER is billed: the job's bill rate, else the customer's signed
+  // rate agreement. Never job.hourlyRate -- that is what the technician is paid.
+  const billRate = Number(job.customerBillRate) || Number(invoiceCustomer?.rateAgreement?.standardRate) || 0;
   // One line per calendar date worked, not per technician: the customer
   // sees headcount and hours, never who specifically worked. Billed at the
   // customer rate, which is deliberately a different number than what the
@@ -5756,7 +5760,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
           : uniform
             ? `${date} — ${hoursList.length} technicians @ ${hoursList[0].toFixed(2)} hrs each — ${totalHours.toFixed(2)} hrs total`
             : `${date} — ${hoursList.length} technicians — ${totalHours.toFixed(2)} hrs total`;
-      defaultItems.push({ description, quantity: totalHours, unitPrice: job.customerBillRate || 0, kind: "labor" });
+      defaultItems.push({ description, quantity: totalHours, unitPrice: billRate, kind: "labor" });
     });
   approvedEntries.forEach((entry, index) => {
     if (entry.travelStatus === 'approved' && Number(entry.travelCost || 0) > 0) defaultItems.push({ description: `Approved travel${entry.technicianName ? ` · ${entry.technicianName}` : ` ${index + 1}`}`, quantity: 1, unitPrice: Number(entry.travelCost), kind: 'service' });
@@ -5780,7 +5784,6 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
   // Credits: this job's paid first-job deposit, then any credit on account
   // (e.g. a cancelled job's deposit). Shown as ordinary negative lines so the
   // admin can see, edit or remove them; capped so the invoice never goes below $0.
-  const invoiceCustomer = customerFor(job, customers) as LiveCustomer | undefined;
   const heldDeposit = invoices.find((invoice) => invoice.jobId === job.id && isDepositPaid(invoice) && (invoice.depositCredit?.status || "held") === "held");
   const depositPaidAmount = heldDeposit ? Number(heldDeposit.amountPaid ?? heldDeposit.total ?? 0) : 0;
   let creditRoom = defaultItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -5904,7 +5907,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
               {job.vendorName} · {job.name}
             </p>
             {job.status !== 'Ready to Invoice' && <p className="mt-2 rounded border border-crm-warning/30 bg-crm-warning-soft-bg p-2 text-[10px] font-bold text-crm-warning-soft-text">Early billing override · current job status: {formatJobStatus(job.status)}</p>}
-            {!job.customerBillRate && <p className="mt-2 rounded border border-crm-error/30 bg-crm-error-soft-bg p-2 text-[10px] font-bold text-crm-error">No customer bill rate set on this job — labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
+            {!billRate && <p className="mt-2 rounded border border-crm-error/30 bg-crm-error-soft-bg p-2 text-[10px] font-bold text-crm-error">No customer bill rate set on this job or in this customer's rate agreement —labor lines below are $0/hr. Set it on the job (Customer bill rate field) or edit the line items manually before saving.</p>}
           </div>
           <button type="button" onClick={onClose}>
             <X className="h-4 w-4" />
