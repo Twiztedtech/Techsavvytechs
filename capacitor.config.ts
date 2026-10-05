@@ -16,8 +16,10 @@ const config: CapacitorConfig = {
       backgroundColor: '#030505',
       showSpinner: false,
     },
-    // LIGHT = light icons/text, for the dark app background.
-    StatusBar: { style: 'LIGHT', backgroundColor: '#030505', overlaysWebView: false },
+    // In Capacitor, DARK means light icons/text, which is what a dark background needs.
+    StatusBar: { style: 'DARK', backgroundColor: '#030505', overlaysWebView: false },
+    // Light icons and text on the dark system bars (Android).
+    SystemBars: { style: 'DARK' },
     FirebaseAuthentication: {
       // Sign in natively, then hand the Google ID token to the web Firebase SDK
       // (src/lib/googleSignIn.ts) so there is one Firebase user, not two.
