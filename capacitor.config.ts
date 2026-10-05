@@ -16,7 +16,8 @@ const config: CapacitorConfig = {
       backgroundColor: '#030505',
       showSpinner: false,
     },
-    StatusBar: { style: 'DARK', backgroundColor: '#030505' },
+    // LIGHT = light icons/text, for the dark app background.
+    StatusBar: { style: 'LIGHT', backgroundColor: '#030505', overlaysWebView: false },
     FirebaseAuthentication: {
       // Sign in natively, then hand the Google ID token to the web Firebase SDK
       // (src/lib/googleSignIn.ts) so there is one Firebase user, not two.
