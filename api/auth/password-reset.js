@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { handleAppCors } from '../_lib/cors.js';
 import { adminAuth, adminDb } from '../_lib/firebase-admin.js';
 
 const RESET_COOLDOWN_MS = 5 * 60 * 1000;
@@ -17,6 +18,7 @@ const accepted = (res) => res.status(202).json({
 });
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';

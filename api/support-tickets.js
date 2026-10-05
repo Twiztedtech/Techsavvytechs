@@ -1,4 +1,5 @@
 import { adminAuth, adminDb, requireStaffRole } from './_lib/firebase-admin.js';
+import { handleAppCors } from './_lib/cors.js';
 
 const clean = (value, max = 500) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 const nowIso = () => new Date().toISOString();
@@ -63,6 +64,7 @@ async function deleteTicket(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   const action = typeof req.query?.action === 'string' ? req.query.action : '';
   try {
     if (req.method === 'POST' && action === 'submit') return await submitTicket(req, res);

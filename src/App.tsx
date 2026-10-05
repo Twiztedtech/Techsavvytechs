@@ -8,8 +8,10 @@ import {
   Routes,
   Route,
   useLocation,
+  Navigate,
 } from "react-router";
 import { useEffect, lazy, Suspense } from "react";
+import { isNativeApp } from "./lib/native";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import Home from "./pages/Home";
@@ -76,7 +78,8 @@ function AppShell() {
 
         <main className="flex-grow relative z-10">
           <Routes>
-            <Route path="/" element={<Home />} />
+            {/* The installed app is the technician tool, not the marketing site. */}
+            <Route path="/" element={isNativeApp ? <Navigate to="/contractor/dashboard" replace /> : <Home />} />
             <Route path="/services/low-voltage" element={<LowVoltage />} />
             <Route
               path="/services/infrastructure"

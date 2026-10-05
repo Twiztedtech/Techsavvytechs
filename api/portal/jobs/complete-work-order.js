@@ -1,4 +1,5 @@
 import { adminAuth, adminDb, adminStorage } from '../../_lib/firebase-admin.js';
+import { handleAppCors } from '../../_lib/cors.js';
 
 const portalToken = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -32,6 +33,7 @@ const storagePathForSignedWorkOrder = (url, jobId) => {
 };
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   try {

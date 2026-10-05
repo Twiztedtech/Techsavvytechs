@@ -1,4 +1,5 @@
 import { adminDb, adminStorage, requireAdmin } from './_lib/firebase-admin.js';
+import { handleAppCors } from './_lib/cors.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
@@ -1181,6 +1182,7 @@ async function submitAgreement(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   const integration = String(req.query?.integration || '');
   await ensureBody(req, integration);
   if (integration === 'twilio') {

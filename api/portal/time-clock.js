@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { handleAppCors } from '../_lib/cors.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminStorage } from '../_lib/firebase-admin.js';
 import { createQBOBillForTimecard, reverseQBOTimecard } from '../_lib/qbo-helper.js';
@@ -380,6 +381,7 @@ const handleOnboarding = async (req, res, user) => {
 };
 
 export default async function handler(req, res) {
+  if (handleAppCors(req, res)) return;
   if (req.query?.portalOperation === 'surveys') return surveyHandler(req, res);
   if (req.query?.portalOperation === 'clientPortal') return clientPortalHandler(req, res);
   if (req.query?.portalOperation === 'adminClientPortal') return adminClientPortalHandler(req, res);
