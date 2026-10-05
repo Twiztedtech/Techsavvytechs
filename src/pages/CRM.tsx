@@ -5116,6 +5116,22 @@ export function InvoicesView({
   const billingReadyJobs = jobs.filter((job) => job.status === "Ready to Invoice" && !invoicedJobs.has(job.id));
   const overrideJobs = jobs.filter((job) => job.status !== "Ready to Invoice" && !invoicedJobs.has(job.id));
   const candidates = earlyBilling ? [...billingReadyJobs, ...overrideJobs] : billingReadyJobs;
+  // Completed jobs that can't reach "Ready to Invoice" yet because a technician
+  // entry still needs approval in Timecard Approval -- otherwise they just vanish.
+  const waitingOnApproval = jobs.flatMap((job) => {
+    if (invoicedJobs.has(job.id)) return [];
+    if (!["complete", "completed", "field complete"].includes((job.status || "").toLowerCase())) return [];
+    const pending = timeEntries.filter((entry) => {
+      if (entry.jobId !== job.id || entry.status === "voided") return false;
+      const lines: Array<[boolean, string | undefined]> = [
+        [Number(entry.totalHours || 0) > 0, entry.laborStatus],
+        [Number(entry.suppliesCost || 0) > 0, entry.suppliesStatus],
+        [Number(entry.travelCost || 0) > 0, entry.travelStatus],
+      ];
+      return lines.some(([active, status]) => active && status !== "approved");
+    });
+    return pending.length ? [{ job, pending: pending.length }] : [];
+  });
   const [syncing, setSyncing] = useState("");
   const [emailDoc, setEmailDoc] = useState<{ type: "invoice" | "quote"; id: string; label: string } | null>(null);
   const [reconciling, setReconciling] = useState(false);
@@ -5241,6 +5257,17 @@ export function InvoicesView({
         </select>
         </div>
       </header>
+      {waitingOnApproval.length > 0 && (
+        <div className="border-b border-crm-warning/30 bg-crm-warning-soft-bg p-3 text-[10px] text-crm-warning-soft-text">
+          <p className="font-bold">{waitingOnApproval.length} completed job{waitingOnApproval.length === 1 ? " is" : "s are"} waiting on timecard approval before {waitingOnApproval.length === 1 ? "it" : "they"} can be invoiced</p>
+          <ul className="mt-1 space-y-0.5">
+            {waitingOnApproval.map(({ job, pending }) => (
+              <li key={job.id}>{job.workOrderNumber || job.id} · {job.vendorName || job.name} · {pending} entr{pending === 1 ? "y" : "ies"} to approve</li>
+            ))}
+          </ul>
+          <p className="mt-1">Approve them in Timecard Approval and the job moves here automatically. Or tick Early billing override to invoice now.</p>
+        </div>
+      )}
       {invoices.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left">
