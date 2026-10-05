@@ -55,13 +55,32 @@ export default function ContractorDashboard() {
       return;
     }
     setLoginEmail(user.email || '');
-    let token = await user.getIdTokenResult();
+    // With no signal (a job site, airplane mode) these calls can't reach Google
+    // or our server. That must not drop a signed-in technician back to the
+    // login screen: fall back to the roles seen at their last online sign-in.
+    // This only decides what is shown; the server still checks every request.
+    const claimsKey = `techsavvy-claims-${user.uid}`;
+    let token: Awaited<ReturnType<typeof user.getIdTokenResult>> | null = null;
+    try { token = await user.getIdTokenResult(); } catch { token = null; }
+    if (!token) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(claimsKey) || 'null');
+        if (cached?.contractor === true) {
+          setIsTechnicianLead(cached.technicianLead === true);
+          setUserRole('contractor');
+          setIsAuthenticated(true);
+        }
+      } catch { /* unreadable cache: stay on the login screen */ }
+      return;
+    }
     if (token.claims.admin !== true) {
-      const response = await fetch('/api/admin/bootstrap', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
-      });
-      if (response.ok) token = await user.getIdTokenResult(true);
+      try {
+        const response = await fetch('/api/admin/bootstrap', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+        });
+        if (response.ok) token = await user.getIdTokenResult(true);
+      } catch { /* offline: carry on with the claims we already have */ }
     }
     const isAdmin = token.claims.admin === true;
     const isContractor = token.claims.contractor === true;
@@ -81,6 +100,7 @@ export default function ContractorDashboard() {
     setIsTechnicianLead(token.claims.technicianLead === true);
     setUserRole('contractor');
     setIsAuthenticated(true);
+    try { localStorage.setItem(claimsKey, JSON.stringify({ contractor: true, technicianLead: token.claims.technicianLead === true })); } catch { /* private mode */ }
   }), []);
 
   // A contractor's W-9 status is served by a protected API instead of exposing
