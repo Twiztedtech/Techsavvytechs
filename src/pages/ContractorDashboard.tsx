@@ -760,15 +760,18 @@ export default function ContractorDashboard() {
               <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-xs font-black text-blue-600">G</span>
               {isGoogleSigningIn ? 'Opening Google…' : 'Continue with Google'}
             </button>
-            <button
-              type="button"
-              disabled
-              title="Apple sign-in will be enabled after Apple account setup is complete."
-              className="w-full flex items-center justify-center gap-3 border border-slate-800 text-slate-500 font-bold py-2.5 rounded text-sm cursor-not-allowed"
-            >
-              <span className="text-base leading-none"></span>
-              Continue with Apple — coming soon
-            </button>
+            {/* A disabled placeholder reads as unfinished in the app stores; the website keeps it. */}
+            {!isNativeApp && (
+              <button
+                type="button"
+                disabled
+                title="Apple sign-in will be enabled after Apple account setup is complete."
+                className="w-full flex items-center justify-center gap-3 border border-slate-800 text-slate-500 font-bold py-2.5 rounded text-sm cursor-not-allowed"
+              >
+                <span className="text-base leading-none"></span>
+                Continue with Apple — coming soon
+              </button>
+            )}
           </div>
 
           <div className="text-center text-[11px] text-slate-500 border-t border-slate-800 pt-4">

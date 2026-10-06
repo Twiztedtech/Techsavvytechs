@@ -31,6 +31,9 @@ export default function PrivacyPolicy() {
             <li><strong>QuickBooks Integration Data:</strong> If authorized, we retrieve Vendor IDs and sync itemized Vendor Bills to align accounts.</li>
             <li><strong>Client Booking Data:</strong> Company membership, job sites, requested schedules, scopes of work, documents, messages, status updates, and closeout records.</li>
             <li><strong>Communications Data:</strong> Transactional email and SMS consent, delivery status, replies, and notification preferences.</li>
+            <li><strong>Location Data:</strong> In the technician app and portal, your device's precise GPS location, collected only while you are using the app and only at the moment you clock in, clock out, or ask for directions to a job site. It is used to verify on-site work and to start navigation. We do not track your location in the background.</li>
+            <li><strong>Photos & Signatures:</strong> Job-completion and site-survey photos you take or choose from your device, your profile photo, and signatures you draw or collect on work orders. The app asks for camera access only when you add a photo.</li>
+            <li><strong>Account & Device Information:</strong> Your sign-in details (email, or your Google account if you choose Google sign-in) and basic technical information such as IP address and app or browser version, kept in security and error logs.</li>
           </ul>
         </section>
 
@@ -62,6 +65,9 @@ export default function PrivacyPolicy() {
           </h2>
           <p>
             We implement robust administrative, technical, and physical security measures, including Firebase security rules and TLS network encryption, to protect your personal details from unauthorized access or alteration. We retain your information only as long as necessary for administrative and compliance operations.
+          </p>
+          <p>
+            We share information only with service providers that run the service on our behalf (Google Firebase and Google Cloud for sign-in, database and file storage; Vercel for hosting; Resend and Twilio for email and SMS; QuickBooks Online for payment records; Google Maps for maps and directions) and where the law requires it. We do not sell personal information, and we do not use location or photos for advertising.
           </p>
         </section>
 
