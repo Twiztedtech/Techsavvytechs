@@ -26,6 +26,7 @@ import Auth from "./pages/Auth";
 import Contact from "./pages/Contact";
 import { Seo } from "./components/Seo";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import DeleteAccount from "./pages/DeleteAccount";
 import TermsOfService from "./pages/TermsOfService";
 import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
@@ -135,6 +136,7 @@ function AppShell() {
               }
             />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/terms" element={<TermsOfService />} />
             {/* Fallback to Home */}
             <Route path="*" element={<Home />} />

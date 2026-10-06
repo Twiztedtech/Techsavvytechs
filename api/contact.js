@@ -1297,7 +1297,7 @@ export default async function handler(req, res) {
   try {
     const contact = await adminDb
       .collection("contacts")
-      .add({ name, email, message, createdAt, deliveryStatus: "pending" });
+      .add({ name, email, message, createdAt, deliveryStatus: "pending", ...(req.body.topic === "account-deletion" ? { topic: "account-deletion" } : {}) });
     if (!process.env.RESEND_API_KEY) {
       await contact.update({ deliveryStatus: "not-configured" });
       return res.status(201).json({ success: true });
@@ -1320,7 +1320,7 @@ export default async function handler(req, res) {
         from: sender,
         reply_to: email,
         to: [supportEmail],
-        subject: `New website contact from ${name}`,
+        subject: req.body.topic === "account-deletion" ? `ACCOUNT DELETION REQUEST from ${name}` : `New website contact from ${name}`,
         text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
         html: `<h1>New TechSavvy website contact</h1><p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p><p><strong>Message:</strong></p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
       }),

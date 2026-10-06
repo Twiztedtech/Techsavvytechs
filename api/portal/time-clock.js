@@ -10,6 +10,8 @@ import { businessDate, businessClock } from '../_lib/business-time.js';
 import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/deposit-policy.js';
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 import surveyHandler from '../_lib/survey-handler.js';
+import { writeAudit } from '../_lib/audit.js';
+import { isRecentSignIn, retentionEnd, scrubbedContractorFields, unassignedJobFields } from '../_lib/account-deletion.js';
 
 // Assistant Admin gets the same standing as a full Admin inside this file —
 // the RBAC role matrix grants it full Timecard Approval access, which means
@@ -526,6 +528,53 @@ export default async function handler(req, res) {
       }
       await contractor.ref.set(update, { merge: true });
       return res.status(200).json({ success: true, notificationPreferences: update.notificationPreferences });
+    }
+    if (action === 'delete_account') {
+      // Self-service deletion for technicians (what the app's "Delete my account" calls).
+      if (user.contractor !== true || isAdminTier(user)) {
+        return res.status(403).json({ error: 'Only technician accounts can be deleted here. An administrator account is removed by another administrator.' });
+      }
+      if (req.body?.confirm !== 'DELETE') return res.status(422).json({ error: 'Type DELETE to confirm.' });
+      if (!isRecentSignIn(user.auth_time)) {
+        return res.status(401).json({ error: 'For your security, please sign in again to confirm it is you.', reauthRequired: true });
+      }
+      const contractor = await contractorProfileFor(user);
+      const previousName = contractor.data().name || '';
+      const stillClockedIn = await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).where('active', '==', true).limit(1).get();
+      if (!stillClockedIn.empty) return res.status(409).json({ error: 'You are clocked in. Clock out first, then delete your account.' });
+
+      const now = nowIso();
+      const retainedUntil = retentionEnd();
+      const finished = new Set(['completed', 'complete', 'ready to invoice', 'field complete', 'invoiced', 'paid', 'closed', 'voided', 'cancelled', 'canceled']);
+
+      // 1. Open work orders stop pointing at a profile that is going away.
+      const assigned = await adminDb.collection('jobs').where('assignedTechIds', 'array-contains', contractor.id).get();
+      const openJobs = assigned.docs.filter((job) => !finished.has(String(job.data().status || '').toLowerCase()));
+      for (const job of openJobs) await job.ref.set(unassignedJobFields(job.data(), contractor.id, now), { merge: true });
+
+      // 2. Precise GPS stamps on their time entries are personal data we do not need to keep.
+      const entries = await adminDb.collection('time_entries').where('technicianUid', '==', user.uid).get();
+      for (let i = 0; i < entries.docs.length; i += 400) {
+        const batch = adminDb.batch();
+        entries.docs.slice(i, i + 400).forEach((entry) => batch.update(entry.ref, { clockInLocation: FieldValue.delete(), clockOutLocation: FieldValue.delete() }));
+        await batch.commit();
+      }
+
+      // 3. Scrub the profile (keeping the pay/tax record), 4. remove the login, 5. cut the link.
+      await contractor.ref.set({ ...scrubbedContractorFields(now, retainedUntil), authUid: user.uid }, { merge: true });
+      await adminAuth.revokeRefreshTokens(user.uid);
+      await adminAuth.deleteUser(user.uid);
+      await contractor.ref.set({ authUid: null }, { merge: true });
+
+      await writeAudit({ actor: { uid: user.uid, email: 'Deleted account' }, action: 'account.deleted', entityType: 'contractor', entityId: contractor.id, summary: 'A technician deleted their own account', details: { openJobsUnassigned: openJobs.length, retainedUntil }, source: 'api' }).catch(() => null);
+      await sendPortalNotice({
+        to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
+        subject: 'Technician account deleted',
+        heading: 'A technician deleted their account',
+        message: 'Their login and personal profile data are gone. Pay history and the W-9 are kept for tax records.',
+        details: [['Former name', previousName || 'Unknown'], ['Profile id', contractor.id], ['Open work orders unassigned', String(openJobs.length)], ['Records kept until', retainedUntil.slice(0, 10)], ['To do', 'Remove or archive their QuickBooks vendor if needed']],
+      });
+      return res.status(200).json({ success: true, retainedUntil, openJobsUnassigned: openJobs.length });
     }
     if (action === 'update_self_profile') {
       const contractor = await contractorProfileFor(user);

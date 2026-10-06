@@ -10,6 +10,7 @@ const staticPaths = [
   '/contact',
   '/blog',
   '/privacy',
+  '/delete-account',
   '/terms',
 ]
 

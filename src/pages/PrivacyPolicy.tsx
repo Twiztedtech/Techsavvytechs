@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
     <div className="py-20 px-4 max-w-4xl mx-auto space-y-8 relative z-10">
       <div className="border-l-4 border-safety-orange pl-4 space-y-2">
         <h1 className="text-3xl font-black text-white tracking-tight">PRIVACY POLICY</h1>
-        <p className="text-xs text-slate-400 font-mono">Last Updated: August 25, 2026</p>
+        <p className="text-xs text-slate-400 font-mono">Last Updated: October 5, 2026</p>
       </div>
 
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 text-sm text-slate-300 leading-relaxed font-sans">
@@ -67,7 +67,20 @@ export default function PrivacyPolicy() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span className="text-safety-orange">06.</span> Contact Us
+            <span className="text-safety-orange">06.</span> Deleting Your Account
+          </h2>
+          <p>
+            Technicians can delete their account at any time in the TechSavvy app (My Profile, then Delete my account) or on the website. Anyone else can request deletion at <a href="/delete-account" className="text-safety-orange underline">techsavvytechs.com/delete-account</a> or by email, and we complete it within 30 days.
+          </p>
+          <ul className="list-disc pl-5 space-y-1.5 text-slate-400">
+            <li><strong>Deleted:</strong> your login, name, email, phone number, photo, saved signature, skills and certifications, notification settings, and the GPS location stamps saved with clock-ins and clock-outs.</li>
+            <li><strong>Kept as required by law:</strong> pay history and your W-9, for tax and 1099 reporting, for 4 years and then removed; and completed work records that customers already received (such as signed work orders and invoices), which can still show your name.</li>
+          </ul>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <span className="text-safety-orange">07.</span> Contact Us
           </h2>
           <p>
             If you have questions or concerns regarding this policy, please reach out to our privacy compliance officer at:

@@ -12,6 +12,7 @@ import type { NotificationProfile } from '../features/contractor/types';
 import { DashboardHeader } from '../features/contractor/layout/DashboardHeader';
 import { NotificationPreferencesModal } from '../features/contractor/profile/NotificationPreferencesModal';
 import { TechSelfProfile } from '../features/contractor/profile/TechSelfProfile';
+import { DeleteAccountPanel } from '../features/contractor/profile/DeleteAccountPanel';
 import { MyCrewPanel } from '../features/contractor/crew/MyCrewPanel';
 import { JobMessagesPanel } from '../features/contractor/messages/JobMessagesPanel';
 import type { SelfProfile } from '../features/contractor/types';
@@ -1047,7 +1048,7 @@ export default function ContractorDashboard() {
             </div>
 
             {contractorTab === 'profile' ? (
-              <TechSelfProfile profile={selfProfile} onUpdated={setSelfProfile} />
+              <><TechSelfProfile profile={selfProfile} onUpdated={setSelfProfile} /><DeleteAccountPanel /></>
             ) : contractorTab === 'crew' ? (
               <MyCrewPanel />
             ) : contractorTab === 'logger' ? (
