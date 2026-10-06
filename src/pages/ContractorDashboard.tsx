@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { clearSurveyCache } from '../features/surveys/api';
 import { auth, storage } from '../lib/firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { signInWithGoogle } from '../lib/googleSignIn'
@@ -895,7 +896,7 @@ export default function ContractorDashboard() {
           setIsSupportModalOpen(true);
         }}
         onOpenNotificationPreferences={() => setIsNotificationModalOpen(true)}
-        onSignOut={() => void signOut(auth)}
+        onSignOut={() => { void clearSurveyCache(); void signOut(auth); }}
       />
 
       {/* MAIN CONTAINER */}

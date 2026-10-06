@@ -3,7 +3,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Camera, Check, ChevronRight, ClipboardList, CloudOff, Plus, Radio, Save, Send, Trash2, Wifi } from 'lucide-react';
 import { auth } from '../lib/firebase';
-import { clearLocalDraft, flushSurveyQueue, loadLocalDraft, saveLocalDraft, surveyRequest } from '../features/surveys/api';
+import { clearLocalDraft, flushSurveyQueue, loadLocalDraft, prefetchSurveys, saveLocalDraft, surveyRequest } from '../features/surveys/api';
 import { compressSurveyPhoto } from '../features/surveys/photo';
 import type { DirectoryItem, EstimatePlan, EstimatePlanItem, SiteSurvey, SurveyBootstrap, SurveyFieldDefinition, SurveyModule, SurveyRecord, SurveyStatus } from '../features/surveys/types';
 
@@ -305,8 +305,20 @@ export default function SiteSurveys() {
   const [data, setData] = useState<SurveyBootstrap | null>(null);
   const [survey, setSurvey] = useState<SiteSurvey | null>(null);
   const [claims, setClaims] = useState<Record<string, unknown>>({});
-  useEffect(() => onAuthStateChanged(auth, async (next) => { setUser(next); if (next) setClaims((await next.getIdTokenResult(true)).claims); else setLoading(false); }), []);
-  useEffect(() => { if (!user) return; let active = true; setLoading(true); setError(''); (async () => { try { if (surveyId) setSurvey(await surveyRequest<SiteSurvey>(user, `?action=get&id=${encodeURIComponent(surveyId)}`)); else { const loaded = await surveyRequest<Partial<SurveyBootstrap>>(user); setData({ surveys: loaded.surveys || [], customers: loaded.customers || [], jobs: loaded.jobs || [], contractors: loaded.contractors || [], templates: loaded.templates || [], moduleDefinitions: loaded.moduleDefinitions?.length ? loaded.moduleDefinitions : BUILTIN_MODULE_CHOICES }); } } catch (reason) { if (active) setError(reason instanceof Error ? reason.message : 'Could not load surveys.'); } finally { if (active) setLoading(false); } })(); return () => { active = false; }; }, [surveyId, user]);
+  useEffect(() => onAuthStateChanged(auth, async (next) => {
+    setUser(next);
+    if (!next) { setLoading(false); return; }
+    // Forcing a token refresh needs signal. Offline, use the roles from the last online visit (display only; the server still checks every request).
+    const claimsKey = `techsavvy-survey-claims-${next.uid}`;
+    try {
+      const fresh = (await next.getIdTokenResult(true)).claims;
+      setClaims(fresh);
+      try { localStorage.setItem(claimsKey, JSON.stringify({ admin: fresh.admin === true, staffRole: fresh.staffRole || '' })); } catch { /* private mode */ }
+    } catch {
+      try { setClaims(JSON.parse(localStorage.getItem(claimsKey) || '{}')); } catch { setClaims({}); }
+    }
+  }), []);
+  useEffect(() => { if (!user) return; let active = true; setLoading(true); setError(''); (async () => { try { if (surveyId) setSurvey(await surveyRequest<SiteSurvey>(user, `?action=get&id=${encodeURIComponent(surveyId)}`)); else { const loaded = await surveyRequest<Partial<SurveyBootstrap>>(user); setData({ surveys: loaded.surveys || [], customers: loaded.customers || [], jobs: loaded.jobs || [], contractors: loaded.contractors || [], templates: loaded.templates || [], moduleDefinitions: loaded.moduleDefinitions?.length ? loaded.moduleDefinitions : BUILTIN_MODULE_CHOICES }); if (navigator.onLine) { void flushSurveyQueue(user).catch(() => {}); void prefetchSurveys(user, loaded.surveys || []); } } } catch (reason) { if (active) setError(reason instanceof Error ? reason.message : 'Could not load surveys.'); } finally { if (active) setLoading(false); } })(); return () => { active = false; }; }, [surveyId, user]);
   const canManage = claims.admin === true || claims.staffRole === 'assistant_admin' || claims.staffRole === 'dispatcher';
   const isAdmin = claims.admin === true;
   const canReview = claims.admin === true || claims.staffRole === 'assistant_admin';

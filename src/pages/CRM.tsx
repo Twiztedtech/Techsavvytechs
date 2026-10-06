@@ -1,4 +1,5 @@
 import { DragEvent, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
+import { clearSurveyCache } from "../features/surveys/api";
 import {
   Activity,
   AlertTriangle,
@@ -668,7 +669,7 @@ export default function CRM() {
   };
 
   const confirmSignOut = () => {
-    if (confirm("Sign out of the CRM?")) void signOut(auth);
+    if (confirm("Sign out of the CRM?")) { void clearSurveyCache(); void signOut(auth); }
   };
 
   const submitLogin = async (event: FormEvent) => {
@@ -7396,7 +7397,7 @@ function AccessGate({
               claim required to view customer and job records.
             </p>
             <button
-              onClick={() => void signOut(auth)}
+              onClick={() => { void clearSurveyCache(); void signOut(auth); }}
               className="mt-5 rounded bg-crm-canvas/10 px-4 py-2 text-xs font-bold"
             >
               Use another account
