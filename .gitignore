@@ -10,3 +10,9 @@ coverage/
 .sanity/
 .codex-work/
 outputs/
+
+# Android signing keys and local credentials (never commit)
+*.jks
+*.keystore
+keystore.properties
+play-reviewer-credentials.txt

@@ -64,8 +64,13 @@ const workOrdersFor = async (user) => {
   const contractor = await adminDb.collection('contractors').where('authUid', '==', user.uid).limit(1).get();
   if (contractor.empty) throw new Error('Your contractor profile is not linked to this account.');
   const contractorId = contractor.docs[0].id;
+  // Store-review / demo logins only ever see jobs explicitly marked as demo, so
+  // they can never see (or act on) a real customer's work order, even one
+  // assigned to "anyone".
+  const demoOnly = contractor.docs[0].data().isTestAccount === true;
   return jobs.docs.filter((job) => {
     const data = job.data();
+    if (demoOnly) return data.isDemo === true && (Array.isArray(data.assignedTechIds) ? data.assignedTechIds : []).includes(contractorId);
     const assigned = Array.isArray(data.assignedTechIds) ? data.assignedTechIds : [data.assignedTechId || 'ALL'];
     return assigned.includes('ALL') || assigned.includes(contractorId);
   });
