@@ -36,6 +36,7 @@ export default function ContractorDashboard() {
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [isEmailSigningIn, setIsEmailSigningIn] = useState(false);
   const [authMessage, setAuthMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
@@ -707,13 +708,27 @@ export default function ContractorDashboard() {
                   Forgot Password?
                 </button>
               </div>
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                required
-                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-              />
+              <div className="relative">
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full bg-slate-950 border border-slate-800 rounded pl-3 pr-16 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword((shown) => !shown)}
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showLoginPassword}
+                  className="absolute inset-y-0 right-0 px-3 text-[11px] font-bold uppercase tracking-wide text-slate-400 hover:text-amber-400"
+                >
+                  {showLoginPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             <button
