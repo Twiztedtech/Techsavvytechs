@@ -97,3 +97,7 @@ Published by TechSavvy Dojo, operated by TechSavvy LLC, Fairfield, CA. Privacy p
 **App access (needs login):** choose "All or some functionality is restricted", then add the reviewer login from `play-reviewer-credentials.txt` (kept outside the project). Instructions for reviewers: "Sign in with the email and password, tap Continue with Email. Two demo jobs and one demo survey are pre-loaded."
 
 **Other declarations:** Ads: No · Target audience: 18+ · Government app: No · Financial features: None · Health: None · News: No · Data safety: see section 4 · Content rating: see section 4.
+
+## 7. Screenshots (ready)
+
+`assets/store/screenshots/`: 01-dashboard, 02-job-and-map, 03-log-hours, 05-survey-form. Taken on a real phone with the demo reviewer account, so no customer data appears. Each is 2256x2321, within Play's limits (2 to 8 phone screenshots, sides 320 to 3840 px, longer side no more than twice the shorter). Retake them after any visible UI change.
