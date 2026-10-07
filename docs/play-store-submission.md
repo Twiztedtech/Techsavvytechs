@@ -65,3 +65,35 @@ Applies to everything: data is **encrypted in transit**; users **can request del
 - Raise `versionCode` (and `versionName`) in `android/app/build.gradle`; Google rejects a repeat.
 - `npm run build`, `npx cap sync android`, then `gradlew bundleRelease`.
 - Test on a real phone, including a cold start with no signal.
+
+## 6. Paste-ready listing text
+
+**App name:** TechSavvy Field Portal
+
+**Short description (76 of 80 characters):**
+`Jobs, GPS time clock, site surveys and directions for TechSavvy technicians.`
+
+**Full description:**
+```
+TechSavvy Field Portal is the working tool for TechSavvy's field technicians. Accounts are issued by TechSavvy, so this app is for TechSavvy technicians and contractors only.
+
+What you can do:
+- See your assigned work orders, scope, equipment and site instructions
+- Get turn-by-turn directions to the job site and preview the area on a map
+- Clock in and out on site with a GPS location stamp
+- Log hours, travel and supplies, add notes and job photos, and submit your work for approval
+- Complete site surveys, with photos, even where there is no signal. Your changes are saved on the phone and sync when you are back online
+- Collect customer signatures on work orders
+- Message the office about a job and receive job notifications
+- Review your approved hours and earnings
+
+Location is used only while the app is open, when you clock in or out or ask for directions. We do not track you in the background. You can delete your account at any time from My Profile.
+
+Published by TechSavvy Dojo, operated by TechSavvy LLC, Fairfield, CA. Privacy policy: https://techsavvytechs.com/privacy
+```
+
+**Create app screen:** App (not game) · Free · default language English (United States) · declare you accept the Developer Program Policies and US export laws.
+
+**App access (needs login):** choose "All or some functionality is restricted", then add the reviewer login from `play-reviewer-credentials.txt` (kept outside the project). Instructions for reviewers: "Sign in with the email and password, tap Continue with Email. Two demo jobs and one demo survey are pre-loaded."
+
+**Other declarations:** Ads: No · Target audience: 18+ · Government app: No · Financial features: None · Health: None · News: No · Data safety: see section 4 · Content rating: see section 4.
