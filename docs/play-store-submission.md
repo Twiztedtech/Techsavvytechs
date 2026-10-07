@@ -32,7 +32,9 @@ Ready now in `assets/store/`: `play-icon-512.png` and `play-feature-graphic-1024
 
 ## 3. Store listing suggestions
 
+- **Developer name (public):** TechSavvy Dojo (the Play account is held by TechSavvy LLC, the legal entity behind the D-U-N-S; the privacy policy names both)
 - **Name:** TechSavvy Field Portal  (the app icon label is "TechSavvy")
+- **Say it in the full description:** "Published by TechSavvy Dojo, operated by TechSavvy LLC, Fairfield, CA."
 - **Category:** Business. **Price:** Free. **Ads:** none.
 - **Short description (80 chars):** Jobs, GPS time clock, site surveys and directions for TechSavvy technicians.
 - **Target audience:** 18 and over.

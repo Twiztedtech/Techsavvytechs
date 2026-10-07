@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
             <span className="text-safety-orange">01.</span> Introduction
           </h2>
           <p>
-            Welcome to TechSavvy LLC ("Company", "we", "our", "us"). We are committed to protecting your personal information and your right to privacy. This Privacy Policy governs our data collection, processing, and usage practices when you visit our website, use the client or contractor portals, receive transactional notifications, or integrate with QuickBooks Online.
+            Welcome to TechSavvy LLC ("Company", "we", "our", "us"). We are committed to protecting your personal information and your right to privacy. This Privacy Policy governs our data collection, processing, and usage practices when you visit our website, use the client or contractor portals or our mobile app, receive transactional notifications, or integrate with QuickBooks Online. Our Android app is published on Google Play under the developer name "TechSavvy Dojo" and is operated by TechSavvy LLC.
           </p>
         </section>
 
