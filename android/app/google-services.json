@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "921320882553-f57977sm9q3ocqd7rcajv8kkb8jpjde0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.techsavvyllc.app",
+            "certificate_hash": "b93a029fff0eb7f3924912b609e7ec6b5d8d85d0"
+          }
+        },
+        {
           "client_id": "921320882553-ncj9agaok4rtig15dqq9vljkm7n6kjfo.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
