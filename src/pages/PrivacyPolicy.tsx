@@ -33,6 +33,7 @@ export default function PrivacyPolicy() {
             <li><strong>Communications Data:</strong> Transactional email and SMS consent, delivery status, replies, and notification preferences.</li>
             <li><strong>Location Data:</strong> In the technician app and portal, your device's precise GPS location, collected only while you are using the app and only at the moment you clock in, clock out, or ask for directions to a job site. It is used to verify on-site work and to start navigation. We do not track your location in the background.</li>
             <li><strong>Photos & Signatures:</strong> Job-completion and site-survey photos you take or choose from your device, your profile photo, and signatures you draw or collect on work orders. The app asks for camera access only when you add a photo.</li>
+            <li><strong>Community &amp; Training Content:</strong> Posts, replies and photos you share in the private technician community, suggestions you make to training lessons, and which lessons you mark complete. Community posts are visible to other technicians and TechSavvy staff. If you delete your account, your posts remain but are shown as "Former technician" with your name and photos removed, and your training progress is deleted.</li>
             <li><strong>Account & Device Information:</strong> Your sign-in details (email, or your Google account if you choose Google sign-in) and basic technical information such as IP address and app or browser version, kept in security and error logs.</li>
           </ul>
         </section>

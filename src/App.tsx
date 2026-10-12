@@ -44,6 +44,8 @@ const ClientFeedback = lazy(() => import('./pages/ClientFeedback'));
 const Agreement = lazy(() => import('./pages/Agreement'));
 const RequestStatus = lazy(() => import('./pages/RequestStatus'));
 const SiteSurveys = lazy(() => import('./pages/SiteSurveys'));
+const Community = lazy(() => import('./pages/Community'));
+const Learn = lazy(() => import('./pages/Learn'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -64,7 +66,7 @@ export default function App() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname === '/demo' || pathname.startsWith('/surveys');
+  const isContractorPortal = pathname.startsWith('/contractor') || pathname.startsWith('/client') || pathname === '/crm' || pathname === '/demo' || pathname.startsWith('/surveys') || pathname.startsWith('/community') || pathname.startsWith('/learn');
   const isSecureCustomerDocument = pathname.startsWith('/customer/');
 
   return (
@@ -97,6 +99,11 @@ function AppShell() {
             <Route path="/demo" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading demo…</div>}><Demo /></Suspense>} />
             <Route path="/surveys" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading survey workspace…</div>}><SiteSurveys /></Suspense>} />
             <Route path="/surveys/:surveyId" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading site survey…</div>}><SiteSurveys /></Suspense>} />
+            <Route path="/community" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading community…</div>}><Community /></Suspense>} />
+            <Route path="/community/c/:categoryId" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading community…</div>}><Community /></Suspense>} />
+            <Route path="/community/t/:threadId" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading discussion…</div>}><Community /></Suspense>} />
+            <Route path="/learn" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading training…</div>}><Learn /></Suspense>} />
+            <Route path="/learn/:slug" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading lesson…</div>}><Learn /></Suspense>} />
             <Route path="/customer/document" element={<Suspense fallback={<div className="min-h-[60vh] grid place-items-center text-sm text-slate-400">Loading secure document…</div>}><CustomerDocument /></Suspense>} />
             <Route path="/customer/portal" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading customer portal…</div>}><CustomerPortal /></Suspense>} />
             <Route path="/book-a-job" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading job request…</div>}><BookJob /></Suspense>} />

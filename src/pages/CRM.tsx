@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Menu,
+  MessagesSquare,
   Plus,
   ReceiptText,
   Search,
@@ -68,6 +69,7 @@ import { TechAvatar } from "../features/admin/techPhoto";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
+import { CommunityAdmin } from "../features/admin/CommunityAdmin";
 import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
 import { buildImportPlan, detectColumns, parseCsv, type ColumnMap, type ImportField, type ParsedCsv } from "../features/catalog/importPriceList";
 import { creditToApply, depositAmount, depositBlocksClockIn, isDepositInvoice, isDepositPaid } from "../../api/_lib/deposit-policy.js";
@@ -102,6 +104,7 @@ type Module =
   | "contractors"
   | "timecards"
   | "requests"
+  | "community"
   | "team";
 const modules: {
   id: Module;
@@ -124,6 +127,7 @@ const modules: {
   { id: "contractors", label: "Contractor Roster", icon: HardHat },
   { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
   { id: "requests", label: "Client Requests", icon: Inbox },
+  { id: "community", label: "Community & Training", icon: MessagesSquare },
   { id: "team", label: "Team & Access", icon: ShieldCheck },
 ];
 
@@ -134,7 +138,7 @@ const moduleGroups: { label: string; ids: Module[] }[] = [
   { label: "Operations", ids: ["dashboard", "schedule", "jobs"] },
   { label: "Sales & Billing", ids: ["quotes", "estimator", "invoices", "customers", "assets"] },
   { label: "Inventory", ids: ["catalog"] },
-  { label: "Team", ids: ["contractors", "timecards", "team"] },
+  { label: "Team", ids: ["contractors", "timecards", "community", "team"] },
   { label: "Client", ids: ["requests"] },
   { label: "Insights & Admin", ids: ["reports", "reminders", "audit", "tickets"] },
 ];
@@ -161,6 +165,7 @@ const MODULE_ACCESS: Record<Module, StaffRole[]> = {
   contractors: ["assistant_admin"], // view-only, write stays Admin-only (see firestore.rules)
   timecards: ["assistant_admin"],
   requests: ["assistant_admin", "dispatcher"], // dispatcher is view-only
+  community: ["assistant_admin"], // moderation; categories are Admin/Assistant Admin, enforced by the handler
 };
 const hasModuleAccess = (access: Access, moduleId: Module) =>
   access === "admin" || MODULE_ACCESS[moduleId].includes(access as StaffRole);
@@ -1001,6 +1006,8 @@ export default function CRM() {
               <TimecardApprovalAdmin contractors={technicians} />
             ) : module === "requests" ? (
               <ClientRequestsAdmin contractors={technicians as unknown as { id: string; name: string; email: string }[]} />
+            ) : module === "community" ? (
+              <CommunityAdmin isAdminTier={access === "admin" || access === "assistant_admin"} />
             ) : module === "team" ? (
               <StaffAccessAdmin />
             ) : module === "reminders" ? (

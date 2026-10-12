@@ -1048,6 +1048,20 @@ export default function ContractorDashboard() {
                 <span>📋</span>
                 <span>Site Surveys</span>
               </Link>
+              <Link
+                to="/community"
+                className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent pb-3 text-xs font-bold text-slate-400 transition hover:text-amber-400"
+              >
+                <span>💬</span>
+                <span>Community</span>
+              </Link>
+              <Link
+                to="/learn"
+                className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent pb-3 text-xs font-bold text-slate-400 transition hover:text-amber-400"
+              >
+                <span>🎓</span>
+                <span>Training</span>
+              </Link>
               <button
                 type="button"
                 onClick={() => setContractorTab('logger')}

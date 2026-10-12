@@ -30,8 +30,20 @@ export default async function handler(_request, response) {
     console.error('Unable to add blog posts to sitemap', error)
   }
 
+  // Public training lessons (members-only lessons and drafts are never listed).
+  let lessons = []
+  try {
+    const {adminDb} = await import('./_lib/firebase-admin.js')
+    const snapshot = await adminDb.collection('wiki_pages').where('visibility', '==', 'public').where('status', '==', 'published').limit(500).get()
+    lessons = snapshot.docs.map((doc) => ({slug: doc.id, updatedAt: doc.data().updatedAt}))
+  } catch (error) {
+    console.error('Unable to add training lessons to sitemap', error)
+  }
+
   const urls = [
     ...staticPaths.map((path) => ({url: `${origin}${path}`})),
+    ...(lessons.length ? [{url: `${origin}/learn`}] : []),
+    ...lessons.map((lesson) => ({url: `${origin}/learn/${lesson.slug}`, lastModified: lesson.updatedAt})),
     ...posts.map((post) => ({url: `${origin}/blog/${post.slug}`, lastModified: post._updatedAt})),
   ]
   const entries = urls.map(({url, lastModified}) => `  <url><loc>${escapeXml(url)}</loc>${lastModified ? `<lastmod>${escapeXml(lastModified)}</lastmod>` : ''}</url>`).join('\n')

@@ -11,7 +11,7 @@ import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/d
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 import surveyHandler from '../_lib/survey-handler.js';
 import routeEstimateHandler from '../_lib/route-estimate-handler.js';
-import communityHandler from '../_lib/community-handler.js';
+import communityHandler, { scrubCommunityContent } from '../_lib/community-handler.js';
 import { isAcceptableReceiptFile, mergeReceipts, sanitizeReceiptRefs } from '../_lib/receipts.js';
 import { writeAudit } from '../_lib/audit.js';
 import { isRecentSignIn, retentionEnd, scrubbedContractorFields, unassignedJobFields } from '../_lib/account-deletion.js';
@@ -570,13 +570,16 @@ export default async function handler(req, res) {
         await batch.commit();
       }
 
+      // 2b. Forum posts stay but lose their name and photos; follows and training progress are removed.
+      const community = await scrubCommunityContent(user.uid).catch((error) => { console.error('Community scrub failed:', error); return { threads: 0, replies: 0 }; });
+
       // 3. Scrub the profile (keeping the pay/tax record), 4. remove the login, 5. cut the link.
       await contractor.ref.set({ ...scrubbedContractorFields(now, retainedUntil), authUid: user.uid }, { merge: true });
       await adminAuth.revokeRefreshTokens(user.uid);
       await adminAuth.deleteUser(user.uid);
       await contractor.ref.set({ authUid: null }, { merge: true });
 
-      await writeAudit({ actor: { uid: user.uid, email: 'Deleted account' }, action: 'account.deleted', entityType: 'contractor', entityId: contractor.id, summary: 'A technician deleted their own account', details: { openJobsUnassigned: openJobs.length, retainedUntil }, source: 'api' }).catch(() => null);
+      await writeAudit({ actor: { uid: user.uid, email: 'Deleted account' }, action: 'account.deleted', entityType: 'contractor', entityId: contractor.id, summary: 'A technician deleted their own account', details: { openJobsUnassigned: openJobs.length, retainedUntil, communityThreadsAnonymized: community.threads, communityRepliesAnonymized: community.replies }, source: 'api' }).catch(() => null);
       await sendPortalNotice({
         to: process.env.SUPPORT_EMAIL || 'support@techsavvytechs.com',
         subject: 'Technician account deleted',
