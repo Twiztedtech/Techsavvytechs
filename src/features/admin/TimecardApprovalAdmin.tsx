@@ -343,6 +343,27 @@ export function TimecardApprovalAdmin({ contractors }: { contractors: Record<str
                     </div>
                   );
                 })()}
+                {(() => {
+                  const receipts: Array<{ name?: string; url?: string }> = Array.isArray(entry.receipts) ? entry.receipts : [];
+                  const claimed = Number(entry.suppliesCost || 0) > 0;
+                  if (!receipts.length && !claimed) return null;
+                  return (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-crm-muted">Receipts</p>
+                      {receipts.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {receipts.map((receipt, index) => (
+                            <a key={`${entry.id}-receipt-${index}`} href={receipt.url} target="_blank" rel="noreferrer" title={receipt.name || "Receipt"}>
+                              <img src={receipt.url} alt={`Receipt ${index + 1}`} className="h-14 w-14 rounded border border-crm-hairline object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-semibold text-crm-warning-soft-text">Supplies were claimed but no receipt is attached.</p>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2 items-center mt-1">
                   <span className="text-[11px] text-crm-muted">QBO status:</span>
                   {entry.status === "voided" ? (

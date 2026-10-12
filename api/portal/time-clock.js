@@ -11,6 +11,7 @@ import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/d
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 import surveyHandler from '../_lib/survey-handler.js';
 import routeEstimateHandler from '../_lib/route-estimate-handler.js';
+import { isAcceptableReceiptFile, mergeReceipts, sanitizeReceiptRefs } from '../_lib/receipts.js';
 import { writeAudit } from '../_lib/audit.js';
 import { isRecentSignIn, retentionEnd, scrubbedContractorFields, unassignedJobFields } from '../_lib/account-deletion.js';
 
@@ -1017,6 +1018,16 @@ export default async function handler(req, res) {
 
       const now = new Date();
       const existingData = existingLiveEntry?.data();
+      // Receipt photos were uploaded from the phone into this technician's own folder.
+      // Keep only references that point there for this job, and only files that really
+      // exist in Storage as images, then add them to any receipts already on the timecard.
+      const verifiedReceipts = [];
+      for (const receipt of sanitizeReceiptRefs(req.body?.receipts, { jobId: jobId || '', uid: user.uid, bucket: adminStorage.name })) {
+        try {
+          const [metadata] = await adminStorage.file(receipt.path).getMetadata();
+          if (isAcceptableReceiptFile(metadata)) verifiedReceipts.push({ ...receipt, contentType: metadata.contentType, size: Number(metadata.size), uploadedAt: new Date().toISOString() });
+        } catch { /* a missing file is simply not attached */ }
+      }
       // Adding supplies/travel/notes/photos/completion to an already-clocked
       // shift: keep the authoritative clock-derived hours untouched (don't
       // let the pre-filled form fields overwrite them), preserve laborStatus
@@ -1066,6 +1077,7 @@ export default async function handler(req, res) {
         status: overallStatus,
         qbStatus: existingData?.qbStatus || 'pending',
         photos,
+        receipts: mergeReceipts(existingData?.receipts, verifiedReceipts),
         completionIntent,
         signatureDisposition: completionIntent === 'final' ? (completionUpdate?.signatureStatus || 'signed') : 'not_applicable',
         ...(completionIntent === 'final' && completionUpdate?.signatureStatus === 'technician_exception' ? { signatureExceptionReason, signatureExceptionNotes } : {}),

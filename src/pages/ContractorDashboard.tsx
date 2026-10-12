@@ -186,6 +186,10 @@ export default function ContractorDashboard() {
   const [notes, setNotes] = useState('');
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
   const [photoUploadState, setPhotoUploadState] = useState({ uploading: 0, error: '' });
+  // Receipt photos for supplies, tolls and parking. Uploaded as soon as they are picked, into this
+  // technician's own folder; the server re-checks each one when the timesheet is submitted.
+  const [receipts, setReceipts] = useState<{ name: string; path: string; url: string }[]>([]);
+  const [receiptState, setReceiptState] = useState({ uploading: 0, error: '' });
 
   // Active Clock-In / Live Shift Tracking
   const [activeShift, setActiveShift] = useState({
@@ -523,12 +527,35 @@ export default function ContractorDashboard() {
     }
   };
 
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.currentTarget.files ?? []) as File[];
+    e.currentTarget.value = '';
+    const uid = auth.currentUser?.uid;
+    if (!files.length || !uid) return;
+    setReceiptState((state) => ({ uploading: state.uploading + files.length, error: '' }));
+    for (const file of files) {
+      try {
+        const dataUrl = await compressSurveyPhoto(file);
+        const base = file.name.replace(/.[^.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '-') || 'receipt';
+        const path = `job-receipts/${selectedJobId || 'ad-hoc'}/tech/${uid}/${Date.now()}-${base}.jpg`;
+        const fileRef = ref(storage, path);
+        await uploadString(fileRef, dataUrl, 'data_url');
+        const url = await getDownloadURL(fileRef);
+        setReceipts((prev) => [...prev, { name: file.name || 'Receipt', path, url }]);
+      } catch (error) {
+        setReceiptState((state) => ({ ...state, error: error instanceof Error ? error.message : 'A receipt photo failed to upload.' }));
+      } finally {
+        setReceiptState((state) => ({ ...state, uploading: Math.max(0, state.uploading - 1) }));
+      }
+    }
+  };
+
   const handleSubmitLog = async (e) => {
     e.preventDefault();
     const finalJobName = isCustomJob ? customJobSite : selectedJobObj?.name;
     const finalAddress = isCustomJob ? customJobAddress : selectedJobObj?.address;
     if (!finalJobName) return;
-    if (photoUploadState.uploading > 0) {
+    if (photoUploadState.uploading > 0 || receiptState.uploading > 0) {
       alert('Photos are still uploading. Wait for them to finish before submitting.');
       return;
     }
@@ -575,6 +602,7 @@ export default function ContractorDashboard() {
           travelCost: Number(travelCost || 0),
           notes,
           photos: [...uploadedPhotos],
+          receipts,
           completionIntent,
           signatureExceptionReason: completionIntent === 'final' && !hasSignedWorkOrder ? signatureExceptionReason : '',
           signatureExceptionNotes: completionIntent === 'final' && !hasSignedWorkOrder ? signatureExceptionNotes.trim() : '',
@@ -609,6 +637,7 @@ export default function ContractorDashboard() {
       setSuppliesItems([{ id: `supply-${Date.now()}-0`, description: '', cost: '' }]);
       setTravelCost('0.00');
       setUploadedPhotos([]);
+      setReceipts([]);
       setCompletionIntent('progress');
       setSignatureExceptionReason('');
       setSignatureExceptionNotes('');
@@ -1549,6 +1578,24 @@ export default function ContractorDashboard() {
                             Supplies Total: <span className="text-amber-500">${Number(suppliesCost).toFixed(2)}</span>
                           </span>
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">🧾 Receipts (supplies, tolls, parking)</label>
+                        <p className="text-[10px] text-slate-500 mb-1.5">Take a clear photo of each receipt. The office uses these to approve what you spent.</p>
+                        <input type="file" accept="image/*" multiple onChange={(event) => void handleReceiptUpload(event)} aria-label="Add receipt photos" className="block w-full text-[11px] text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:text-amber-400" />
+                        {(receipts.length > 0 || receiptState.uploading > 0) && (
+                          <ul className="mt-2 space-y-1">
+                            {receipts.map((receipt) => (
+                              <li key={receipt.path} className="flex items-center justify-between rounded bg-slate-900 px-2 py-1 text-[11px] text-slate-300">
+                                <span className="truncate">✓ {receipt.name}</span>
+                                <button type="button" onClick={() => setReceipts((prev) => prev.filter((item) => item.path !== receipt.path))} className="ml-2 text-slate-500 hover:text-red-400" aria-label={`Remove ${receipt.name}`}>✕</button>
+                              </li>
+                            ))}
+                            {receiptState.uploading > 0 && <li className="text-[11px] text-amber-400">Uploading {receiptState.uploading} receipt{receiptState.uploading === 1 ? '' : 's'}…</li>}
+                          </ul>
+                        )}
+                        {receiptState.error && <p className="mt-1 text-[10px] text-red-400">{receiptState.error}</p>}
                       </div>
 
                       <div>
