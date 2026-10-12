@@ -5,7 +5,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
 import { reportOperationalError, runOperationalHealthCheck } from './_lib/monitoring.js';
-import { alertRecipients, uploadInlineFiles } from './_lib/client-portal.js';
+import { alertRecipients, assignedTechnicianRecipients, sendEmail as sendPortalEmail, sendSms, uploadInlineFiles } from './_lib/client-portal.js';
+import { technicianNotifiable } from './_lib/notification-eligibility.js';
+import { businessDate } from './_lib/business-time.js';
+import { buildTechReminder, jobsNeedingTechReminder } from './_lib/tech-reminders.js';
 import { jobsNeedingCloseout, jobsNeedingInvoice } from './_lib/job-alerts.js';
 import { buildInvoicePdf, invoicePdfFileName } from './_lib/invoice-pdf.js';
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
@@ -743,6 +746,57 @@ async function sendJobAlertsDigest() {
   return { sent: true, closeout: closeout.length, invoicing: invoicing.length };
 }
 
+// Day-before reminder for the technicians on tomorrow's jobs (the customer's own
+// reminder is handled by reminderCandidates/deliverReminder above). Email goes to
+// anyone who has not turned email off; SMS only to technicians with a verified,
+// opted-in phone. Each technician gets at most one reminder per job per day: the
+// delivery record is created up front, so a re-run of the cron cannot double send.
+async function sendTechnicianReminders() {
+  const tomorrow = businessDate(new Date(Date.now() + 86400000));
+  const jobsSnapshot = await adminDb.collection("jobs").get();
+  const jobs = jobsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const due = jobsNeedingTechReminder(jobs, { tomorrow });
+  const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
+  const summary = { date: tomorrow, jobs: due.length, sent: 0, skipped: 0, failed: 0 };
+
+  for (const { job, techIds, serviceDate } of due) {
+    let technicians = [];
+    try { technicians = await assignedTechnicianRecipients({ ...job, assignedTechIds: techIds }); }
+    catch (error) { summary.failed += techIds.length; console.error("Technician reminder lookup failed for job", job.id, error); continue; }
+
+    for (const technician of technicians) {
+      if (technician.status && technician.status !== "Active") { summary.skipped += 1; continue; }
+      const { canEmail, canSms } = technicianNotifiable(technician);
+      const email = canEmail ? technician.email : "";
+      const phone = canSms ? technician.mobile : "";
+      if (!email && !phone) { summary.skipped += 1; continue; }
+
+      const deliveryRef = adminDb.collection("reminder_deliveries").doc(`techreminder_${job.id}_${serviceDate}_${technician.id}`);
+      try { await deliveryRef.create({ type: "technician_appointment", entityId: job.id, technicianId: technician.id, status: "sending", createdAt: new Date().toISOString() }); }
+      catch { summary.skipped += 1; continue; } // already sent (or being sent) for this technician
+
+      try {
+        const message = buildTechReminder({ job, technician, serviceDate, appUrl });
+        const channels = [];
+        if (email) {
+          await sendPortalEmail({ to: email, subject: message.subject, text: message.text, html: message.html, from: customerSender(), replyTo: process.env.SUPPORT_EMAIL || "support@techsavvytechs.com", jobId: job.id, type: "technician_appointment_reminder" });
+          channels.push("email");
+        }
+        if (phone) {
+          const sms = await sendSms({ to: phone, body: message.sms, jobId: job.id, type: "technician_appointment_reminder" }).catch(() => null);
+          if (sms && !sms.skipped) channels.push("sms");
+        }
+        await deliveryRef.set({ status: channels.length ? "sent" : "skipped", channels, sentAt: new Date().toISOString() }, { merge: true });
+        summary[channels.length ? "sent" : "skipped"] += 1;
+      } catch (error) {
+        await deliveryRef.set({ status: "failed", error: error.message, failedAt: new Date().toISOString() }, { merge: true });
+        summary.failed += 1;
+      }
+    }
+  }
+  return summary;
+}
+
 async function runReminderCycle(req, res) {
   if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).json({ error: "Unauthorized" });
@@ -764,7 +818,10 @@ async function runReminderCycle(req, res) {
   let jobAlerts = { skipped: true };
   try { jobAlerts = await sendJobAlertsDigest(); }
   catch (error) { jobAlerts = { failed: true, error: error.message }; }
-  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length, reconciliation, jobAlerts });
+  let technicianReminders = { skipped: true };
+  try { technicianReminders = await sendTechnicianReminders(); }
+  catch (error) { technicianReminders = { failed: true, error: error.message }; }
+  return res.status(200).json({ success: true, candidates: candidates.length, sent: results.filter((result) => result.sent).length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.failed).length, reconciliation, jobAlerts, technicianReminders });
 }
 
 async function sendManualReminder(req, res) {
