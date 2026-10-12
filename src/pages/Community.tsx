@@ -12,6 +12,8 @@ import {
 } from '../features/community/ui';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
+// The server sends a flattened one-line excerpt of the raw text; drop the markdown symbols for the list view.
+const plainExcerpt = (text: string) => text.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`#>]/g, '').replace(/\s-\s/g, ' · ').replace(/\s+/g, ' ').trim();
 const message = (reason: unknown) => (reason instanceof Error ? reason.message : 'Something went wrong. Please try again.');
 
 function ThreadRow({ thread, categories }: { thread: Thread; categories: Category[] }) {
@@ -26,7 +28,7 @@ function ThreadRow({ thread, categories }: { thread: Thread; categories: Categor
         {category && <Badge>{category.name}</Badge>}
       </div>
       <h3 className="font-bold text-white group-hover:text-amber-300">{thread.title}</h3>
-      <p className="mt-1 line-clamp-2 text-sm text-slate-400">{thread.excerpt}</p>
+      <p className="mt-1 line-clamp-2 text-sm text-slate-400">{plainExcerpt(thread.excerpt)}</p>
       <p className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
         <span>{thread.authorName}{thread.authorRole && thread.authorRole !== 'Technician' ? ` · ${thread.authorRole}` : ''}</span>
         <span className="flex items-center gap-1"><MessageSquare size={12} />{thread.replyCount}</span>
