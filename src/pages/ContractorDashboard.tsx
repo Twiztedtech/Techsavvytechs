@@ -922,6 +922,15 @@ export default function ContractorDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           {/* CONTRACTOR VIEW: TIME & PHOTO LOGGING + HISTORICAL EARNINGS LEDGER */}
           <div className="space-y-6">
+            {notificationProfile && !notificationProfile.mobileVerified && !notificationProfile.mobileVerificationDeferred && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black text-white">Get your job reminders by text</h3>
+                  <p className="text-xs text-slate-400">Add your mobile number and verify it with a code. We will text you the day before a scheduled job. Reply STOP any time to opt out.</p>
+                </div>
+                <button type="button" onClick={() => setIsNotificationModalOpen(true)} className="rounded-lg bg-sky-500 px-4 py-2 text-xs font-black text-slate-950 hover:bg-sky-400">Turn on text reminders</button>
+              </div>
+            )}
             {onboarding?.status !== 'approved' && (
               <div className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-4 transition-all ${
                 onboarding?.status === 'submitted'

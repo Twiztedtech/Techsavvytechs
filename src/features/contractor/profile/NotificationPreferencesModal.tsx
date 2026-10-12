@@ -178,7 +178,7 @@ export function NotificationPreferencesModal({ isOpen, profile, onClose, onUpdat
               <span>Text (SMS) notifications</span>
               <input type="checkbox" checked={smsEnabled} onChange={(event) => setSmsEnabled(event.target.checked)} className="accent-amber-500" />
             </label>
-            <p className="text-[10px] text-slate-500">By verifying your number you consent to receive transactional texts about your job assignments (arrival, completion, and approval updates). Message and data rates may apply. Reply STOP at any time to opt out.</p>
+            <p className="text-[10px] text-slate-500">By verifying your number you consent to receive transactional texts about your job assignments (day-before schedule reminders, arrival, completion, and approval updates). Message frequency varies. Message and data rates may apply. Reply STOP at any time to opt out, or HELP for help.</p>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs transition cursor-pointer">Close</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition cursor-pointer disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
