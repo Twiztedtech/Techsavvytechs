@@ -8,6 +8,7 @@ import {
   Boxes,
   BriefcaseBusiness,
   Building2,
+  Calculator,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -74,6 +75,7 @@ import { jobsNeedingCloseout, jobsNeedingInvoice } from "../../api/_lib/job-aler
 import { requestDeposit } from "../features/billing/requestDeposit";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { JobProfitPanel, type JobExpense } from "../features/crm/JobProfitPanel";
+import { JobEstimator } from "../features/crm/JobEstimator";
 import { profitHeadline, resolveSettings, type ProfitHeadline } from "../features/crm/job-profit-inputs";
 import type { CostPlan } from "../features/crm/job-profit";
 import { CrmThemeToggle } from "../features/crm/ui";
@@ -88,6 +90,7 @@ type Module =
   | "schedule"
   | "customers"
   | "quotes"
+  | "estimator"
   | "jobs"
   | "invoices"
   | "catalog"
@@ -109,6 +112,7 @@ const modules: {
   { id: "schedule", label: "Schedule & Dispatch", icon: CalendarDays },
   { id: "customers", label: "Customers & Sites", icon: Users },
   { id: "quotes", label: "Quotes", icon: FileText },
+  { id: "estimator", label: "Job Estimator", icon: Calculator },
   { id: "jobs", label: "Jobs", icon: BriefcaseBusiness },
   { id: "invoices", label: "Invoices", icon: ReceiptText },
   { id: "catalog", label: "Materials & Stock", icon: Boxes },
@@ -128,7 +132,7 @@ const modules: {
 // Each id must exist in `modules`; order within a group is preserved.
 const moduleGroups: { label: string; ids: Module[] }[] = [
   { label: "Operations", ids: ["dashboard", "schedule", "jobs"] },
-  { label: "Sales & Billing", ids: ["quotes", "invoices", "customers", "assets"] },
+  { label: "Sales & Billing", ids: ["quotes", "estimator", "invoices", "customers", "assets"] },
   { label: "Inventory", ids: ["catalog"] },
   { label: "Team", ids: ["contractors", "timecards", "team"] },
   { label: "Client", ids: ["requests"] },
@@ -144,6 +148,7 @@ const MODULE_ACCESS: Record<Module, StaffRole[]> = {
   schedule: ["assistant_admin", "dispatcher"],
   customers: ["assistant_admin", "dispatcher", "office_billing"],
   quotes: ["assistant_admin", "office_billing"],
+  estimator: ["assistant_admin", "office_billing"], // Office/Billing can estimate but not create jobs
   jobs: ["assistant_admin", "dispatcher", "office_billing"], // office_billing is view-only, see canCreateNew()
   invoices: ["assistant_admin", "office_billing"],
   catalog: ["assistant_admin", "office_billing"],
@@ -977,6 +982,14 @@ export default function CRM() {
                 assets={assets}
                 technicians={technicians}
                 timeEntries={billingTimeEntries}
+              />
+            ) : module === "estimator" ? (
+              <JobEstimator
+                customers={liveCustomers}
+                settings={costingSettings}
+                canCreate={canEditProfit}
+                canEditSettings={canEditProfit}
+                onOpenJob={(job) => setProfitJob(job as unknown as LiveJob)}
               />
             ) : module === "audit" ? (
               <AuditTrailView logs={auditLogs} />

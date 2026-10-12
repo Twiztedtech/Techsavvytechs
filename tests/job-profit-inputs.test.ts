@@ -1,14 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_COSTING_SETTINGS, defaultPlanForJob, materialsRevenue, profitHeadline, ratesForJob, resolveSettings } from '../src/features/crm/job-profit-inputs.ts';
+import { DEFAULT_COSTING_SETTINGS, defaultPlanForJob, irsMileageRate, materialsRevenue, profitHeadline, ratesForJob, resolveSettings } from '../src/features/crm/job-profit-inputs.ts';
+
+test('irsMileageRate: uses the rate in effect on the date, including the July 2026 mid-year change', () => {
+  assert.equal(irsMileageRate('2025-06-15'), 0.7);
+  assert.equal(irsMileageRate('2026-03-01'), 0.725);
+  assert.equal(irsMileageRate('2026-06-30'), 0.725);
+  assert.equal(irsMileageRate('2026-07-01'), 0.76);
+  assert.equal(irsMileageRate('2027-01-15'), 0.76);   // newest known rate until the table is updated
+  assert.equal(irsMileageRate('2024-01-01'), 0.7);    // earlier than the table: the oldest rate
+  assert.equal(irsMileageRate(new Date('2026-10-12T12:00:00Z')), 0.76);
+});
 
 test('resolveSettings: defaults fill every gap and invalid values are ignored', () => {
-  assert.deepEqual(resolveSettings(null), DEFAULT_COSTING_SETTINGS);
-  const merged = resolveSettings({ targetMarginPct: '35', mileageRate: -1, overheadPerLaborHour: 'abc', homeBaseAddress: '  Sacramento, CA ' });
+  const defaults = resolveSettings(null, '2026-10-12');
+  assert.equal(defaults.mileageRate, 0.76);
+  assert.equal(defaults.mileageRateIsFederal, true);
+  assert.equal(defaults.targetMarginPct, DEFAULT_COSTING_SETTINGS.targetMarginPct);
+  const merged = resolveSettings({ targetMarginPct: '35', mileageRate: -1, overheadPerLaborHour: 'abc', homeBaseAddress: '  Sacramento, CA ' }, '2026-10-12');
   assert.equal(merged.targetMarginPct, 35);
-  assert.equal(merged.mileageRate, 0.7);
+  assert.equal(merged.mileageRate, 0.76);             // invalid saved rate falls back to the federal rate
   assert.equal(merged.overheadPerLaborHour, 0);
   assert.equal(merged.homeBaseAddress, 'Sacramento, CA');
+});
+
+test('resolveSettings: a saved mileage rate overrides the federal rate and is flagged as custom', () => {
+  const custom = resolveSettings({ mileageRate: 0.6 }, '2026-10-12');
+  assert.equal(custom.mileageRate, 0.6);
+  assert.equal(custom.mileageRateIsFederal, false);
+  assert.equal(custom.federalMileageRate, 0.76);
+  assert.equal(resolveSettings({ mileageRate: 0.76 }, '2026-10-12').mileageRateIsFederal, true);
 });
 
 test('ratesForJob: the job rate wins, then the customer agreement, and never the technician pay rate', () => {
@@ -71,4 +92,40 @@ test('profitHeadline: without a plan it reports actuals, and a losing job is fla
   const headline = profitHeadline({ job, entries: [entry({ rate: 60 })], invoices: [] });
   assert.equal(headline.basis, 'actual');
   assert.equal(headline.verdict, 'losing');
+});
+
+import { estimate } from '../src/features/crm/job-profit.ts';
+import { estimatorPlan, type EstimatorInput } from '../src/features/crm/job-profit-inputs.ts';
+
+const estimatorInput = (over: Partial<EstimatorInput> = {}): EstimatorInput => ({
+  techCount: 3, hoursPerDay: 8, days: 2, payRate: 45, travelMode: 'miles', milesPerDay: 50, flatTravel: 0, tollsPerTech: 10,
+  date: '2026-10-14', shiftStart: '09:00', shiftEnd: '17:00', pricingMode: 'hourly', fixedPrice: 0, supplies: [{ description: 'Cable', amount: 200 }, { amount: 0 }], otherCosts: [], ...over,
+});
+
+test('estimatorPlan: builds open positions with the same pay, hours, days and travel for each', () => {
+  const plan = estimatorPlan(estimatorInput());
+  assert.equal(plan.crew.length, 3);
+  assert.deepEqual(plan.crew.map((member) => member.techId), ['slot-1', 'slot-2', 'slot-3']);
+  assert.equal(plan.crew[0].days, 2);
+  assert.equal(plan.supplies?.length, 1);            // the empty $0 supply line is dropped
+});
+
+test('estimatorPlan: a what-if job prices like the real thing (3 techs x 2 days x 8 hrs at $90 against $45 pay)', () => {
+  const settings = { mileageRate: 0.76, targetMarginPct: 30 };
+  const result = estimate(estimatorPlan(estimatorInput()), { billRate: 90, nightRate: 135, minimumHours: 2 }, settings);
+  assert.equal(result.costDetail.hours, 48);
+  assert.equal(result.costDetail.labor, 2160);
+  assert.equal(result.costDetail.travel, 228);       // 50 mi x 2 days x 3 techs x $0.76
+  assert.equal(result.costDetail.tolls, 30);
+  assert.equal(result.revenueDetail.labor, 4320);    // 48 hrs x $90
+  assert.equal(result.revenueDetail.passThrough, 458); // travel + tolls + supplies billed at cost
+  assert.equal(result.profit, 2160);                 // labor margin only
+  assert.equal(result.verdict, 'good');
+});
+
+test('estimatorPlan: zero technicians gives an empty crew, and flat travel is carried through', () => {
+  assert.equal(estimatorPlan(estimatorInput({ techCount: 0 })).crew.length, 0);
+  const flat = estimatorPlan(estimatorInput({ travelMode: 'flat', flatTravel: 60, techCount: 1 }));
+  assert.equal(flat.crew[0].travelMode, 'flat');
+  assert.equal(flat.crew[0].flatTravel, 60);
 });

@@ -21,9 +21,29 @@ export type ProfitJob = {
 };
 export type ProfitCustomer = { rateAgreement?: { standardRate?: number; nightRate?: number; minimumHours?: number } };
 
-export const DEFAULT_COSTING_SETTINGS: Required<Pick<CostSettings, 'targetMarginPct' | 'mileageRate' | 'overheadPerLaborHour' | 'contingencyPct'>> & { homeBaseAddress: string } = {
+// The IRS standard business mileage rate (the federal maximum you can reimburse
+// per mile without it being taxable), in dollars. It changes at least yearly, and
+// in 2026 changed mid-year, so each entry carries the date it takes effect.
+// Source: irs.gov/tax-professionals/standard-mileage-rates (Notice 2026-10 set
+// 72.5 cents; Announcement 2026-11 raised it to 76 cents from 2026-07-01).
+// Add a line here when the IRS announces a new rate. A rate saved in the CRM
+// costing settings always overrides this.
+export const IRS_MILEAGE_RATES: { from: string; rate: number }[] = [
+  { from: '2025-01-01', rate: 0.7 },
+  { from: '2026-01-01', rate: 0.725 },
+  { from: '2026-07-01', rate: 0.76 },
+];
+
+/** The federal mileage rate in effect on a date (YYYY-MM-DD or Date); the newest known rate if the date is later than the table. */
+export function irsMileageRate(on: string | Date = new Date()): number {
+  const day = typeof on === 'string' ? on.slice(0, 10) : on.toISOString().slice(0, 10);
+  let rate = IRS_MILEAGE_RATES[0].rate;
+  for (const entry of IRS_MILEAGE_RATES) if (entry.from <= day) rate = entry.rate;
+  return rate;
+}
+
+export const DEFAULT_COSTING_SETTINGS: Required<Pick<CostSettings, 'targetMarginPct' | 'overheadPerLaborHour' | 'contingencyPct'>> & { homeBaseAddress: string } = {
   targetMarginPct: 30,
-  mileageRate: 0.7,
   overheadPerLaborHour: 0,
   contingencyPct: 0,
   homeBaseAddress: 'Fairfield, CA 94533',
@@ -34,13 +54,19 @@ const num = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-/** Settings document with every missing or invalid value replaced by its default. */
-export function resolveSettings(raw?: Partial<Record<keyof typeof DEFAULT_COSTING_SETTINGS, unknown>> | null) {
-  const merged = { ...DEFAULT_COSTING_SETTINGS };
+/**
+ * Settings document with every missing or invalid value replaced by its default.
+ * The mileage rate defaults to the federal (IRS) rate for `today`; a rate saved
+ * in the CRM overrides it, and `mileageRateIsFederal` says which one is in use.
+ */
+export function resolveSettings(raw?: Partial<Record<keyof typeof DEFAULT_COSTING_SETTINGS | 'mileageRate', unknown>> | null, today: string | Date = new Date()) {
+  const federal = irsMileageRate(today);
+  const merged: typeof DEFAULT_COSTING_SETTINGS & { mileageRate: number; mileageRateIsFederal: boolean; federalMileageRate: number } = { ...DEFAULT_COSTING_SETTINGS, mileageRate: federal, mileageRateIsFederal: true, federalMileageRate: federal };
   if (!raw) return merged;
-  for (const key of ['targetMarginPct', 'mileageRate', 'overheadPerLaborHour', 'contingencyPct'] as const) {
-    const value = raw[key];
-    if (value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0) merged[key] = Number(value);
+  const isValid = (value: unknown) => value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+  if (isValid(raw.mileageRate)) { merged.mileageRate = Number(raw.mileageRate); merged.mileageRateIsFederal = merged.mileageRate === federal; }
+  for (const key of ['targetMarginPct', 'overheadPerLaborHour', 'contingencyPct'] as const) {
+    if (isValid(raw[key])) merged[key] = Number(raw[key]);
   }
   if (typeof raw.homeBaseAddress === 'string' && raw.homeBaseAddress.trim()) merged.homeBaseAddress = raw.homeBaseAddress.trim();
   return merged;
@@ -136,3 +162,53 @@ export function profitHeadline(args: {
 }
 
 export { estimate };
+
+// ---------------------------------------------------------------------------
+// What-if estimator: a job that does not exist yet, described in plain terms
+// (how many technicians, how many hours, how far) instead of named people.
+
+export type EstimatorInput = {
+  techCount: number;
+  hoursPerDay: number;
+  days: number;
+  payRate: number;
+  travelMode: 'miles' | 'flat';
+  milesPerDay: number;       // round trip, per technician per day
+  flatTravel: number;        // per technician for the whole job
+  tollsPerTech: number;      // per technician for the whole job
+  date: string;
+  shiftStart: string;
+  shiftEnd: string;
+  pricingMode: 'hourly' | 'fixed';
+  fixedPrice: number;
+  supplies: { description?: string; amount: number }[];
+  otherCosts: { label?: string; amount: number }[];
+  contingencyPct?: number;
+};
+
+/** Turns estimator answers into a cost plan. Crew lines are open positions ("slot-1"...) until real technicians are picked. */
+export function estimatorPlan(input: EstimatorInput): CostPlan {
+  const count = Math.max(0, Math.min(50, Math.floor(num(input.techCount))));
+  const crew: CrewMember[] = Array.from({ length: count }, (_, index) => ({
+    techId: `slot-${index + 1}`,
+    name: `Technician ${index + 1}`,
+    payRate: num(input.payRate),
+    plannedHours: num(input.hoursPerDay),
+    days: Math.max(1, Math.floor(num(input.days) || 1)),
+    travelMode: input.travelMode,
+    roundTripMiles: num(input.milesPerDay),
+    flatTravel: num(input.flatTravel),
+    tolls: num(input.tollsPerTech),
+  }));
+  return {
+    crew,
+    supplies: (input.supplies || []).filter((item) => num(item.amount) > 0),
+    otherCosts: (input.otherCosts || []).filter((item) => num(item.amount) > 0),
+    pricingMode: input.pricingMode,
+    fixedPrice: num(input.fixedPrice),
+    contingencyPct: input.contingencyPct,
+    date: input.date,
+    shiftStart: input.shiftStart,
+    shiftEnd: input.shiftEnd,
+  };
+}

@@ -4,6 +4,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { auth, db, storage } from '../../lib/firebase';
 import { CrmBadge, CrmButton, CrmCard, CrmInput } from './ui';
+import { CostingSettingsForm } from './CostingSettingsForm';
 import { actualToDate, estimate, planCost, pricing, projectedAtCompletion, type CostPlan, type CrewMember, type Verdict } from './job-profit';
 import { defaultPlanForJob, materialsRevenue, ratesForJob, resolveSettings, type ProfitCustomer, type ProfitJob } from './job-profit-inputs';
 
@@ -86,11 +87,15 @@ export function JobProfitPanel({
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save the plan.'); }
     finally { setBusy(false); }
   };
+  // A crew line created by the estimator before anyone was picked is an open position ("slot-1").
+  const isSlot = (techId: string) => techId.startsWith('slot-');
+  const realCrewIds = draft.crew.map((member) => member.techId).filter((id) => !isSlot(id));
+  const openPositions = draft.crew.length - realCrewIds.length;
   const assign = async () => {
-    if (!onAssignTechs) return;
-    if (!window.confirm(`Assign ${draft.crew.length} technician${draft.crew.length === 1 ? '' : 's'} to this job? They will see it in their portal.`)) return;
+    if (!onAssignTechs || !realCrewIds.length) return;
+    if (!window.confirm(`Assign ${realCrewIds.length} technician${realCrewIds.length === 1 ? '' : 's'} to this job? They will see it in their portal.${openPositions ? ` ${openPositions} open position${openPositions === 1 ? ' is' : 's are'} not assigned yet.` : ''}`)) return;
     setBusy(true); setNotice('');
-    try { await onAssignTechs(draft.crew.map((member) => member.techId)); setNotice('Technicians assigned to the job.'); }
+    try { await onAssignTechs(realCrewIds); setNotice('Technicians assigned to the job.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not assign technicians.'); }
     finally { setBusy(false); }
   };
@@ -214,7 +219,17 @@ export function JobProfitPanel({
               {draft.crew.map((member, index) => (
                 <div key={member.techId} className="rounded-lg border border-crm-hairline-soft p-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-crm-ink">{member.name || techName(member.techId)}</p>
+                    {isSlot(member.techId) ? (
+                      canEdit && available.length > 0 ? (
+                        <select value="" onChange={(event) => {
+                          const tech = technicians.find((item) => item.id === event.target.value);
+                          if (tech) updateMember(index, { techId: tech.id, name: tech.name || '' });
+                        }} className="h-9 rounded-lg border border-crm-hairline bg-crm-canvas px-2 text-sm font-semibold text-crm-ink">
+                          <option value="">{member.name || 'Open position'}: choose a technician…</option>
+                          {available.map((tech) => <option key={tech.id} value={tech.id}>{tech.name || tech.id}</option>)}
+                        </select>
+                      ) : <p className="text-sm font-semibold text-crm-ink">{member.name || 'Open position'} (not assigned)</p>
+                    ) : <p className="text-sm font-semibold text-crm-ink">{member.name || techName(member.techId)}</p>}
                     {canEdit && <button type="button" aria-label="Remove technician" onClick={() => update({ crew: draft.crew.filter((_, i) => i !== index) })} className="text-crm-muted hover:text-crm-error"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -235,7 +250,7 @@ export function JobProfitPanel({
               ))}
             </div>
           )}
-          <p className="mt-3 text-[11px] text-crm-muted">Mileage is paid at {money(settings.mileageRate)}/mile (set in costing settings). Pay rates here are what each technician earns on this job.</p>
+          <p className="mt-3 text-[11px] text-crm-muted">Mileage is paid at {money(settings.mileageRate)}/mile ({settings.mileageRateIsFederal ? 'the federal rate' : 'your custom rate'}; change it under Costing settings below). Pay rates here are what each technician earns on this job.</p>
         </CrmCard>
 
         {/* Planned supplies / other */}
@@ -273,7 +288,7 @@ export function JobProfitPanel({
         {canEdit && (
           <div className="mt-4 flex flex-wrap gap-2">
             <CrmButton onClick={() => void savePlan()} disabled={busy || !dirty}>{busy ? 'Saving…' : dirty ? 'Save plan' : 'Plan saved'}</CrmButton>
-            {onAssignTechs && draft.crew.length > 0 && <CrmButton variant="secondary" onClick={() => void assign()} disabled={busy}>Assign these technicians to the job</CrmButton>}
+            {onAssignTechs && realCrewIds.length > 0 && <CrmButton variant="secondary" onClick={() => void assign()} disabled={busy}>Assign these technicians to the job</CrmButton>}
           </div>
         )}
 
@@ -317,6 +332,7 @@ export function JobProfitPanel({
             <div className="col-span-2 flex items-end sm:col-span-1"><CrmButton type="submit" disabled={busy} className="w-full">Add</CrmButton></div>
           </form>
         </CrmCard>
+        <CostingSettingsForm settings={settings} canEdit={canEdit} />
       </div>
     </div>
   );
