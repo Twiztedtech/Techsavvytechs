@@ -47,6 +47,26 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // Job receipts. The office uploads under /office; a technician uploads only
+    // under their own /tech/{uid} folder (the server verifies their assignment
+    // before saving the receipt on a timecard) and can read only their own.
+    // Dispatcher has no access.
+    match /job-receipts/{jobId}/office/{fileName} {
+      allow read, delete: if isAdmin() || request.auth.token.staffRole in ['assistant_admin', 'office_billing'];
+      allow create: if (isAdmin() || request.auth.token.staffRole in ['assistant_admin', 'office_billing'])
+        && request.resource.size < 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow update: if false;
+    }
+    match /job-receipts/{jobId}/tech/{uid}/{fileName} {
+      allow read: if isAdmin() || request.auth.token.staffRole in ['assistant_admin', 'office_billing'] || (isContractor() && request.auth.uid == uid);
+      allow create: if isContractor() && request.auth.uid == uid
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // Photos attached to a time entry (manual log form). Compressed and
     // uploaded directly from the browser, same pattern as signed-work-orders.
     match /time-entry-photos/{jobId}/{fileName} {

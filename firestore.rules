@@ -80,6 +80,22 @@ service cloud.firestore {
       allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
     }
 
+    // Job profit planning. These hold per-technician pay rates, so they live in
+    // their own collections instead of on the jobs document (which Dispatcher can
+    // read). Dispatcher and technicians have no access.
+    match /job_cost_plans/{jobId} {
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
+    }
+    // Costs the office paid directly for a job (supplies, tolls, parking), with receipts.
+    match /job_expenses/{expenseId} {
+      allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
+    }
+    // Target margin, mileage rate, home base and overhead used by the profit views.
+    match /costing_settings/{settingId} {
+      allow read: if isAdmin() || hasStaffRole(['assistant_admin', 'office_billing']);
+      allow write: if isAdmin() || hasStaffRole(['assistant_admin']);
+    }
+
     // Installed customer equipment and its recurring maintenance schedule.
     match /customer_assets/{assetId} {
       allow read, write: if isAdmin() || hasStaffRole(['assistant_admin', 'dispatcher']);
