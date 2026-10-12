@@ -5,6 +5,7 @@ import { Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { auth, db, storage } from '../../lib/firebase';
 import { CrmBadge, CrmButton, CrmCard, CrmInput } from './ui';
 import { CostingSettingsForm } from './CostingSettingsForm';
+import { describeRoute, estimateRoundTrip } from './routeEstimate';
 import { actualToDate, estimate, planCost, pricing, projectedAtCompletion, type CostPlan, type CrewMember, type Verdict } from './job-profit';
 import { defaultPlanForJob, materialsRevenue, ratesForJob, resolveSettings, type ProfitCustomer, type ProfitJob } from './job-profit-inputs';
 
@@ -61,6 +62,7 @@ export function JobProfitPanel({
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [routeNote, setRouteNote] = useState<Record<number, string>>({});
   const update = (change: Partial<CostPlan>) => { setDraft((current) => ({ ...current, ...change })); setDirty(true); };
   const updateMember = (index: number, change: Partial<CrewMember>) => update({ crew: draft.crew.map((member, i) => (i === index ? { ...member, ...change } : member)) });
 
@@ -79,6 +81,17 @@ export function JobProfitPanel({
   const crewIds = new Set(draft.crew.map((member) => member.techId));
   const available = technicians.filter((tech) => !crewIds.has(tech.id) && (tech.accessStatus ? tech.accessStatus === 'Active' : tech.active !== false));
 
+  const estimateMiles = async (index: number) => {
+    const address = (job.address || '').trim();
+    setRouteNote((notes) => ({ ...notes, [index]: 'Looking up the distance…' }));
+    try {
+      const route = await estimateRoundTrip(address, settings.homeBaseAddress);
+      updateMember(index, { travelMode: 'miles', roundTripMiles: Math.round(route.roundTripMiles) });
+      setRouteNote((notes) => ({ ...notes, [index]: `${describeRoute(route, settings.homeBaseAddress)} Set to ${Math.round(route.roundTripMiles)} miles round trip a day. You can change it.` }));
+    } catch (error) {
+      setRouteNote((notes) => ({ ...notes, [index]: error instanceof Error ? error.message : 'The distance could not be looked up.' }));
+    }
+  };
   const savePlan = async () => {
     setBusy(true); setNotice('');
     try {
@@ -244,8 +257,9 @@ export function JobProfitPanel({
                     </label>
                     {member.travelMode === 'flat'
                       ? <label><span className={labelClass}>Flat travel ($)</span><input disabled={!canEdit} type="number" min="0" step="0.01" value={member.flatTravel ?? 0} onChange={(event) => updateMember(index, { flatTravel: Number(event.target.value || 0) })} className={inputClass} /></label>
-                      : <label><span className={labelClass}>Round-trip miles/day</span><input disabled={!canEdit} type="number" min="0" step="1" value={member.roundTripMiles ?? 0} onChange={(event) => updateMember(index, { roundTripMiles: Number(event.target.value || 0) })} className={inputClass} /></label>}
+                      : <label><span className={labelClass}>Round-trip miles/day</span><div className="flex gap-1"><input disabled={!canEdit} type="number" min="0" step="1" value={member.roundTripMiles ?? 0} onChange={(event) => updateMember(index, { roundTripMiles: Number(event.target.value || 0) })} className={inputClass} />{canEdit && job.address && job.address !== 'Address on file' && <button type="button" onClick={() => void estimateMiles(index)} className="h-9 shrink-0 rounded-lg border border-crm-hairline px-2 text-xs font-semibold text-crm-ink hover:bg-crm-surface-soft">Estimate</button>}</div></label>}
                   </div>
+                  {routeNote[index] && <p className="mt-1 text-[11px] text-crm-muted">{routeNote[index]}</p>}
                 </div>
               ))}
             </div>

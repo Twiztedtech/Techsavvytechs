@@ -5,6 +5,7 @@ import { auth, db } from '../../lib/firebase';
 import { saveJob } from '../jobs/saveJob';
 import { CrmBadge, CrmButton, CrmCard, CrmPageHeader } from './ui';
 import { CostingSettingsForm } from './CostingSettingsForm';
+import { describeRoute, estimateRoundTrip } from './routeEstimate';
 import { estimate, pricing, type Verdict } from './job-profit';
 import { estimatorPlan, ratesForJob, resolveSettings, type EstimatorInput } from './job-profit-inputs';
 
@@ -45,6 +46,7 @@ export function JobEstimator({ customers, settings: rawSettings, canCreate, canE
   const [others, setOthers] = useState<{ label: string; amount: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [routeNote, setRouteNote] = useState('');
   const set = (change: Partial<typeof form>) => setForm((current) => ({ ...current, ...change }));
 
   const customer = customers.find((item) => item.id === customerId);
@@ -75,6 +77,16 @@ export function JobEstimator({ customers, settings: rawSettings, canCreate, canE
     { label: 'Takes 25% longer', plan: estimatorPlan({ ...input, hoursPerDay: Math.round(input.hoursPerDay * 1.25 * 100) / 100 }) },
   ].map((item) => ({ label: item.label, result: estimate(item.plan, rates, costSettings, 0) })), [plan, rates.billRate, rates.nightRate, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const estimateMiles = async () => {
+    const destination = (address || customer?.address || '').trim();
+    if (!destination) { setRouteNote('Enter the site address above first.'); return; }
+    setRouteNote('Looking up the distance…');
+    try {
+      const route = await estimateRoundTrip(destination, settings.homeBaseAddress);
+      set({ travelMode: 'miles', milesPerDay: String(Math.round(route.roundTripMiles)) });
+      setRouteNote(`${describeRoute(route, settings.homeBaseAddress)} Set to ${Math.round(route.roundTripMiles)} miles round trip a day. You can change it.`);
+    } catch (error) { setRouteNote(error instanceof Error ? error.message : 'The distance could not be looked up.'); }
+  };
   const createJob = async () => {
     if (!customer) { setNotice('Choose a customer first.'); return; }
     if (!name.trim()) { setNotice('Give the job a name.'); return; }
@@ -133,11 +145,12 @@ export function JobEstimator({ customers, settings: rawSettings, canCreate, canE
                 </select>
               </label>
               {form.travelMode === 'miles'
-                ? <label><span className={labelClass}>Round-trip miles / day</span><input type="number" min="0" value={form.milesPerDay} onChange={(event) => set({ milesPerDay: event.target.value })} className={inputClass} /></label>
+                ? <label><span className={labelClass}>Round-trip miles / day</span><div className="flex gap-1"><input type="number" min="0" value={form.milesPerDay} onChange={(event) => set({ milesPerDay: event.target.value })} className={inputClass} /><button type="button" onClick={() => void estimateMiles()} className="h-9 shrink-0 rounded-lg border border-crm-hairline px-2 text-xs font-semibold text-crm-ink hover:bg-crm-surface-soft">Estimate</button></div></label>
                 : <label><span className={labelClass}>Flat travel each ($)</span><input type="number" min="0" step="0.01" value={form.flatTravel} onChange={(event) => set({ flatTravel: event.target.value })} className={inputClass} /></label>}
               <label><span className={labelClass}>Tolls each ($)</span><input type="number" min="0" step="0.01" value={form.tollsPerTech} onChange={(event) => set({ tollsPerTech: event.target.value })} className={inputClass} /></label>
               <label><span className={labelClass}>Contingency %</span><input type="number" min="0" placeholder={String(settings.contingencyPct)} value={form.contingencyPct} onChange={(event) => set({ contingencyPct: event.target.value })} className={inputClass} /></label>
             </div>
+            {routeNote && <p className="mt-2 text-[11px] text-crm-ink">{routeNote}</p>}
             {form.travelMode === 'miles' && <p className="mt-2 text-[11px] text-crm-muted">Mileage is paid at ${settings.mileageRate.toFixed(3).replace(/0$/, '')}/mile ({settings.mileageRateIsFederal ? 'federal rate' : 'your custom rate'}).</p>}
           </CrmCard>
 

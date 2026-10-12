@@ -10,6 +10,7 @@ import { businessDate, businessClock } from '../_lib/business-time.js';
 import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/deposit-policy.js';
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 import surveyHandler from '../_lib/survey-handler.js';
+import routeEstimateHandler from '../_lib/route-estimate-handler.js';
 import { writeAudit } from '../_lib/audit.js';
 import { isRecentSignIn, retentionEnd, scrubbedContractorFields, unassignedJobFields } from '../_lib/account-deletion.js';
 
@@ -393,6 +394,7 @@ export default async function handler(req, res) {
   if (req.query?.portalOperation === 'clientPortal') return clientPortalHandler(req, res);
   if (req.query?.portalOperation === 'adminClientPortal') return adminClientPortalHandler(req, res);
   if (req.query?.portalOperation === 'jobEvents') return jobEventsHandler(req, res);
+  if (req.query?.portalOperation === 'routeEstimate') return routeEstimateHandler(req, res);
   try {
     const user = await getUser(req);
     if (req.query?.portalOperation === 'onboarding') return await handleOnboarding(req, res, user);
