@@ -73,6 +73,9 @@ import { creditToApply, depositAmount, depositBlocksClockIn, isDepositInvoice, i
 import { jobsNeedingCloseout, jobsNeedingInvoice } from "../../api/_lib/job-alerts.js";
 import { requestDeposit } from "../features/billing/requestDeposit";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
+import { JobProfitPanel, type JobExpense } from "../features/crm/JobProfitPanel";
+import { profitHeadline, resolveSettings, type ProfitHeadline } from "../features/crm/job-profit-inputs";
+import type { CostPlan } from "../features/crm/job-profit";
 import { CrmThemeToggle } from "../features/crm/ui";
 import { useCrmTheme } from "../features/crm/theme";
 
@@ -476,6 +479,11 @@ export default function CRM() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [liveInvoices, setLiveInvoices] = useState<LiveInvoice[]>([]);
   const [billingTimeEntries, setBillingTimeEntries] = useState<BillingTimeEntry[]>([]);
+  // Job profit planning (Admin, Assistant Admin, Office/Billing only).
+  const [costPlans, setCostPlans] = useState<Record<string, CostPlan>>({});
+  const [jobExpenses, setJobExpenses] = useState<JobExpense[]>([]);
+  const [costingSettings, setCostingSettings] = useState<Record<string, unknown> | null>(null);
+  const [profitJob, setProfitJob] = useState<LiveJob | null>(null);
   const [assets, setAssets] = useState<CustomerAsset[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -502,6 +510,24 @@ export default function CRM() {
     (technician) =>
       technician.active !== false && (!technician.accessStatus || technician.accessStatus === "Active"),
   );
+  const canProfit = access === "admin" || access === "assistant_admin" || access === "office_billing";
+  const canEditProfit = access === "admin" || access === "assistant_admin";
+  const profitSettings = useMemo(() => resolveSettings(costingSettings as never), [costingSettings]);
+  // One headline margin per job for the Jobs list: the plan's projection when there is one,
+  // otherwise what has happened so far (including work not yet invoiced).
+  const profitByJob = useMemo(() => {
+    if (!canProfit) return {} as Record<string, ProfitHeadline>;
+    const settings = { mileageRate: profitSettings.mileageRate, overheadPerLaborHour: profitSettings.overheadPerLaborHour, contingencyPct: profitSettings.contingencyPct, targetMarginPct: profitSettings.targetMarginPct };
+    return Object.fromEntries(liveJobs.filter((job) => job.status !== "voided").map((job) => [job.id, profitHeadline({
+      job,
+      customer: customerFor(job, liveCustomers) as never,
+      plan: costPlans[job.id],
+      entries: billingTimeEntries.filter((entry) => entry.jobId === job.id) as never,
+      invoices: liveInvoices.filter((invoice) => invoice.jobId === job.id) as never,
+      expenses: jobExpenses.filter((expense) => expense.jobId === job.id) as never,
+      settings,
+    })]));
+  }, [canProfit, liveJobs, liveCustomers, costPlans, billingTimeEntries, liveInvoices, jobExpenses, profitSettings]);
   const currentLabel = modules.find((item) => item.id === module)?.label;
   const unlinkedJobs = liveJobs.filter((job) => !customerFor(job, liveCustomers));
   useEffect(
@@ -590,6 +616,15 @@ export default function CRM() {
       ));
       stops.push(onSnapshot(collection(db, "reminder_deliveries"), (snapshot) =>
         setReminderDeliveries(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ReminderDelivery)),
+      ));
+      stops.push(onSnapshot(collection(db, "job_cost_plans"), (snapshot) =>
+        setCostPlans(Object.fromEntries(snapshot.docs.map((item) => [item.id, item.data() as CostPlan]))),
+      ));
+      stops.push(onSnapshot(collection(db, "job_expenses"), (snapshot) =>
+        setJobExpenses(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as JobExpense)),
+      ));
+      stops.push(onSnapshot(doc(db, "costing_settings", "default"), (snapshot) =>
+        setCostingSettings(snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null),
       ));
     }
     if (can(["assistant_admin", "dispatcher"])) {
@@ -919,6 +954,8 @@ export default function CRM() {
                 jobs={liveJobs.filter((job) => [job.name, job.vendorName, job.address, job.workOrderNumber, job.assignedTechName].join(' ').toLowerCase().includes(query.toLowerCase()))}
                 onOpen={setSelectedJob}
                 onSchedule={setScheduleJob}
+                profit={canProfit ? profitByJob : undefined}
+                onProfit={canProfit ? setProfitJob : undefined}
               />
             ) : module === "catalog" ? (
               <CatalogView items={catalogItems} jobs={liveJobs} onOpenJob={setSelectedJob} />
@@ -1002,6 +1039,27 @@ export default function CRM() {
           canBill={access === "admin" || access === "assistant_admin" || access === "office_billing"}
           canWaive={access === "admin" || access === "assistant_admin"}
           canLogHours={access === "admin" || access === "assistant_admin"}
+          onOpenProfit={canProfit ? () => setProfitJob(selectedJob) : undefined}
+        />
+      )}
+      {profitJob && canProfit && (
+        <JobProfitPanel
+          job={liveJobs.find((job) => job.id === profitJob.id) || profitJob}
+          customer={customerFor(profitJob, liveCustomers) as never}
+          technicians={technicians}
+          entries={billingTimeEntries.filter((entry) => entry.jobId === profitJob.id) as never}
+          invoices={liveInvoices.filter((invoice) => invoice.jobId === profitJob.id) as never}
+          plan={costPlans[profitJob.id] || null}
+          expenses={jobExpenses}
+          settings={costingSettings}
+          canEdit={canEditProfit}
+          canSeeActuals={canEditProfit}
+          onAssignTechs={canEditProfit ? async (techIds) => {
+            const current = liveJobs.find((job) => job.id === profitJob.id) || profitJob;
+            await saveJob({ id: current.id, name: current.name || "", assignedTechIds: techIds }, current as unknown as Record<string, unknown>);
+            await recordAudit("updated", "job", current.id, `Assigned ${techIds.length} technician${techIds.length === 1 ? "" : "s"} from the profit plan`, { assignedTechIds: techIds });
+          } : undefined}
+          onClose={() => setProfitJob(null)}
         />
       )}
       {previewJob && (
@@ -4104,10 +4162,15 @@ function LiveJobsView({
   jobs,
   onOpen,
   onSchedule,
+  profit,
+  onProfit,
 }: {
   jobs: LiveJob[];
   onOpen: (job: LiveJob) => void;
   onSchedule: (job: LiveJob) => void;
+  // Present only for roles allowed to see money (Admin, Assistant Admin, Office/Billing).
+  profit?: Record<string, ProfitHeadline>;
+  onProfit?: (job: LiveJob) => void;
 }) {
   return (
     <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
@@ -4132,6 +4195,7 @@ function LiveJobsView({
                   "Technician",
                   "Schedule",
                   "Quoted",
+                  ...(profit ? ["Margin"] : []),
                   "Actions",
                 ].map((h) => (
                   <th key={h} className="px-4 py-3">
@@ -4184,6 +4248,22 @@ function LiveJobsView({
                   <td className="px-4 py-3 text-[10px] font-semibold">
                     ${(job.quotedValue || 0).toLocaleString()}
                   </td>
+                  {profit && (() => {
+                    const headline = profit[job.id];
+                    const tone = headline?.verdict === "good" ? "text-crm-success" : headline?.verdict === "thin" ? "text-crm-warning" : headline?.verdict === "losing" ? "text-crm-error" : "text-crm-muted";
+                    return (
+                      <td className="px-4 py-3 text-[10px]">
+                        {headline && headline.basis !== "none" ? (
+                          <button type="button" onClick={() => onProfit?.(job)} className={`font-bold ${tone}`} title={`${headline.basis === "estimate" ? "Estimated" : headline.basis === "projected" ? "Projected" : "Actual"} profit $${headline.profit.toLocaleString()}`}>
+                            {headline.marginPct === null ? "—" : `${headline.marginPct.toFixed(0)}%`}
+                            <span className="block text-[8px] font-medium text-crm-muted">{headline.basis}</span>
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => onProfit?.(job)} className="text-crm-muted underline">Plan</button>
+                        )}
+                      </td>
+                    );
+                  })()}
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
@@ -4434,7 +4514,9 @@ function JobDetailModal({
   canBill,
   canWaive,
   canLogHours,
+  onOpenProfit,
 }: {
+  onOpenProfit?: () => void;
   job: LiveJob;
   customers: LiveCustomer[];
   technicians: Technician[];
@@ -4654,6 +4736,11 @@ function JobDetailModal({
               {job.workOrderNumber || job.id}
             </p>
             <h2 className="mt-1 crm-display-sm">Job details</h2>
+            {onOpenProfit && job.status !== "voided" && (
+              <button type="button" onClick={onOpenProfit} className="mr-3 mt-1 text-[10px] font-bold text-crm-ink underline">
+                Profit and costs
+              </button>
+            )}
             {job.status !== "voided" && (
               <button type="button" onClick={() => onPreview(job)} className="mt-1 text-[10px] font-bold text-crm-ink underline">
                 Preview technician view
