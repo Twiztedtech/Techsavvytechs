@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3001
+    },
+    {
+      "name": "techsavvy-dev-proxy",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:proxy"],
+      "port": 3001
     }
   ]
 }

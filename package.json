@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3001 --host=127.0.0.1",
+    "dev:proxy": "vite --port=3001 --host=127.0.0.1 --mode apiproxy",
     "build": "vite build",
     "preview": "vite preview",
     "cf:dev": "wrangler dev",

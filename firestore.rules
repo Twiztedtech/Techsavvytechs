@@ -37,6 +37,17 @@ service cloud.firestore {
     match /webhook_events/{document=**} { allow read, write: if false; }
     match /sms_preferences/{document=**} { allow read, write: if false; }
 
+    // Community forum and skills wiki. Everything goes through the authenticated
+    // community handler, which checks who may read, post, moderate and publish.
+    match /community_categories/{document=**} { allow read, write: if false; }
+    match /community_threads/{document=**} { allow read, write: if false; }
+    match /community_replies/{document=**} { allow read, write: if false; }
+    match /community_reports/{document=**} { allow read, write: if false; }
+    match /wiki_pages/{document=**} { allow read, write: if false; }
+    match /wiki_revisions/{document=**} { allow read, write: if false; }
+    match /wiki_suggestions/{document=**} { allow read, write: if false; }
+    match /training_progress/{document=**} { allow read, write: if false; }
+
     // Site surveys are accessed only through authenticated server endpoints so
     // assignment checks, workflow transitions, and customer-safe projections
     // cannot be bypassed by a browser client.

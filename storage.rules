@@ -47,6 +47,28 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // Forum photos. A signed-in technician or staff member uploads only into their own
+    // folder; the community handler checks each file before attaching it to a post.
+    match /community/uploads/{uid}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isContractor() || request.auth.token.staffRole in ['assistant_admin', 'dispatcher']);
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && (isAdmin() || isContractor() || request.auth.token.staffRole in ['assistant_admin', 'dispatcher'])
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Wiki images, added by whoever writes the lesson (Admin, Assistant Admin, Technician Lead).
+    match /wiki-media/{slug}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || request.auth.token.staffRole == 'assistant_admin' || (isContractor() && request.auth.token.technicianLead == true))
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // Job receipts. The office uploads under /office; a technician uploads only
     // under their own /tech/{uid} folder (the server verifies their assignment
     // before saving the receipt on a timecard) and can read only their own.
