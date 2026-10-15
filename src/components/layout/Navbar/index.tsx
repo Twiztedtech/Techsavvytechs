@@ -76,6 +76,7 @@ export const Navbar = () => {
 
           <Link to="/contact" className="hover:text-tech-green transition-colors py-2">Contact</Link>
           <Link to="/blog" className="hover:text-tech-green transition-colors py-2">Blog</Link>
+          <a href="https://shop.techsavvytechs.com" className="hover:text-tech-green transition-colors py-2">Store</a>
 
           <Link to="/client" className="rounded-sm border border-tech-green/50 px-3 py-2 font-bold text-tech-green transition-colors hover:bg-tech-green hover:text-brand-black">
             Client Login
@@ -122,6 +123,7 @@ export const Navbar = () => {
             <Link to="/crm" onClick={closeMobileMenu} className="rounded-sm border border-safety-orange/50 px-4 py-3 text-safety-orange hover:bg-safety-orange hover:text-brand-black">CRM Login</Link>
             <Link to="/contact" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contact</Link>
             <Link to="/blog" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Blog</Link>
+            <a href="https://shop.techsavvytechs.com" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Store</a>
             <Link to="/book-a-job" onClick={closeMobileMenu} className="mt-3 bg-safety-orange px-4 py-3 text-center text-brand-black hover:bg-orange-400">Book a Job</Link>
           </div>
         </div>
