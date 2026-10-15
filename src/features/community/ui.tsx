@@ -3,6 +3,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { Camera, Loader2, Search, X } from 'lucide-react';
 import { auth } from '../../lib/firebase';
+import { isNativeApp } from '../../lib/native';
 import { uploadCommunityPhoto, type Photo } from './api';
 
 // Shared pieces for the community and training pages (technician portal look: dark slate + amber).
@@ -50,7 +51,7 @@ export function CommunityShell({ children, signedIn, searchTo, searchValue }: { 
           </div>
         </div>
         <nav className="mx-auto flex max-w-5xl gap-6 px-4 pt-3" aria-label="Community sections">
-          {signedIn && <NavLink to="/community" className={tab}>Community</NavLink>}
+          {signedIn && !isNativeApp && <NavLink to="/community" className={tab}>Community</NavLink>}
           <NavLink to="/learn" className={tab}>Training</NavLink>
         </nav>
       </header>

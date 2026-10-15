@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { BookOpen, CheckCircle2, Clock, Globe, Lock, Pencil, Plus, RotateCcw } from 'lucide-react';
+import { isNativeApp } from '../lib/native';
 import { applySeoMetadata } from '../components/Seo';
 import { Markdown } from '../features/community/MarkdownView';
 import { SuggestionReview } from '../features/community/SuggestionReview';
@@ -184,7 +185,7 @@ function Lesson({ slug, tracks, onChanged }: { slug: string; tracks: string[]; o
           )}
           <div className="ml-auto flex gap-2">
             {canEdit && <button onClick={() => setEditing(true)} className={ghostButton}><Pencil size={13} />Edit lesson{data.pendingSuggestions ? ` · ${data.pendingSuggestions} suggestion${data.pendingSuggestions === 1 ? '' : 's'}` : ''}</button>}
-            {!canEdit && !suggesting && <button onClick={() => { setProposal(page.body); setSuggesting(true); setSent(false); }} className={ghostButton}>Suggest an edit</button>}
+            {!canEdit && !suggesting && !isNativeApp && <button onClick={() => { setProposal(page.body); setSuggesting(true); setSent(false); }} className={ghostButton}>Suggest an edit</button>}
           </div>
         </div>
       )}
