@@ -704,6 +704,36 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
     }
+    // A technician can take back their own submission by mistake (wrong job, wrong day) until the
+    // office starts approving it. It is recorded as a voided entry, never deleted.
+    if (action === 'withdraw_timecard') {
+      if (user.contractor !== true || user.admin === true) return res.status(403).json({ error: 'Technician access required.' });
+      const docRef = adminDb.collection('time_entries').doc(String(req.body?.timecardId || ''));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Time entry not found.' });
+      const entry = snapshot.data();
+      if (entry.technicianUid !== user.uid) return res.status(403).json({ error: 'You can only withdraw your own submissions.' });
+      if (entry.active) return res.status(409).json({ error: 'Stop the active shift before withdrawing it.' });
+      if (entry.status === 'voided') return res.status(409).json({ error: 'This submission is already withdrawn.' });
+      if (entry.qbStatus === 'synced') return res.status(409).json({ error: 'This entry is already in QuickBooks. Ask the office to correct it.' });
+      const started = ['laborStatus', 'suppliesStatus', 'travelStatus', 'bonusStatus'].some((field) => entry[field] === 'approved') || entry.status === 'approved';
+      if (started || entry.status !== 'pending') return res.status(409).json({ error: 'The office has already started reviewing this entry. Ask them to void it.' });
+      if (entry.completionIntent === 'final') return res.status(409).json({ error: 'This entry marked the job complete. Ask the office to void it so the job status can be reset.' });
+      if (entry.voidStatus === 'requested') return res.status(409).json({ error: 'A void is already requested for this entry.' });
+      const now = new Date().toISOString();
+      const update = { status: 'voided', voidStatus: 'voided', voidedAt: now, voidedByUid: user.uid, voidedByRole: 'technician', voidReason: 'Withdrawn by the technician before review', withdrawnByTechnician: true, updatedAt: now };
+      await docRef.set(update, { merge: true });
+      await refreshJobBillingReadiness(entry.jobId);
+      const contractor = await contractorProfileFor(user).catch(() => null);
+      await sendPortalNotice({
+        to: process.env.SUPPORT_EMAIL,
+        subject: `Time entry withdrawn: ${entry.jobSite || 'time submission'}`,
+        heading: 'Technician withdrew a time entry',
+        message: `${contractor?.data()?.name || 'A technician'} withdrew a pending submission before review. It is kept in voided history.`,
+        details: [['Job', entry.jobSite || 'Unknown'], ['Service date', entry.date || 'Unknown'], ['Hours', String(entry.totalHours || '')]],
+      }).catch((error) => console.error('Withdraw notice failed:', error));
+      return res.status(200).json({ success: true, entry: { id: snapshot.id, ...entry, ...update } });
+    }
     if (action === 'void_timecard') {
       if (!isAdminTier(user) && user.technicianLead !== true) return res.status(403).json({ error: 'Administrator access required.' });
       const reason = cleanReason(req.body?.reason);

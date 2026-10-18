@@ -442,6 +442,31 @@ export default function ContractorDashboard() {
     setSavedTechnicianSignature(data.technicianSignature || signatureDataUrl);
   };
 
+  // Mirrors the server rule: only your own, still-pending, not-yet-reviewed entry.
+  const canWithdraw = (entry) => entry.status === 'pending' && !entry.active && !entry.voidStatus && entry.qbStatus !== 'synced' && entry.completionIntent !== 'final'
+    && !['laborStatus', 'suppliesStatus', 'travelStatus', 'bonusStatus'].some((field) => entry[field] === 'approved');
+
+  const withdrawEntry = async (entry) => {
+    if (!window.confirm(`Withdraw this entry?
+
+${entry.jobSite} on ${entry.date}, ${entry.totalHours} hrs
+
+It will be removed from review and kept in your voided history. Then you can log it again on the right job.`)) return;
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/portal/time-clock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'withdraw_timecard', timecardId: entry.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not withdraw the entry.');
+      if (data.entry) setTimeEntries((current) => current.map((item) => item.id === data.entry.id ? data.entry : item));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not withdraw the entry.');
+    }
+  };
+
   const submitVoidAction = async () => {
     if (!voidTarget || !voidReason.trim()) return;
     setIsVoiding(true);
@@ -577,6 +602,20 @@ export default function ContractorDashboard() {
       alert('Explain why the customer signature was not needed or available.');
       return;
     }
+
+    // Last look before it goes to the office: wrong-job entries are the most common mistake.
+    const confirmLines = [
+      'Submit this time entry?',
+      '',
+      `Job: ${finalJobName}${finalAddress ? ` (${finalAddress})` : ''}`,
+      `Date: ${logDate}`,
+      `Time: ${clockIn} to ${clockOut}${Number(breakMinutes) ? `, ${breakMinutes} min break` : ''}`,
+      `Hours: ${calculatedHours}`,
+      ...(completionIntent === 'final' ? ['', 'This marks the job COMPLETE.'] : []),
+      '',
+      'Is this the right job? Tap Cancel to go back and change it.',
+    ];
+    if (!window.confirm(confirmLines.join('\n'))) return;
 
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -1769,6 +1808,9 @@ export default function ContractorDashboard() {
                             {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && (
                               <button type="button" onClick={() => setVoidTarget({ id: entry.id, label: `${entry.jobSite} · ${entry.date}` })} className="text-rose-400 hover:underline font-bold">Request void</button>
                             )}
+                            {canWithdraw(entry) && (
+                              <button type="button" onClick={() => withdrawEntry(entry)} className="text-rose-400 hover:underline font-bold">Withdraw</button>
+                            )}
                             {entry.voidStatus === 'requested' && <span className="font-bold text-violet-400">Void requested</span>}
                             <button type="button" onClick={() => setActiveInvoice(entry)} className="text-amber-400 hover:underline font-bold flex items-center gap-1">Review time entry</button>
                           </div>
@@ -1880,6 +1922,7 @@ export default function ContractorDashboard() {
                               </td>
                               <td className="p-3 text-right">
                                 {entry.status === 'rejected' && !entry.voidStatus && entry.qbStatus !== 'synced' && <button type="button" onClick={() => setVoidTarget({ id: entry.id, label: `${entry.jobSite} · ${entry.date}` })} className="mr-2 px-2.5 py-1 text-rose-400 font-bold hover:underline text-[11px]">Request void</button>}
+                                {canWithdraw(entry) && <button type="button" onClick={() => withdrawEntry(entry)} className="mr-2 px-2.5 py-1 text-rose-400 font-bold hover:underline text-[11px]">Withdraw</button>}
                                 {entry.voidStatus === 'requested' && <span className="mr-2 text-[10px] font-bold text-violet-400">Awaiting admin</span>}
                                 <button
                                   type="button"
