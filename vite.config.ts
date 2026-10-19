@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== "true",
       // Only with `npm run dev:proxy`: forwards /api calls to the live site so features that need the
       // server can be tried locally. It talks to the real Firebase project, so use disposable accounts.
-      ...(mode === "apiproxy" ? { proxy: { "/api": { target: "https://techsavvytechs.com", changeOrigin: true, secure: true } } } : {}),
+      ...(mode === "apiproxy" ? { proxy: { "/api": { target: "https://techsavvytechs.com", changeOrigin: true, secure: true, bypass: (req) => (req.url?.startsWith("/api/_lib/") ? req.url : undefined) } } } : {}),
     },
   };
 });

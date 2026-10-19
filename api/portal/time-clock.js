@@ -452,6 +452,7 @@ export default async function handler(req, res) {
         // managed elsewhere; skills/tools/certifications are the one part of
         // this a technician can edit themselves, via update_self_profile.
         selfProfile: contractor ? {
+          id: contractor.id,
           name: contractor.data().name || '',
           email: contractor.data().email || '',
           specialty: contractor.data().specialty || '',

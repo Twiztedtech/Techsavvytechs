@@ -3,6 +3,8 @@
 // staff-facing (sent to the office, not the customer) -- a different concern
 // from the customer-facing reminders in api/contact.js.
 
+import { lastDay } from "./schedule-days.js";
+
 // Any status here means the job is past the point where "needs closeout"
 // still applies -- it's either already wrapped up, or deliberately not
 // trackable this way (voided/cancelled).
@@ -33,11 +35,13 @@ export function jobsNeedingCloseout(jobs, { today = new Date(), graceDays = 2 } 
     .map((job) => {
       const status = String(job.status || "New").toLowerCase();
       if (CLOSEOUT_DONE_STATUSES.has(status)) return null;
-      const scheduled = toDateOnly(job.schedule?.date || job.targetCompletion);
+      // A multi-day job is only overdue after its LAST scheduled day.
+      const dueDate = lastDay(job) || job.schedule?.date || job.targetCompletion;
+      const scheduled = toDateOnly(dueDate);
       if (!scheduled) return null;
       const daysOverdue = daysBetween(scheduled, cutoff);
       if (daysOverdue < graceDays) return null;
-      return { job, daysOverdue, scheduledDate: job.schedule?.date || job.targetCompletion };
+      return { job, daysOverdue, scheduledDate: dueDate };
     })
     .filter(Boolean)
     .sort((a, b) => b.daysOverdue - a.daysOverdue);

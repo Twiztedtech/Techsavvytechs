@@ -9,6 +9,8 @@ const NOT_UPCOMING_STATUSES = new Set([
   'voided', 'cancelled', 'canceled', 'closed', 'draft', 'on hold',
 ]);
 
+import { dayPosition, jobOnDay, scheduleDays, techOnDay } from './schedule-days.js';
+
 const escapeHtml = (value) =>
   String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
@@ -39,13 +41,16 @@ export function jobsNeedingTechReminder(jobs, { tomorrow }) {
     .map((job) => {
       if (job.isDemo) return null;
       if (NOT_UPCOMING_STATUSES.has(String(job.status || '').toLowerCase())) return null;
-      const serviceDate = job.schedule?.date || job.targetCompletion;
-      if (serviceDate !== tomorrow) return null;
+      // A multi-day job reminds on each scheduled day; a job with only a target date keeps the old rule.
+      const scheduled = scheduleDays(job).length ? jobOnDay(job, tomorrow) : job.targetCompletion === tomorrow;
+      if (!scheduled) return null;
+      const serviceDate = tomorrow;
       const assigned = Array.isArray(job.assignedTechIds) && job.assignedTechIds.length
         ? job.assignedTechIds
         : job.assignedTechId ? [job.assignedTechId] : [];
       if (assigned.includes('ALL')) return null;
-      const techIds = [...new Set(assigned.filter(Boolean))];
+      // A technician who is off tomorrow (their own days exclude it) gets no reminder.
+      const techIds = [...new Set(assigned.filter(Boolean))].filter((id) => !scheduleDays(job).length || techOnDay(job, id, tomorrow));
       if (!techIds.length) return null;
       return { job, techIds, serviceDate };
     })
@@ -58,6 +63,8 @@ export function buildTechReminder({ job, technician, serviceDate, appUrl = 'http
   const site = job.name || 'the job site';
   const address = job.address && job.address !== 'Address on file' ? job.address : '';
   const dateLabel = formatServiceDate(serviceDate);
+  const position = dayPosition(job, serviceDate);
+  const dayNote = position ? ` (day ${position.number} of ${position.count})` : '';
   const start = formatClock(job.schedule?.start);
   const end = formatClock(job.schedule?.end);
   const timeLabel = start && end ? `${start} to ${end}` : start || 'time to be confirmed';
@@ -71,7 +78,7 @@ export function buildTechReminder({ job, technician, serviceDate, appUrl = 'http
     '',
     `${site} (${workOrder})`,
     ...(customer ? [`Customer: ${customer}`] : []),
-    `When: ${dateLabel}, ${timeLabel}`,
+    `When: ${dateLabel}${dayNote}, ${timeLabel}`,
     ...(address ? [`Where: ${address}`, `Directions: ${mapsUrl}`] : []),
     '',
     'Open the portal for the scope, equipment and site instructions. Clock in when you arrive and log your hours before you leave.',
@@ -84,7 +91,7 @@ export function buildTechReminder({ job, technician, serviceDate, appUrl = 'http
   const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.55">`
     + `<div style="background:#0b0f0c;padding:20px;color:#fff"><strong style="color:#8DC63F;font-size:20px">TECHSAVVY</strong><div style="font-size:11px;letter-spacing:2px;color:#a7b0a9">JOB TOMORROW</div></div>`
     + `<div style="padding:24px;border:1px solid #e2e8f0"><p>Hi ${escapeHtml(firstName)}, you are scheduled for tomorrow.</p>`
-    + `<div style="background:#f8fafc;padding:15px;border-radius:6px;border:1px solid #e2e8f0">${row('Job', `${site} (${workOrder})`)}${customer ? row('Customer', customer) : ''}${row('When', `${dateLabel}, ${timeLabel}`)}${address ? row('Where', address) : ''}</div>`
+    + `<div style="background:#f8fafc;padding:15px;border-radius:6px;border:1px solid #e2e8f0">${row('Job', `${site} (${workOrder})`)}${customer ? row('Customer', customer) : ''}${row('When', `${dateLabel}${dayNote}, ${timeLabel}`)}${address ? row('Where', address) : ''}</div>`
     + `${mapsUrl ? `<p><a href="${escapeHtml(mapsUrl)}">Get directions</a></p>` : ''}`
     + `<p>Open the portal for the scope, equipment and site instructions. Clock in when you arrive and log your hours before you leave.</p>`
     + `<p><a href="${escapeHtml(portalUrl)}" style="display:inline-block;background:#8DC63F;color:#071009;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">Open the portal</a></p>`

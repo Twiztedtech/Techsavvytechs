@@ -1,4 +1,4 @@
-import { DragEvent, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
+import { DragEvent, Fragment, FormEvent, lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { clearSurveyCache } from "../features/surveys/api";
 import {
   Activity,
@@ -74,6 +74,7 @@ import { CrmJobMessagesPanel } from "../features/crm/JobMessagesPanel";
 import { buildImportPlan, detectColumns, parseCsv, type ColumnMap, type ImportField, type ParsedCsv } from "../features/catalog/importPriceList";
 import { creditToApply, depositAmount, depositBlocksClockIn, isDepositInvoice, isDepositPaid } from "../../api/_lib/deposit-policy.js";
 import { jobsNeedingCloseout, jobsNeedingInvoice } from "../../api/_lib/job-alerts.js";
+import { describeDays, expandRange, isMultiDay, jobOnDay, normalizeSchedule, scheduleDays, techDaysFor, techOnDay } from "../../api/_lib/schedule-days.js";
 import { requestDeposit } from "../features/billing/requestDeposit";
 import { getEntryTotals } from "../features/contractor/timesheets/calculations";
 import { JobProfitPanel, type JobExpense } from "../features/crm/JobProfitPanel";
@@ -313,7 +314,7 @@ export type LiveJob = {
   actualHours?: number;
   equipment?: { description: string; quantity?: string; unitPrice?: number; providedBy?: string; fulfillmentSource?: string; notes?: string }[];
   scopeTasks?: string[];
-  schedule?: { date?: string; start?: string; end?: string };
+  schedule?: { date?: string; start?: string; end?: string; days?: string[]; techDays?: Record<string, string[]> };
   workOrderTemplate?: string;
   travelRate?: number;
   technicianLeadId?: string;
@@ -3547,16 +3548,20 @@ export function TechWorkloadSummary({ jobs, technicians }: { jobs: LiveJob[]; te
     .filter((t) => t.accessStatus !== "Offboarded")
     .map((tech) => {
       const mine = active.filter((job) => job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id);
-      const scheduled = mine.filter((job) => job.schedule?.date);
-      const todayJobs = scheduled.filter((job) => job.schedule?.date === today);
-      const weekJobs = scheduled.filter((job) => job.schedule!.date! >= weekStart && job.schedule!.date! <= weekEnd);
-      const weekHours = weekJobs.reduce((sum, job) => sum + hoursOf(job), 0);
+      // A job counts on every day this technician is on it (multi-day jobs and per-technician days).
+      const myDays = (job: LiveJob) => techDaysFor(job, tech.id) as string[];
+      const scheduled = mine.filter((job) => myDays(job).length > 0);
+      const todayJobs = scheduled.filter((job) => myDays(job).includes(today));
+      const inWeek = (job: LiveJob) => myDays(job).filter((day) => day >= weekStart && day <= weekEnd);
+      const weekJobs = scheduled.filter((job) => inWeek(job).length > 0);
+      const weekHours = weekJobs.reduce((sum, job) => sum + hoursOf(job) * inWeek(job).length, 0);
+      const nextDayOf = (job: LiveJob) => myDays(job).find((day) => day >= today) || "";
       const next = scheduled
-        .filter((job) => `${job.schedule!.date} ${job.schedule!.start || ""}` >= `${today} 00:00`)
-        .sort((a, b) => `${a.schedule!.date} ${a.schedule!.start || ""}`.localeCompare(`${b.schedule!.date} ${b.schedule!.start || ""}`))[0];
+        .filter((job) => nextDayOf(job))
+        .sort((a, b) => `${nextDayOf(a)} ${a.schedule?.start || ""}`.localeCompare(`${nextDayOf(b)} ${b.schedule?.start || ""}`))[0];
       const clashes = weekJobs.filter((job) =>
         weekJobs.some((other) => {
-          if (other.id === job.id || other.schedule?.date !== job.schedule?.date) return false;
+          if (other.id === job.id || !inWeek(job).some((day) => inWeek(other).includes(day))) return false;
           const a0 = toMinutes(job.schedule?.start), a1 = toMinutes(job.schedule?.end);
           const b0 = toMinutes(other.schedule?.start), b1 = toMinutes(other.schedule?.end);
           return a0 !== null && a1 !== null && b0 !== null && b1 !== null && a0 < b1 && b0 < a1;
@@ -3734,11 +3739,13 @@ export function LiveScheduleBoard({
   const span = (endHour - startHour) * 60;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const today = localDate();
+  // The next scheduled day on or after today (a multi-day job is "upcoming" until its last day).
+  const nextDayOf = (job: LiveJob): string => (scheduleDays(job) as string[]).find((day) => day >= today) || "";
   const upcoming = jobs
-    .filter((job) => job.schedule?.date && job.schedule.date >= today && !isClosedJob(job))
+    .filter((job) => scheduleDays(job).some((day: string) => day >= today) && !isClosedJob(job))
     .sort((a, b) =>
-      `${a.schedule?.date} ${a.schedule?.start || ""}`.localeCompare(
-        `${b.schedule?.date} ${b.schedule?.start || ""}`,
+      `${nextDayOf(a)} ${a.schedule?.start || ""}`.localeCompare(
+        `${nextDayOf(b)} ${b.schedule?.start || ""}`,
       ),
     );
   // If nothing is on today's board, jump to the next day that has work so
@@ -3747,10 +3754,10 @@ export function LiveScheduleBoard({
   useEffect(() => {
     if (autoJumped || !upcoming.length) return;
     setAutoJumped(true);
-    if (!upcoming.some((job) => job.schedule?.date === date))
-      setDate(upcoming[0].schedule!.date!);
+    if (!upcoming.some((job) => jobOnDay(job, date)))
+      setDate(nextDayOf(upcoming[0]));
   }, [autoJumped, upcoming, date]);
-  const scheduled = jobs.filter((job) => job.schedule?.date === date);
+  const scheduled = jobs.filter((job) => jobOnDay(job, date));
   const rows: Technician[] = [
     ...technicians.filter((t) => t.accessStatus !== "Offboarded"),
     { id: "ALL", name: "All technicians / unassigned" },
@@ -3763,7 +3770,7 @@ export function LiveScheduleBoard({
     scheduled.filter((job) =>
       tech.id === "ALL"
         ? needsDispatch(job) || job.assignedTechIds?.includes("ALL")
-        : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
+        : (job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id) && techOnDay(job, tech.id, date),
     );
 
   const overlaps = (job: LiveJob, others: LiveJob[]) => {
@@ -3813,6 +3820,11 @@ export function LiveScheduleBoard({
     const isAll = tech.id === "ALL";
     const techName = tech.name || tech.companyName || "Technician";
     setBoardNotice("");
+    // Dragging would collapse a multi-day job (and its per-technician days) to a single day.
+    if (isMultiDay(job)) {
+      setBoardNotice(`${job.workOrderNumber || job.name || "This job"} runs ${scheduleDays(job).length} days. Click it to change its days or technicians.`);
+      return;
+    }
     if (demo) {
       demo.updateJob(job.id, {
         ...(isAll ? {} : { assignedTechId: tech.id, assignedTechIds: [tech.id], assignedTechName: techName }),
@@ -3935,10 +3947,10 @@ export function LiveScheduleBoard({
           {upcoming.map((job) => (
             <button
               key={job.id}
-              onClick={() => setDate(job.schedule!.date!)}
-              className={`shrink-0 rounded border px-2 py-1 text-left text-[9px] ${job.schedule?.date === date ? "border-crm-ink" : "border-crm-hairline"}`}
+              onClick={() => setDate(nextDayOf(job))}
+              className={`shrink-0 rounded border px-2 py-1 text-left text-[9px] ${jobOnDay(job, date) ? "border-crm-ink" : "border-crm-hairline"}`}
             >
-              <span className="font-mono">{job.workOrderNumber || job.id}</span> · {job.name || job.vendorName} · {job.schedule?.date} {job.schedule?.start}
+              <span className="font-mono">{job.workOrderNumber || job.id}</span> · {job.name || job.vendorName} · {isMultiDay(job) ? describeDays(scheduleDays(job)) : job.schedule?.date} {job.schedule?.start}
             </button>
           ))}
         </div>
@@ -3956,7 +3968,7 @@ export function LiveScheduleBoard({
                 Technician
               </div>
               {weekDays.map((day) => {
-                const count = jobs.filter((job) => job.schedule?.date === day).length;
+                const count = jobs.filter((job) => jobOnDay(job, day)).length;
                 return (
                   <button
                     key={day}
@@ -3993,11 +4005,11 @@ export function LiveScheduleBoard({
                 </div>
                 {weekDays.map((day) => {
                   const cellJobs = jobs
-                    .filter((job) => job.schedule?.date === day)
+                    .filter((job) => jobOnDay(job, day))
                     .filter((job) =>
                       tech.id === "ALL"
                         ? needsDispatch(job) || job.assignedTechIds?.includes("ALL")
-                        : job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id,
+                        : (job.assignedTechIds?.includes(tech.id) || job.assignedTechId === tech.id) && techOnDay(job, tech.id, day),
                     )
                     .sort((a, b) => (a.schedule?.start || "").localeCompare(b.schedule?.start || ""));
                   const key = `${tech.id}|${day}`;
@@ -4025,7 +4037,7 @@ export function LiveScheduleBoard({
                               e.dataTransfer.effectAllowed = "move";
                             }}
                             onClick={() => onSchedule(job)}
-                            title={clash ? "Overlaps another job for this technician" : "Drag to another day or technician"}
+                            title={clash ? "Overlaps another job for this technician" : isMultiDay(job) ? "Multi-day job: click to change its days" : "Drag to another day or technician"}
                             className={`block w-full cursor-grab overflow-hidden rounded border px-1.5 py-1 text-left text-[9px] active:cursor-grabbing ${
                               clash
                                 ? "border-crm-warning bg-crm-warning-soft-bg text-crm-warning"
@@ -4257,7 +4269,7 @@ function LiveJobsView({
                   <td className="px-4 py-3 text-[9px]">
                     {job.schedule?.date ? (
                       <>
-                        {job.schedule.date}
+                        {isMultiDay(job) ? describeDays(scheduleDays(job)) : job.schedule.date}
                         <br />
                         {job.schedule.start}–{job.schedule.end}
                       </>
@@ -6576,6 +6588,25 @@ export function ScheduleModal({
   const [date, setDate] = useState(job.schedule?.date || job.targetCompletion || "");
   const [start, setStart] = useState(job.schedule?.start || "08:00");
   const [end, setEnd] = useState(job.schedule?.end || "12:00");
+  // Multi-day scheduling: first day + last day, weekends opt-in, single days can be switched off,
+  // and each technician can be off on some of the days (everyone works every day by default).
+  const existingDays = scheduleDays(job) as string[];
+  const isWeekend = (day: string) => [0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay());
+  const [endDate, setEndDate] = useState(existingDays.length > 1 ? existingDays[existingDays.length - 1] : "");
+  const [weekends, setWeekends] = useState(existingDays.some(isWeekend));
+  const rangeDays: string[] = useMemo(() => (date ? (expandRange(date, endDate || date, { weekends }) as string[]) : []), [date, endDate, weekends]);
+  const [offDays, setOffDays] = useState<string[]>(() => {
+    if (existingDays.length < 2) return [];
+    return (expandRange(existingDays[0], existingDays[existingDays.length - 1], { weekends: existingDays.some(isWeekend) }) as string[]).filter((day) => !existingDays.includes(day));
+  });
+  const [techOff, setTechOff] = useState<Record<string, string[]>>(() => {
+    const techDays = job.schedule?.techDays || {};
+    return Object.fromEntries(Object.entries(techDays).map(([id, mine]) => [id, existingDays.filter((day) => !mine.includes(day))]));
+  });
+  const finalDays = rangeDays.filter((day) => !offDays.includes(day));
+  const toggleIn = (list: string[], day: string) => (list.includes(day) ? list.filter((item) => item !== day) : [...list, day]);
+  const dayLabel = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }).slice(0, 2);
+  const dayNum = (day: string) => Number(day.slice(8, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [techSearch, setTechSearch] = useState("");
@@ -6594,16 +6625,19 @@ export function ScheduleModal({
   const conflicts = techIds.flatMap((id) => {
     const s0 = toMin(start);
     const e0 = toMin(end);
-    if (!date || s0 === null || e0 === null) return [];
+    if (!finalDays.length || s0 === null || e0 === null) return [];
     const tech = technicians.find((t) => t.id === id);
+    const myDays = finalDays.filter((day) => !(techOff[id] || []).includes(day));
     return jobs
-      .filter((other) => other.id !== job.id && other.schedule?.date === date && (other.assignedTechIds?.includes(id) || other.assignedTechId === id))
-      .filter((other) => {
+      .filter((other) => other.id !== job.id && (other.assignedTechIds?.includes(id) || other.assignedTechId === id))
+      .flatMap((other) => {
         const os = toMin(other.schedule?.start || "");
         const oe = toMin(other.schedule?.end || "");
-        return os !== null && oe !== null && s0 < oe && os < e0;
-      })
-      .map((other) => `${tech?.name || "Technician"} is already on ${other.workOrderNumber || other.id} (${other.schedule?.start}–${other.schedule?.end})`);
+        if (os === null || oe === null || !(s0 < oe && os < e0)) return [];
+        const shared = myDays.filter((day) => techOnDay(other, id, day));
+        if (!shared.length) return [];
+        return [`${tech?.name || "Technician"} is already on ${other.workOrderNumber || other.id} (${other.schedule?.start}–${other.schedule?.end}) ${describeDays(shared)}`];
+      });
   });
   const visibleTechs = technicians.filter((t) =>
     `${t.name || ""} ${t.companyName || ""} ${t.specialty || ""}`.toLowerCase().includes(techSearch.toLowerCase()),
@@ -6628,8 +6662,17 @@ export function ScheduleModal({
     setError("");
     const selectedTechs = techIds.map((id) => technicians.find((technician) => technician.id === id)).filter((tech): tech is Technician => Boolean(tech));
     if (selectedTechs.length !== techIds.length) { setError("One or more assigned technicians are no longer active. Review the assignment before saving."); return; }
-    if (end <= start) { setError("Finish must be after start for this single-day schedule."); return; }
+    if (end <= start) { setError("Finish must be after start."); return; }
     if (!selectedTechs.length) return;
+    if (!finalDays.length) { setError("Pick at least one day."); return; }
+    const noDays = selectedTechs.find((tech) => finalDays.every((day) => (techOff[tech.id] || []).includes(day)));
+    if (noDays) { setError(`${noDays.name || "A technician"} is off every day. Untick them from the job instead.`); return; }
+    const schedule = normalizeSchedule({
+      start, end, days: finalDays,
+      techDays: Object.fromEntries(selectedTechs.map((tech) => [tech.id, finalDays.filter((day) => !(techOff[tech.id] || []).includes(day))])),
+      assignedTechIds: selectedTechs.map((tech) => tech.id),
+    });
+    const lastDate = finalDays[finalDays.length - 1];
     const leadTech = selectedTechs[0];
     const techNames = selectedTechs.map((tech) => tech.name || tech.companyName || "Technician");
     if (demo) {
@@ -6637,8 +6680,8 @@ export function ScheduleModal({
         assignedTechId: leadTech.id,
         assignedTechIds: selectedTechs.map((tech) => tech.id),
         assignedTechName: techNames.join(", "),
-        targetCompletion: date,
-        schedule: { date, start, end },
+        targetCompletion: lastDate,
+        schedule,
         status: !job.status || job.status === "New" ? "Scheduled" : job.status,
       });
       onClose();
@@ -6652,13 +6695,13 @@ export function ScheduleModal({
         assignedTechName: techNames.join(", "),
         assignedTechNames: techNames,
         technicianLeadId: leadTech.id,
-        targetCompletion: date,
-        schedule: { date, start, end },
+        targetCompletion: lastDate,
+        schedule,
         status: !job.status || job.status === 'New' ? 'Scheduled' : job.status,
         updatedAt: serverTimestamp(),
       });
-      await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${techNames.join(", ")}`, { technicianIds: selectedTechs.map((tech) => tech.id), leadTechnicianId: leadTech.id, date, start, end });
-      await syncPortalAppointment(leadTech.id, date, start, end);
+      await recordAudit("scheduled", "job", job.id, `Scheduled ${job.workOrderNumber || job.id} with ${techNames.join(", ")}`, { technicianIds: selectedTechs.map((tech) => tech.id), leadTechnicianId: leadTech.id, date: schedule.date, days: finalDays, start, end });
+      await syncPortalAppointment(leadTech.id, schedule.date, start, end);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save this schedule.");
@@ -6721,7 +6764,26 @@ export function ScheduleModal({
           <section>
             <h3 className="text-[10px] font-bold uppercase text-crm-muted">When</h3>
             <div className="mt-2 space-y-3">
-              <Field label="Schedule date" value={date} onChange={setDate} type="date" required />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="First day" value={date} onChange={(value: string) => { setDate(value); if (endDate && endDate < value) setEndDate(""); }} type="date" required />
+                <Field label="Last day (optional)" value={endDate} onChange={setEndDate} type="date" />
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-crm-body">
+                <input type="checkbox" checked={weekends} onChange={(e) => setWeekends(e.target.checked)} className="accent-green-500" />
+                Include Saturday and Sunday
+              </label>
+              {finalDays.length > 1 && (
+                <div>
+                  <p className="mb-1 text-[10px] text-crm-muted">{finalDays.length} days: {describeDays(finalDays)}. Tap a day to skip it.</p>
+                  <div className="flex flex-wrap gap-1">
+                    {rangeDays.map((day) => (
+                      <button key={day} type="button" onClick={() => setOffDays((current) => toggleIn(current, day))} title={day} className={`h-10 w-9 rounded border text-center text-[9px] leading-tight ${offDays.includes(day) ? "border-crm-hairline text-crm-muted-soft line-through" : "border-crm-ink bg-crm-surface-soft font-bold"}`}>
+                        {dayLabel(day)}<span className="block text-[11px]">{dayNum(day)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Start" value={start} onChange={setStart} type="time" required />
                 <Field label="Finish" value={end} onChange={setEnd} type="time" required />
@@ -6750,7 +6812,8 @@ export function ScheduleModal({
             />
             <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded border border-crm-hairline p-1">
               {visibleTechs.map((technician) => (
-                <label key={technician.id} className="flex cursor-pointer items-center gap-2 rounded p-2 text-xs hover:bg-crm-surface-soft">
+                <Fragment key={technician.id}>
+                <label className="flex cursor-pointer items-center gap-2 rounded p-2 text-xs hover:bg-crm-surface-soft">
                   <input
                     type="checkbox"
                     checked={techIds.includes(technician.id)}
@@ -6764,6 +6827,20 @@ export function ScheduleModal({
                   </span>
                   {techIds[0] === technician.id && <span className="ml-auto rounded bg-crm-surface-card px-1.5 py-0.5 text-[9px] font-bold">Lead</span>}
                 </label>
+                {techIds.includes(technician.id) && finalDays.length > 1 && (
+                  <div className="-mt-1 mb-1 flex flex-wrap items-center gap-1 pl-12">
+                    <span className="mr-1 text-[9px] text-crm-muted">Days:</span>
+                    {finalDays.map((day) => {
+                      const off = (techOff[technician.id] || []).includes(day);
+                      return (
+                        <button key={day} type="button" onClick={() => setTechOff((current) => ({ ...current, [technician.id]: toggleIn(current[technician.id] || [], day) }))} title={`${technician.name || "Technician"} ${off ? "is off" : "works"} ${day}`} className={`h-6 w-8 rounded border text-[9px] ${off ? "border-crm-hairline text-crm-muted-soft line-through" : "border-crm-ink font-bold"}`}>
+                          {dayLabel(day)[0]}{dayNum(day)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                </Fragment>
               ))}
               {!visibleTechs.length && <p className="p-2 text-[11px] text-crm-muted">No technicians match.</p>}
             </div>

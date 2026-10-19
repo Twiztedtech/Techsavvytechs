@@ -17,6 +17,7 @@ import { MyCrewPanel } from '../features/contractor/crew/MyCrewPanel';
 import { JobMessagesPanel } from '../features/contractor/messages/JobMessagesPanel';
 import type { SelfProfile } from '../features/contractor/types';
 import { formatElapsed, getDirectionsUrl, getEntryTotals } from '../features/contractor/timesheets/calculations';
+import { MyScheduleCard, myDaysSummary } from '../features/contractor/schedule/MyScheduleCard';
 import { ContractorProgressPanel } from '../features/contractor/workOrders/ContractorProgressPanel';
 import { type OnboardingState } from '../features/contractor/onboarding/ContractorOnboardingCard';
 
@@ -1078,6 +1079,8 @@ It will be removed from review and kept in your voided history. Then you can log
               </div>
             </div>
 
+            <MyScheduleCard jobs={jobSitesList} technicianId={selfProfile?.id} />
+
             {/* CONTRACTOR VIEW TABS */}
             <div className="flex overflow-x-auto border-b border-slate-800 gap-4">
               <Link
@@ -1277,6 +1280,13 @@ It will be removed from review and kept in your voided history. Then you can log
                           >
                             Cancel Custom Job
                           </button>
+                        </div>
+                      )}
+
+                      {!isCustomJob && selectedJobObj && myDaysSummary(selectedJobObj, selfProfile?.id) && (
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 flex items-center gap-2">
+                          <span className="text-amber-500">📅</span>
+                          <span><span className="text-slate-500">Your days:</span> {myDaysSummary(selectedJobObj, selfProfile?.id)}</span>
                         </div>
                       )}
 

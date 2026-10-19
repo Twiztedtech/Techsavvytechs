@@ -76,3 +76,13 @@ test('html output escapes job and technician text', () => {
   assert.doesNotMatch(message.html, /<script>/);
   assert.doesNotMatch(message.html, /<b>Bob/);
 });
+
+test('a multi-day job reminds each scheduled day, only the technicians working that day', () => {
+  const days = ['2026-10-19', '2026-10-20', '2026-10-21'];
+  const job = { id: 'j1', status: 'Scheduled', assignedTechIds: ['a', 'b'], schedule: { date: days[0], days, techDays: { b: [days[0]] } } };
+  assert.deepEqual(jobsNeedingTechReminder([job], { tomorrow: '2026-10-20' }).map((due) => due.techIds), [['a']]);
+  assert.deepEqual(jobsNeedingTechReminder([job], { tomorrow: '2026-10-19' }).map((due) => due.techIds), [['a', 'b']]);
+  assert.deepEqual(jobsNeedingTechReminder([job], { tomorrow: '2026-10-22' }), []);
+  const message = buildTechReminder({ job: { ...job, name: 'Tesla', schedule: { ...job.schedule, start: '09:00', end: '17:00' } }, technician: { name: 'Sam' }, serviceDate: '2026-10-20' });
+  assert.match(message.text, /day 2 of 3/);
+});
