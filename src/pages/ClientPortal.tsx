@@ -43,7 +43,7 @@ import BookJob from "./BookJob";
 import { BulkJobImport } from "../features/client/BulkJobImport";
 import { JobDetailsEditor } from "../features/client/JobDetailsEditor";
 import { TeamPanel } from "../features/client/TeamPanel";
-import { InvoicesPanel, MyRequestsPanel } from "../features/client/AccountPanels";
+import { BalanceNotice, InvoicesPanel, MyRequestsPanel } from "../features/client/AccountPanels";
 
 const roleOptions: Array<{ value: ClientRole; label: string }> = [
   { value: "dispatcher", label: "Dispatcher / Requester" },
@@ -767,6 +767,9 @@ export default function ClientPortal() {
             );
           })}
         </nav>
+        {portalView !== "invoices" && profile.roles.some((role) => role === "billing" || role === "company_admin") && (
+          <BalanceNotice onView={() => { setPortalView("invoices"); setSelected(null); }} />
+        )}
         {notice && (
           <p
             className={`mb-5 rounded p-3 text-sm ${notice.tone === "error" ? "bg-red-500/10 text-red-200" : "bg-green-500/10 text-green-200"}`}

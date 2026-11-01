@@ -151,3 +151,19 @@ export function InvoicesPanel({ supportPhone, supportEmail }: { supportPhone: st
     </section>
   );
 }
+
+/** A one-line reminder on the first screen for billing contacts and company administrators. */
+export function BalanceNotice({ onView }: { onView: () => void }) {
+  const [summary, setSummary] = useState<{ outstandingTotal: number; overdueCount: number } | null>(null);
+  useEffect(() => { clientApi("invoices").then(setSummary).catch(() => setSummary(null)); }, []);
+  if (!summary || summary.outstandingTotal <= 0) return null;
+  return (
+    <p className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded p-3 text-sm ${summary.overdueCount ? "bg-red-500/10 text-red-200" : "bg-amber-500/10 text-amber-200"}`}>
+      <span>
+        You have an outstanding balance of <strong>{money(summary.outstandingTotal)}</strong>
+        {summary.overdueCount ? ` (${summary.overdueCount} overdue)` : ""}.
+      </span>
+      <button type="button" onClick={onView} className="font-bold underline">View invoices</button>
+    </p>
+  );
+}
