@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { auth } from "../../lib/firebase";
 import {
   AlertTriangle,
@@ -14,6 +14,7 @@ import { ClientPortalConfiguration } from "./ClientPortalConfiguration";
 import { ClientCompanyEditor } from "./ClientCompanyEditor";
 import { CrmButton, CrmModalShell } from "../crm/ui";
 import { DispatchDemoContext } from "../admin/demoContext";
+import { TriagePanel, TriageSwitch, triageApi, type TriageRecord, type TriageSettings } from "./triage";
 
 type ClientTab = "requests" | "approvals" | "scheduling" | "organizations" | "settings";
 type RequestFilter = "all" | "requested" | "clarification_needed";
@@ -117,6 +118,10 @@ export function ClientRequestsAdmin({
   const [viewRequest, setViewRequest] = useState<RequestRecord | null>(null);
   const [openingAttachment, setOpeningAttachment] = useState<number | null>(null);
   const [savingNote, setSavingNote] = useState(false);
+  const [triage, setTriage] = useState<Record<string, TriageRecord>>({});
+  const [triageSettings, setTriageSettings] = useState<TriageSettings | null>(null);
+  const [triageRunning, setTriageRunning] = useState<string[]>([]);
+  const triageTried = useRef(new Set<string>());
   const [showFailures, setShowFailures] = useState(false);
   const [convert, setConvert] = useState({
     requestId: "",
@@ -146,6 +151,34 @@ export function ClientRequestsAdmin({
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (demo) return;
+    triageApi("list")
+      .then((result) => {
+        setTriageSettings(result.settings);
+        setTriage(Object.fromEntries((result.items || []).map((item: TriageRecord) => [item.requestId, item])));
+      })
+      .catch(() => setTriageSettings(null));
+  }, [demo]);
+  const runTriage = async (requestId: string) => {
+    setTriageRunning((list) => [...list, requestId]);
+    try {
+      const result = await triageApi("run", { requestId });
+      setTriage((all) => ({ ...all, [requestId]: { requestId, ...result.triage } }));
+    } catch (error) {
+      setTriage((all) => ({ ...all, [requestId]: { requestId, status: "failed", error: error instanceof Error ? error.message : "Could not run." } }));
+    } finally {
+      setTriageRunning((list) => list.filter((id) => id !== requestId));
+    }
+  };
+  // New requests are read automatically (one at a time) while the assistant is switched on.
+  useEffect(() => {
+    if (demo || !triageSettings?.enabled || triageRunning.length) return;
+    const next = (data.requests || []).find((r: RequestRecord) => r.status === "requested" && !r.convertedJobId && !triage[r.id] && !triageTried.current.has(r.id));
+    if (!next) return;
+    triageTried.current.add(next.id);
+    void runTriage(next.id);
+  }, [demo, triageSettings, triage, triageRunning, data.requests]);
   const post = async (
     action: string,
     body: unknown,
@@ -466,6 +499,7 @@ export function ClientRequestsAdmin({
             </button>
           )}
         </div>
+        {!demo && triageSettings && <TriageSwitch settings={triageSettings} onChange={setTriageSettings} />}
         {visibleRequests.length === 0 && (
           <p className="text-xs text-crm-muted">Nothing here right now.</p>
         )}
@@ -644,6 +678,16 @@ export function ClientRequestsAdmin({
                   Decline
                 </button>
               </div>
+              {!demo && !request.convertedJobId && triageSettings && (triage[request.id] || triageSettings.enabled || triageRunning.includes(request.id)) && (
+                <TriagePanel
+                  triage={triage[request.id]}
+                  running={triageRunning.includes(request.id)}
+                  onRun={() => void runTriage(request.id)}
+                  technicianName={(id) => contractors.find((c) => c.id === id)?.name || id}
+                  onUseTechnician={(id) => setConvert((v) => ({ ...v, requestId: request.id, technicianLeadId: id }))}
+                  onUseClarification={(body) => setNoteDialog({ request, status: "clarification_needed", note: body })}
+                />
+              )}
               {convert.requestId === request.id && (
                 <div className="mt-4 grid gap-2 rounded-lg border border-crm-hairline bg-crm-surface-soft p-4 md:grid-cols-4">
                   <select
