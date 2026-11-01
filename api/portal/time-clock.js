@@ -11,6 +11,7 @@ import { depositBlocksClockIn, isDepositInvoice, isDepositPaid } from '../_lib/d
 import { clean, completionRecipients, nowIso, normalizePhone, rateLimited, recordEvent, safeEqual, sendEmail, sendSms, verificationHash } from '../_lib/client-portal.js';
 import surveyHandler from '../_lib/survey-handler.js';
 import routeEstimateHandler from '../_lib/route-estimate-handler.js';
+import triageHandler from '../_lib/triage-handler.js';
 import communityHandler, { scrubCommunityContent } from '../_lib/community-handler.js';
 import { isAcceptableReceiptFile, mergeReceipts, sanitizeReceiptRefs } from '../_lib/receipts.js';
 import { writeAudit } from '../_lib/audit.js';
@@ -398,6 +399,7 @@ export default async function handler(req, res) {
   if (req.query?.portalOperation === 'jobEvents') return jobEventsHandler(req, res);
   if (req.query?.portalOperation === 'routeEstimate') return routeEstimateHandler(req, res);
   if (req.query?.portalOperation === 'community') return communityHandler(req, res);
+  if (req.query?.portalOperation === 'triage') return triageHandler(req, res);
   try {
     const user = await getUser(req);
     if (req.query?.portalOperation === 'onboarding') return await handleOnboarding(req, res, user);
