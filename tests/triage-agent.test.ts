@@ -40,3 +40,15 @@ test('a model that never submits fails cleanly, and unknown tools cannot act', a
   const { triage } = await triageRequest(request, { apiKey: 'k', call: wander, today: '2026-11-01' });
   assert.equal(triage.recommendation, 'needs_review');
 });
+
+test('owner notes reach the model as trusted context', async () => {
+  let prompt = '';
+  const call = async ({ messages }) => {
+    prompt = messages[0].content;
+    return { content: [{ type: 'tool_use', id: 'z', name: 'submit_triage', input: { summary: 's', recommendation: 'create_job', draftReply: {} } }] };
+  };
+  await triageRequest(request, { apiKey: 'k', call, today: '2026-11-01', ownerNote: 'The package already arrived on Oct 29.' });
+  assert.match(prompt, /Owner notes from Will \(trusted\)[\s\S]*package already arrived/);
+  await triageRequest(request, { apiKey: 'k', call, today: '2026-11-01' });
+  assert.doesNotMatch(prompt, /Owner notes/);
+});

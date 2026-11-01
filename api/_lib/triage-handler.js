@@ -18,7 +18,7 @@ export async function loadSettings() {
 }
 
 /** Runs triage for one request and stores the outcome. Never throws: a failure is recorded, the request is untouched. */
-export async function runTriage(requestId, { force = false } = {}) {
+export async function runTriage(requestId, { force = false, ownerNote } = {}) {
   const settings = await loadSettings();
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { status: 'unavailable', error: 'The assistant is not configured (no API key).' };
@@ -28,9 +28,11 @@ export async function runTriage(requestId, { force = false } = {}) {
   const today = nowIso().slice(0, 10);
   const used = await adminDb.collection('request_triage').where('day', '==', today).get().then((s) => s.size).catch(() => 0);
   if (used >= settings.dailyCap) return { status: 'unavailable', error: `Daily limit of ${settings.dailyCap} reached.` };
-  await triageRef(requestId).set({ status: 'pending', day: today, requestNumber: requestSnap.data().requestNumber || '', startedAt: nowIso() }, { merge: true });
+  const previous = await triageRef(requestId).get();
+  const note = ownerNote === undefined ? String(previous.data()?.ownerNote || '') : String(ownerNote).slice(0, 1000).trim();
+  await triageRef(requestId).set({ status: 'pending', ownerNote: note, day: today, requestNumber: requestSnap.data().requestNumber || '', startedAt: nowIso() }, { merge: true });
   try {
-    const { triage, usage } = await triageRequest({ id: requestId, ...requestSnap.data() }, { apiKey, model: settings.model, today });
+    const { triage, usage } = await triageRequest({ id: requestId, ...requestSnap.data() }, { apiKey, model: settings.model, today, ownerNote: note });
     const record = { ...triage, status: 'ready', day: today, model: settings.model, usage, requestNumber: requestSnap.data().requestNumber || '', completedAt: nowIso(), error: '' };
     await triageRef(requestId).set(record, { merge: true });
     return record;
@@ -58,7 +60,7 @@ export default async function triageHandler(req, res) {
     if (rateLimited(req, `triage:${user.uid}`, 20, 10 * 60 * 1000)) return res.status(429).json({ error: 'Too many runs. Please wait a few minutes.' });
     const requestId = String(req.body?.requestId || '').slice(0, 120);
     if (!requestId) return res.status(422).json({ error: 'requestId is required.' });
-    const result = await runTriage(requestId, { force: true });
+    const result = await runTriage(requestId, { force: true, ownerNote: typeof req.body?.ownerNote === 'string' ? req.body.ownerNote : undefined });
     return res.status(result.status === 'ready' ? 200 : 502).json({ triage: result });
   }
   if (req.method === 'POST' && action === 'settings') {

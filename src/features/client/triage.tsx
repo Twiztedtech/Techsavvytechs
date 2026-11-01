@@ -17,6 +17,7 @@ export type TriageRecord = {
   flags?: TriageFlag[];
   suggestedJob?: { name: string; date: string; start: string; end: string; technicianIds: string[]; payRate: number | null; billRate: number | null; estimatedHours: number | null };
   draftReply?: { subject: string; body: string };
+  ownerNote?: string;
 };
 export type TriageSettings = { enabled: boolean; dailyCap: number };
 
@@ -78,12 +79,13 @@ export function TriagePanel({
 }: {
   triage?: TriageRecord;
   running: boolean;
-  onRun: () => void;
+  onRun: (note?: string) => void;
   onUseTechnician: (technicianId: string) => void;
   onUseClarification: (body: string) => void;
   technicianName: (id: string) => string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   if (running || triage?.status === "pending") {
     return <p className="mt-4 flex items-center gap-2 text-xs text-crm-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Triage assistant is reading this request...</p>;
   }
@@ -91,7 +93,7 @@ export function TriagePanel({
     return (
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-crm-muted">
         <span>{triage?.error || "No triage yet."}</span>
-        <button onClick={onRun} className="rounded border border-crm-hairline px-3 py-1.5 font-bold text-crm-body">Run triage</button>
+        <button onClick={() => onRun()} className="rounded border border-crm-hairline px-3 py-1.5 font-bold text-crm-body">Run triage</button>
       </div>
     );
   }
@@ -99,7 +101,7 @@ export function TriagePanel({
     return (
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-crm-error">
         <span>Triage could not run: {triage.error}</span>
-        <button onClick={onRun} className="rounded border border-crm-hairline px-3 py-1.5 font-bold text-crm-body">Try again</button>
+        <button onClick={() => onRun()} className="rounded border border-crm-hairline px-3 py-1.5 font-bold text-crm-body">Try again</button>
       </div>
     );
   }
@@ -116,7 +118,7 @@ export function TriagePanel({
     <section aria-label="Triage assistant" className="mt-4 space-y-3 rounded-lg border border-crm-hairline bg-crm-surface-soft p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-crm-muted"><Bot className="h-3.5 w-3.5" /> Triage assistant · {RECOMMENDATION[triage.recommendation || "needs_review"]}</p>
-        <button onClick={onRun} title="Run again" className="text-crm-muted hover:text-crm-ink"><RefreshCw className="h-3.5 w-3.5" /></button>
+        <button onClick={() => onRun()} title="Run again" className="text-crm-muted hover:text-crm-ink"><RefreshCw className="h-3.5 w-3.5" /></button>
       </div>
       {triage.summary && <p className="text-sm text-crm-ink">{triage.summary}</p>}
       {(triage.flags?.length || 0) > 0 && (
@@ -143,6 +145,24 @@ export function TriagePanel({
           <pre className="mt-1 whitespace-pre-wrap rounded border border-crm-hairline bg-crm-canvas p-3 font-sans text-xs text-crm-body">{triage.draftReply.body}</pre>
         </div>
       )}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-crm-muted">Tell the assistant something it does not know</p>
+        <textarea
+          value={note ?? triage.ownerNote ?? ""}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={1000}
+          placeholder="e.g. The package already arrived at the office on Oct 29."
+          className="mt-1 w-full rounded border border-crm-hairline bg-crm-canvas p-2 text-xs text-crm-ink"
+        />
+        <button
+          disabled={note === null || note === (triage.ownerNote ?? "")}
+          onClick={() => { onRun(note ?? ""); setNote(null); }}
+          className="mt-1 rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body disabled:opacity-40"
+        >
+          Save note and re-check
+        </button>
+      </div>
       <div className="flex flex-wrap gap-2">
         {techIds[0] && <button onClick={() => onUseTechnician(techIds[0])} className="rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body">Use suggested technician in convert form</button>}
         {triage.draftReply?.body && <button onClick={() => onUseClarification(triage.draftReply!.body)} className="rounded border border-crm-hairline px-3 py-2 text-[10px] font-bold text-crm-body">Use reply as clarification message</button>}

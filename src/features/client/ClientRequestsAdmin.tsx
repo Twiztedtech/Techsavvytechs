@@ -160,10 +160,10 @@ export function ClientRequestsAdmin({
       })
       .catch(() => setTriageSettings(null));
   }, [demo]);
-  const runTriage = async (requestId: string) => {
+  const runTriage = async (requestId: string, ownerNote?: string) => {
     setTriageRunning((list) => [...list, requestId]);
     try {
-      const result = await triageApi("run", { requestId });
+      const result = await triageApi("run", ownerNote === undefined ? { requestId } : { requestId, ownerNote });
       setTriage((all) => ({ ...all, [requestId]: { requestId, ...result.triage } }));
     } catch (error) {
       setTriage((all) => ({ ...all, [requestId]: { requestId, status: "failed", error: error instanceof Error ? error.message : "Could not run." } }));
@@ -682,7 +682,7 @@ export function ClientRequestsAdmin({
                 <TriagePanel
                   triage={triage[request.id]}
                   running={triageRunning.includes(request.id)}
-                  onRun={() => void runTriage(request.id)}
+                  onRun={(note) => void runTriage(request.id, note)}
                   technicianName={(id) => contractors.find((c) => c.id === id)?.name || id}
                   onUseTechnician={(id) => setConvert((v) => ({ ...v, requestId: request.id, technicianLeadId: id }))}
                   onUseClarification={(body) => setNoteDialog({ request, status: "clarification_needed", note: body })}
