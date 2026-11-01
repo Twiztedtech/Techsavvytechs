@@ -12,6 +12,8 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  Inbox,
+  Receipt,
   FileSpreadsheet,
   FileText,
   History,
@@ -41,6 +43,7 @@ import BookJob from "./BookJob";
 import { BulkJobImport } from "../features/client/BulkJobImport";
 import { JobDetailsEditor } from "../features/client/JobDetailsEditor";
 import { TeamPanel } from "../features/client/TeamPanel";
+import { InvoicesPanel, MyRequestsPanel } from "../features/client/AccountPanels";
 
 const roleOptions: Array<{ value: ClientRole; label: string }> = [
   { value: "dispatcher", label: "Dispatcher / Requester" },
@@ -78,7 +81,7 @@ export default function ClientPortal() {
   const [members, setMembers] = useState<any[]>([]);
   const [jobs, setJobs] = useState<ClientJobSummary[]>([]);
   const [portalView, setPortalView] = useState<
-    "upcoming" | "book" | "bulk" | "history" | "reports"
+    "upcoming" | "book" | "bulk" | "history" | "reports" | "requests" | "invoices"
   >("upcoming");
   const [selected, setSelected] = useState<ClientJobDetail | null>(null);
   const [registration, setRegistration] = useState({
@@ -710,6 +713,10 @@ export default function ClientPortal() {
     { id: "bulk" as const, label: "Bulk import", icon: FileSpreadsheet },
     { id: "history" as const, label: "Job history", icon: History },
     { id: "reports" as const, label: "Reports", icon: FileText },
+    { id: "requests" as const, label: "My requests", icon: Inbox },
+    ...(profile.roles.some((role) => role === "billing" || role === "company_admin")
+      ? [{ id: "invoices" as const, label: "Invoices", icon: Receipt }]
+      : []),
   ];
 
   return (
@@ -739,7 +746,7 @@ export default function ClientPortal() {
         </div>
         <nav
           aria-label="Client portal sections"
-          className="mb-6 grid gap-2 rounded border border-white/10 bg-white/5 p-2 sm:grid-cols-5"
+          className="mb-6 grid gap-2 rounded border border-white/10 bg-white/5 p-2 sm:grid-cols-3 lg:grid-cols-7"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -783,6 +790,15 @@ export default function ClientPortal() {
           />
         ) : portalView === "bulk" ? (
           <BulkJobImport />
+        ) : portalView === "requests" ? (
+          <MyRequestsPanel
+            onOpenJob={(jobId) => {
+              setPortalView("upcoming");
+              void openJob(jobId);
+            }}
+          />
+        ) : portalView === "invoices" ? (
+          <InvoicesPanel supportPhone="(707) 653-6702" supportEmail="support@techsavvytechs.com" />
         ) : (
           <>
             <div className="mb-6 grid gap-4 sm:grid-cols-3">

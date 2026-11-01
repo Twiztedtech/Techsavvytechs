@@ -3,6 +3,7 @@ import { prepareUpload, verifyUpload } from "./booking-uploads.js";
 import { submitClientFeedback } from "./client-feedback-handler.js";
 import { adminAuth, adminDb, adminStorage } from "./firebase-admin.js";
 import { jobEditState } from "./job-access.js";
+import { accountInvoices, canSeeRequest, visibleRequests } from "./client-account-view.js";
 import {
   CLIENT_ROLES,
   addBusinessDays,
@@ -1072,6 +1073,51 @@ async function getMe(req, res) {
   });
 }
 
+// The company's own job requests, including ones that are not work orders yet.
+async function listRequests(req, res) {
+  const { profile } = await requireClient(req);
+  const snapshot = await adminDb.collection("vendor_requests").where("customerId", "==", profile.customerId).limit(200).get();
+  const requests = visibleRequests(profile, snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() })));
+  return res.status(200).json({ requests });
+}
+
+// A reply to a clarification question, from a signed-in user who can see that request.
+async function replyToRequest(req, res) {
+  const { profile } = await requireClient(req);
+  if (rateLimited(req, `request-reply:${profile.id}`, 8)) return res.status(429).json({ error: "Please wait before sending another reply." });
+  const requestId = clean(req.body?.requestId, 120);
+  const message = clean(req.body?.message, 5000);
+  if (!message) return res.status(422).json({ error: "Enter a reply." });
+  const snapshot = await adminDb.collection("vendor_requests").doc(requestId).get();
+  if (!snapshot.exists || !canSeeRequest(profile, snapshot.data())) return res.status(404).json({ error: "Request not found." });
+  const request = snapshot.data();
+  if (["converted", "declined"].includes(request.status)) return res.status(409).json({ error: "This request is closed. Please contact us to follow up." });
+  await adminDb.collection("job_messages").add({ requestId, customerId: profile.customerId, authorUid: profile.id, authorName: profile.displayName || request.requesterName || "", authorRole: "client", visibility: "client", message, source: "portal", createdAt: nowIso() });
+  await recordEvent({ requestId, type: "clarification_reply", actorUid: profile.id, actorRole: "client", visibility: "client", message: "Client replied to the request." });
+  await sendEmail({ to: process.env.CLIENT_REQUEST_ALERT_EMAILS?.split(",") || process.env.SUPPORT_EMAIL, subject: `${request.requestNumber} clarification reply`, text: message, html: `<p>${escapeHtml(message).split("\n").join("<br>")}</p>`, type: "clarification_reply" }).catch(() => null);
+  return res.status(201).json({ success: true });
+}
+
+// What the company owes: billing and company-admin roles only (enforced by accountInvoices).
+async function listInvoices(req, res) {
+  const { profile } = await requireClient(req);
+  const probe = accountInvoices(profile, [], "");
+  if (probe === null) return res.status(403).json({ error: "Invoices are available to billing contacts and company administrators." });
+  const customer = await adminDb.collection("customers").doc(profile.customerId).get();
+  const name = customer.exists ? customer.data().name : "";
+  const sameName = name ? await adminDb.collection("customers").where("name", "==", name).get() : { size: 0 };
+  const [linked, legacy] = await Promise.all([
+    adminDb.collection("invoices").where("customerId", "==", profile.customerId).limit(300).get(),
+    sameName.size === 1 ? adminDb.collection("invoices").where("customer", "==", name).limit(300).get() : { docs: [] },
+  ]);
+  const docs = [...new Map([...linked.docs, ...legacy.docs.filter((doc) => !doc.data().customerId)].map((doc) => [doc.id, doc])).values()];
+  const jobIds = [...new Set(docs.map((doc) => doc.data().jobId).filter(Boolean))].slice(0, 100);
+  const jobDocs = jobIds.length ? await adminDb.getAll(...jobIds.map((id) => adminDb.collection("jobs").doc(id))) : [];
+  const jobNumbers = Object.fromEntries(jobDocs.filter((d) => d.exists && d.data().customerId === profile.customerId).map((d) => [d.id, d.data().workOrderNumber || ""]));
+  const today = new Date().toISOString().slice(0, 10);
+  return res.status(200).json(accountInvoices(profile, docs.map((doc) => ({ id: doc.id, data: doc.data() })), today, jobNumbers));
+}
+
 async function listJobs(req, res) {
   const { profile } = await requireClient(req);
   const jobsSnapshot = await adminDb
@@ -1581,6 +1627,12 @@ export default async function handler(req, res) {
     if (req.method === "GET" && action === "me") return await getMe(req, res);
     if (req.method === "GET" && action === "jobs")
       return await listJobs(req, res);
+    if (req.method === "GET" && action === "requests")
+      return await listRequests(req, res);
+    if (req.method === "GET" && action === "invoices")
+      return await listInvoices(req, res);
+    if (req.method === "POST" && action === "request-reply")
+      return await replyToRequest(req, res);
     if (req.method === "GET" && action === "job") return await getJob(req, res);
     if (req.method === "POST" && action === "message")
       return await postMessage(req, res);
