@@ -101,11 +101,11 @@ const buildInvoices = (): LiveInvoice[] => {
     const { subtotal, tax, total } = invoiceTotals(spec.lines);
     const paid = spec.paid === "full" ? total : spec.paid;
     const issueDate = addDays(today, -spec.issueBack);
-    const dueDate = addDays(issueDate, 30);
+    const dueDate = addDays(issueDate, 15);
     const balance = Math.round((total - paid) * 100) / 100;
     return {
       id: `demo-inv-${index + 1}`, invoiceNumber: `INV-DEMO-${3001 + index}`, jobId: spec.jobId, workOrderNumber: spec.wo, customer: spec.customer, site: spec.site,
-      issueDate, dueDate, paymentTerms: "Net 30",
+      issueDate, dueDate, paymentTerms: "Net 15",
       status: balance <= 0 ? "Paid" : paid > 0 ? "Partially Paid" : dueDate < today ? "Overdue" : "Sent",
       lineItems: spec.lines.map(([description, quantity, unitPrice, kind]) => ({ description, quantity, unitPrice, kind })),
       subtotal, taxRate: 0.0825, tax, total, amountPaid: paid, balance,
@@ -182,7 +182,7 @@ function DemoInvoiceCreate({ job, onCreate, onClose }: { job: LiveJob; onCreate:
             const today = pacificToday();
             onCreate({
               id: `demo-inv-${Date.now()}`, invoiceNumber: `INV-DEMO-${3100 + Math.floor(Math.random() * 800)}`, jobId: job.id, workOrderNumber: job.workOrderNumber,
-              customer: job.vendorName || "Customer", site: job.address || "", issueDate: today, dueDate: addDays(today, 30), status: "Sent", paymentTerms: "Net 30",
+              customer: job.vendorName || "Customer", site: job.address || "", issueDate: today, dueDate: addDays(today, 15), status: "Sent", paymentTerms: "Net 15",
               lineItems: lines.map(([description, quantity, unitPrice]) => ({ description, quantity, unitPrice })), subtotal, taxRate: 0.0825, tax, total,
               amountPaid: 0, balance: total, payments: [], qboSync: { status: "pending" },
             } as unknown as LiveInvoice);

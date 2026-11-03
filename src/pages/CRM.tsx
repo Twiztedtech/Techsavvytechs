@@ -59,6 +59,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../lib/firebase";
 import { assignmentIds, approvedLabor, customerFor, isClosedJob, laborSummary, localDate, needsDispatch } from "../features/crm/record-links";
 import { buildLaborLines } from "../features/billing/laborLines";
+import { DEFAULT_PAYMENT_TERMS, PAYMENT_TERM_OPTIONS, dueDateFor } from "../features/billing/terms";
 import { jobMargin } from "../features/crm/job-margin";
 import { saveJob } from "../features/jobs/saveJob";
 import { buildJobRecord } from "../features/jobs/buildJobRecord";
@@ -5711,7 +5712,7 @@ function InvoiceEditModal({ invoice, onClose }: { invoice: LiveInvoice; onClose:
   const [dates, setDates] = useState({ issueDate: invoice.issueDate, dueDate: invoice.dueDate });
   const [taxRate, setTaxRate] = useState(String(invoice.taxRate || 0));
   const [discount, setDiscount] = useState(String(invoice.discount || 0));
-  const [paymentTerms, setPaymentTerms] = useState(invoice.paymentTerms || "Net 30");
+  const [paymentTerms, setPaymentTerms] = useState(invoice.paymentTerms || DEFAULT_PAYMENT_TERMS);
   const [customerMessage, setCustomerMessage] = useState(invoice.customerMessage || "");
   const [saving, setSaving] = useState(false);
   const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
@@ -5916,7 +5917,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
     })),
   );
   const today = localDate();
-  const dueDefault = localDate(new Date(Date.now() + 30 * 86400000));
+  const dueDefault = dueDateFor(localDate(), DEFAULT_PAYMENT_TERMS);
   // Some customers' AP departments require an explicit "date of service" on
   // the invoice, not just billing issue/due dates -- default to the earliest
   // approved labor date worked, falling back to the job's target completion.
@@ -5924,7 +5925,7 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
   const [dates, setDates] = useState({ issueDate: today, dueDate: dueDefault, serviceDate: earliestServiceDate });
   const [taxRate, setTaxRate] = useState("0");
   const [accounting, setAccounting] = useState({
-    paymentTerms: "Net 30",
+    paymentTerms: DEFAULT_PAYMENT_TERMS,
     discount: "0",
     customerMessage: "Thank you for choosing TechSavvy.",
   });
@@ -6055,12 +6056,13 @@ function InvoiceModal({ job, timeEntries, customers, invoices, onClose }: { job:
             Payment terms
             <select
               value={accounting.paymentTerms}
-              onChange={(e) =>
-                setAccounting({ ...accounting, paymentTerms: e.target.value })
-              }
+              onChange={(e) => {
+                setAccounting({ ...accounting, paymentTerms: e.target.value });
+                setDates((current) => ({ ...current, dueDate: dueDateFor(current.issueDate, e.target.value) }));
+              }}
               className="mt-1.5 w-full rounded border border-crm-hairline px-3 py-2.5 text-xs"
             >
-              {["Due on receipt", "Net 15", "Net 30", "Net 45", "Net 60"].map(
+              {PAYMENT_TERM_OPTIONS.map(
                 (term) => (
                   <option key={term}>{term}</option>
                 ),

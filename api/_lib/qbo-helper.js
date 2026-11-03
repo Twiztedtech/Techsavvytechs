@@ -311,7 +311,7 @@ export async function createQboCustomerInvoice(invoice, customer) {
     CustomerMemo: {
       value:
         invoice.customerMessage ||
-        `Thank you for choosing TechSavvy. Terms: ${invoice.paymentTerms || "Net 30"}.`,
+        `Thank you for choosing TechSavvy. Terms: ${invoice.paymentTerms || "Net 15"}.`,
     },
     Line: lines,
   };
