@@ -367,6 +367,26 @@ export async function getQboInvoicePaymentLink(invoiceId) {
   return { invoice, invoiceLink: invoice?.InvoiceLink || null };
 }
 
+/**
+ * Voids a QuickBooks invoice (keeps the record, zeroes it out). Reads the current SyncToken first,
+ * because the one stored locally goes stale after any edit made inside QuickBooks.
+ */
+export async function voidQboInvoice(invoiceId) {
+  const { accessToken, realmId } = await getValidQboToken();
+  const base = qboCompanyBaseUrl(realmId);
+  const headers = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
+  const current = await fetch(`${base}/invoice/${invoiceId}?minorversion=75`, { headers });
+  if (!current.ok) throw new Error("QuickBooks invoice lookup failed: " + (await current.text()));
+  const invoice = (await current.json()).Invoice;
+  const response = await fetch(`${base}/invoice?operation=void&minorversion=75`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ Id: invoice.Id, SyncToken: invoice.SyncToken }),
+  });
+  if (!response.ok) throw new Error("QuickBooks void failed: " + (await response.text()));
+  return (await response.json()).Invoice;
+}
+
 // Status is derived the same way for both a reconciled local invoice and a
 // freshly-imported one, so an invoice that started life in QuickBooks (never
 // created by this app) looks and sorts identically once it's mirrored here.

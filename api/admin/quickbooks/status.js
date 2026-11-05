@@ -1,7 +1,7 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { handleAppCors } from '../../_lib/cors.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
-import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers } from '../../_lib/qbo-helper.js';
+import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers, voidQboInvoice } from '../../_lib/qbo-helper.js';
 import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
@@ -22,6 +22,21 @@ export default async function handler(req, res) {
       for (const change of result.changes) await writeAudit({ actor: user, action: 'payment-reconciled', entityType: 'invoice', entityId: change.id, summary: `QuickBooks updated ${change.invoiceNumber}: balance ${change.previousBalance} → ${change.balance}`, details: change, source: 'api' });
       await writeAudit({ actor: user, action: 'reconciled', entityType: 'quickbooks', entityId: 'invoices', summary: `Reconciled ${result.checked} QuickBooks invoice${result.checked === 1 ? '' : 's'}; ${result.updated} balance${result.updated === 1 ? '' : 's'} changed; ${result.imported || 0} new invoice${result.imported === 1 ? '' : 's'} imported from QuickBooks`, details: { checked: result.checked, updated: result.updated, imported: result.imported || 0 }, source: 'api' });
       return res.status(200).json({ success: true, ...result });
+    }
+    if (req.method === 'POST' && req.query?.operation === 'void-invoice') {
+      const invoiceId = String(req.body?.invoiceId || '').trim();
+      if (!invoiceId) return res.status(400).json({ error: 'Invoice ID is required.' });
+      const invoiceRef = adminDb.collection('invoices').doc(invoiceId);
+      const snapshot = await invoiceRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Invoice not found.' });
+      const invoice = snapshot.data();
+      if (Number(invoice.amountPaid || 0) > 0) return res.status(409).json({ error: 'This invoice has payments recorded. Reverse them before voiding.' });
+      const qboId = invoice.qboSync?.id;
+      if (qboId) await voidQboInvoice(qboId);
+      const now = new Date().toISOString();
+      await invoiceRef.update({ status: 'voided', balance: 0, voidedAt: now, voidedBy: user.email || user.uid || '', updatedAt: now });
+      await writeAudit({ actor: user, action: 'voided', entityType: 'invoice', entityId: invoiceId, summary: `Voided invoice ${invoice.invoiceNumber || invoiceId}${qboId ? ' in QuickBooks and the CRM' : ' in the CRM'}`, details: { qboId: qboId || null, total: invoice.total }, source: 'api' });
+      return res.status(200).json({ success: true, quickbooksVoided: Boolean(qboId) });
     }
     if (req.method === 'POST' && req.query?.operation === 'sync-customers') {
       const result = await syncQboCustomers();
