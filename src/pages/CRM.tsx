@@ -5294,6 +5294,17 @@ export function InvoicesView({
   const [deletingId, setDeletingId] = useState("");
   const money = (value = 0) =>
     value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  // Company filter for the invoice list only; billing readiness above stays global.
+  const [company, setCompany] = useState("");
+  const companyOf = (invoice: LiveInvoice) => String(invoice.customer || "").trim() || "No customer";
+  const companies = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const invoice of invoices) counts.set(companyOf(invoice), (counts.get(companyOf(invoice)) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [invoices]);
+  const activeCompany = companies.some(([name]) => name === company) ? company : "";
+  const visibleInvoices = activeCompany ? invoices.filter((invoice) => companyOf(invoice) === activeCompany) : invoices;
+  const visibleBalance = visibleInvoices.reduce((sum, invoice) => sum + (invoice.status === "voided" ? 0 : Number(invoice.balance || 0)), 0);
   const isLocked = (invoice: LiveInvoice) => invoice.qboSync?.status === "synced" || Number(invoice.amountPaid || 0) > 0;
   const deleteInvoice = async (invoice: LiveInvoice) => {
     if (isLocked(invoice)) return;
@@ -5421,6 +5432,28 @@ export function InvoicesView({
           <p className="mt-1">Approve them in Timecard Approval and the job moves here automatically. Or tick Early billing override to invoice now.</p>
         </div>
       )}
+      {invoices.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-crm-hairline-soft px-4 py-2">
+          <label className="flex items-center gap-2 text-[10px] text-crm-muted">
+            Company
+            <select
+              value={activeCompany}
+              onChange={(event) => setCompany(event.target.value)}
+              className="h-8 max-w-[220px] rounded border border-crm-hairline bg-crm-canvas px-2 text-[11px] font-semibold text-crm-ink"
+            >
+              <option value="">All companies ({invoices.length})</option>
+              {companies.map(([name, count]) => (
+                <option key={name} value={name}>
+                  {name} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-[10px] text-crm-muted">
+            {activeCompany ? `${visibleInvoices.length} of ${invoices.length} invoices` : `${invoices.length} invoices`} · {money(visibleBalance)} outstanding
+          </span>
+        </div>
+      )}
       {invoices.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left">
@@ -5443,7 +5476,7 @@ export function InvoicesView({
               </tr>
             </thead>
             <tbody className="divide-y divide-crm-hairline-soft">
-              {invoices.map((invoice) => (
+              {visibleInvoices.map((invoice) => (
                 <tr key={invoice.id} className="hover:bg-crm-surface-soft">
                   <td className="px-4 py-3 font-mono text-[10px] font-bold text-crm-ink">
                     {invoice.invoiceNumber || invoice.id}
