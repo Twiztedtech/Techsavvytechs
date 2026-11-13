@@ -1,7 +1,8 @@
 import { adminDb, requireAdmin } from '../../_lib/firebase-admin.js';
 import { handleAppCors } from '../../_lib/cors.js';
 import { qboEnvironment } from '../../_lib/quickbooks-config.js';
-import { createQboCustomerInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers, voidQboInvoice } from '../../_lib/qbo-helper.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { createQboCustomerInvoice, deleteQboInvoice, getQboInvoicePaymentLink, reconcileQboInvoices, syncQboCustomers, voidQboInvoice } from '../../_lib/qbo-helper.js';
 import { writeAudit } from '../../_lib/audit.js';
 
 export default async function handler(req, res) {
@@ -37,6 +38,29 @@ export default async function handler(req, res) {
       await invoiceRef.update({ status: 'voided', balance: 0, voidedAt: now, voidedBy: user.email || user.uid || '', updatedAt: now });
       await writeAudit({ actor: user, action: 'voided', entityType: 'invoice', entityId: invoiceId, summary: `Voided invoice ${invoice.invoiceNumber || invoiceId}${qboId ? ' in QuickBooks and the CRM' : ' in the CRM'}`, details: { qboId: qboId || null, total: invoice.total }, source: 'api' });
       return res.status(200).json({ success: true, quickbooksVoided: Boolean(qboId) });
+    }
+    // Unlock a synced, unpaid invoice for editing: remove its QuickBooks copy
+    // (a delete, so the invoice number is free to sync again) and clear the link.
+    if (req.method === 'POST' && req.query?.operation === 'unlock-invoice') {
+      const invoiceId = String(req.body?.invoiceId || '').trim();
+      if (!invoiceId) return res.status(400).json({ error: 'Invoice ID is required.' });
+      const invoiceRef = adminDb.collection('invoices').doc(invoiceId);
+      const snapshot = await invoiceRef.get();
+      if (!snapshot.exists) return res.status(404).json({ error: 'Invoice not found.' });
+      const invoice = snapshot.data();
+      if (Number(invoice.amountPaid || 0) > 0) return res.status(409).json({ error: 'This invoice has payments recorded and cannot be unlocked.' });
+      // Only QuickBooks invoices this CRM invoice is, or was, linked to.
+      const known = [invoice.qboSync?.id, ...(invoice.previousQboInvoiceIds || [])].filter(Boolean).map(String);
+      const qboId = String(req.body?.qboInvoiceId || invoice.qboSync?.id || '').trim();
+      if (!qboId || !known.includes(qboId)) return res.status(409).json({ error: 'This invoice is not linked to that QuickBooks invoice.' });
+      const removed = await deleteQboInvoice(qboId);
+      if (removed.docNumber && invoice.invoiceNumber && removed.docNumber !== invoice.invoiceNumber) console.warn('Unlocked invoice number mismatch', { invoiceId, qboId });
+      const now = new Date().toISOString();
+      const update = { previousQboInvoiceIds: known.filter((id) => id !== qboId), updatedAt: now };
+      if (String(invoice.qboSync?.id || '') === qboId) Object.assign(update, { qboSync: FieldValue.delete() });
+      await invoiceRef.update(update);
+      await writeAudit({ actor: user, action: 'unlocked', entityType: 'invoice', entityId: invoiceId, summary: `Removed QuickBooks invoice ${qboId} so ${invoice.invoiceNumber || invoiceId} can be edited and synced again`, details: { qboId, total: invoice.total }, source: 'api' });
+      return res.status(200).json({ success: true, quickbooksDeleted: qboId });
     }
     if (req.method === 'POST' && req.query?.operation === 'sync-customers') {
       const result = await syncQboCustomers();

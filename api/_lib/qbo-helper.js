@@ -384,6 +384,26 @@ export async function getQboInvoicePaymentLink(invoiceId) {
  * Voids a QuickBooks invoice (keeps the record, zeroes it out). Reads the current SyncToken first,
  * because the one stored locally goes stale after any edit made inside QuickBooks.
  */
+// Removes an invoice from QuickBooks entirely. Unlike a void, this frees its
+// document number, so the CRM invoice can be edited and synced again under the
+// same number.
+export async function deleteQboInvoice(invoiceId) {
+  const { accessToken, realmId } = await getValidQboToken();
+  const base = qboCompanyBaseUrl(realmId);
+  const headers = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
+  const current = await fetch(`${base}/invoice/${invoiceId}?minorversion=75`, { headers });
+  if (!current.ok) throw new Error("QuickBooks invoice lookup failed: " + (await current.text()));
+  const invoice = (await current.json()).Invoice;
+  if (Number(invoice.TotalAmt || 0) - Number(invoice.Balance || 0) > 0.004)
+    throw new Error("This QuickBooks invoice has payments applied and cannot be removed.");
+  const response = await fetch(`${base}/invoice?operation=delete&minorversion=75`, {
+    method: "POST", headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ Id: invoice.Id, SyncToken: invoice.SyncToken }),
+  });
+  if (!response.ok) throw new Error("QuickBooks delete failed: " + (await response.text()));
+  return { id: invoice.Id, docNumber: invoice.DocNumber || "" };
+}
+
 export async function voidQboInvoice(invoiceId) {
   const { accessToken, realmId } = await getValidQboToken();
   const base = qboCompanyBaseUrl(realmId);
