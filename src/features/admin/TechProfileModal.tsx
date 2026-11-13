@@ -131,7 +131,7 @@ export function TechProfileModal({
           certifications,
           profilePhotoUrl: photoUrl,
         });
-        setFeedback("Profile saved.");
+        onClose();
         return;
       }
       await updateDoc(doc(db, "contractors", contractor.id), {
@@ -147,7 +147,7 @@ export function TechProfileModal({
         profilePhotoUrl: photoUrl,
         updatedAt: serverTimestamp(),
       });
-      setFeedback("Profile saved.");
+      onClose();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Could not save this profile.");
     } finally {

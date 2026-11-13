@@ -51,7 +51,8 @@ export function NotificationPreferencesModal({ isOpen, profile, onClose, onUpdat
         setAwaitingCode(true);
         setNotice({ tone: 'success', text: 'Preferences saved. We texted a verification code to your new number.' });
       } else {
-        setNotice({ tone: 'success', text: 'Preferences saved.' });
+        // Nothing more to do in this window, so a successful save closes it.
+        onClose();
       }
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not save preferences.' });
@@ -88,7 +89,7 @@ export function NotificationPreferencesModal({ isOpen, profile, onClose, onUpdat
         mobileVerificationDeferred: false,
         notificationPreferences: { email: emailEnabled, sms: smsEnabled },
       });
-      setNotice({ tone: 'success', text: 'Mobile number verified. You will now receive text updates.' });
+      onClose();
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'That code did not match.' });
     } finally {
@@ -108,6 +109,7 @@ export function NotificationPreferencesModal({ isOpen, profile, onClose, onUpdat
         mobileVerificationDeferred: true,
         notificationPreferences: { email: emailEnabled, sms: smsEnabled },
       });
+      onClose();
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not update your preferences.' });
     } finally {
