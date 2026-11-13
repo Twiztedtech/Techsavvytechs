@@ -4205,16 +4205,46 @@ function LiveJobsView({
   profit?: Record<string, ProfitHeadline>;
   onProfit?: (job: LiveJob) => void;
 }) {
+  const allJobs = jobs;
+  const [company, setCompany] = useState("");
+  const companyOf = (job: LiveJob) => String(job.vendorName || "").trim() || "Not assigned";
+  const companies = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const job of allJobs) counts.set(companyOf(job), (counts.get(companyOf(job)) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [allJobs]);
+  // A company that no longer has jobs (renamed, last job deleted) falls back to all.
+  const activeCompany = companies.some(([name]) => name === company) ? company : "";
+  jobs = activeCompany ? allJobs.filter((job) => companyOf(job) === activeCompany) : allJobs;
   return (
     <section className="overflow-hidden rounded border border-crm-hairline bg-crm-canvas shadow-sm">
-      <header className="flex items-center justify-between border-b border-crm-hairline-soft p-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-crm-hairline-soft p-4">
         <div>
           <h2 className="text-sm font-bold">Detailed job records</h2>
           <p className="text-[10px] text-crm-muted">
             Scope, labor, materials, cost, schedule and field status
           </p>
         </div>
-        <span className="text-[10px] text-crm-muted">{jobs.length} total</span>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-[10px] text-crm-muted">
+            Company
+            <select
+              value={activeCompany}
+              onChange={(event) => setCompany(event.target.value)}
+              className="h-8 max-w-[220px] rounded border border-crm-hairline bg-crm-canvas px-2 text-[11px] font-semibold text-crm-ink"
+            >
+              <option value="">All companies ({allJobs.length})</option>
+              {companies.map(([name, count]) => (
+                <option key={name} value={name}>
+                  {name} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-[10px] text-crm-muted">
+            {activeCompany ? `${jobs.length} of ${allJobs.length}` : `${jobs.length} total`}
+          </span>
+        </div>
       </header>
       {jobs.length ? (
         <div className="overflow-x-auto">
