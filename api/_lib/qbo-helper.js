@@ -205,6 +205,19 @@ export async function getOrCreateVendor(name, email) {
 export async function getOrCreateCustomer(customer) {
   const { accessToken, realmId } = await getValidQboToken();
   const baseUrl = qboCompanyBaseUrl(realmId);
+  // Prefer the saved QuickBooks link. The CRM name can differ from the
+  // QuickBooks display name (e.g. after a rename), and a name lookup would
+  // then create a duplicate QuickBooks customer.
+  const linkedId = String(customer.qboCustomerId || "").trim();
+  if (/^\d+$/.test(linkedId)) {
+    const linkedRes = await fetch(`${baseUrl}/customer/${linkedId}?minorversion=75`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    });
+    if (linkedRes.ok) {
+      const linked = (await linkedRes.json()).Customer;
+      if (linked && linked.Active !== false) return linked;
+    }
+  }
   const displayName = String(customer.name || "TechSavvy Customer").trim();
   const escapedName = displayName.replace(/'/g, "\\'");
   const query = encodeURIComponent(
