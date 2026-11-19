@@ -32,6 +32,7 @@ import {
   Users,
   Wrench,
   X,
+  Newspaper,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import {
@@ -786,6 +787,18 @@ export default function CRM() {
           >
             <ClipboardCheck className="h-3.5 w-3.5" /> Site surveys
           </a>
+          {access === "admin" && (
+            <a
+              href="https://techsavvy-content.sanity.studio"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Write and publish blog posts, and approve comments (opens the Sanity Studio)"
+              aria-label="Blog Studio"
+              className="flex items-center gap-2 rounded-lg border border-crm-hairline px-2.5 py-2 text-xs font-semibold text-crm-body hover:bg-crm-surface-soft sm:px-3"
+            >
+              <Newspaper className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Blog Studio</span>
+            </a>
+          )}
           {canCreateNew(module) && (
             <button
               onClick={handleCreateNew}
