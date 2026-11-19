@@ -16,6 +16,7 @@ export type BlogPostSummary = {
   publishedAt: string
   featured?: boolean
   mainImage?: SanityImage
+  videoUrl?: string | null
   author?: {name?: string; role?: string; image?: SanityImage}
   categories?: Array<{title: string; slug?: string}>
   readingTime?: number

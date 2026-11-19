@@ -8,6 +8,7 @@ const postCardProjection = `
   publishedAt,
   featured,
   mainImage{asset, alt, crop, hotspot},
+  "videoUrl": mainVideo.asset->url,
   author->{name, role, image{asset, alt, crop, hotspot}},
   "categories": categories[]->{title, "slug": slug.current},
   "readingTime": round(length(pt::text(body)) / 1200) + 1

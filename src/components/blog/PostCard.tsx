@@ -2,6 +2,7 @@ import {ArrowUpRight, Clock3} from 'lucide-react'
 import {Link} from 'react-router'
 import type {BlogPostSummary} from '../../sanity/types'
 import {urlFor} from '../../sanity/image'
+import {BlogVideo} from './BlogVideo'
 
 export function PostCard({post, featured = false}: {post: BlogPostSummary; featured?: boolean}) {
   const imageUrl = post.mainImage?.asset ? urlFor(post.mainImage).width(featured ? 1200 : 720).height(featured ? 720 : 440).fit('crop').url() : null
@@ -9,13 +10,15 @@ export function PostCard({post, featured = false}: {post: BlogPostSummary; featu
 
   return (
     <article className={`group glass-card overflow-hidden rounded-sm transition-all hover:border-tech-green/40 ${featured ? 'grid lg:grid-cols-2' : 'flex h-full flex-col'}`}>
-      <Link to={`/blog/${post.slug}`} className="block overflow-hidden bg-brand-slate" aria-label={`Read ${post.title}`}>
+      {post.videoUrl ? (
+        <BlogVideo src={post.videoUrl} poster={imageUrl || undefined} label={`Video for ${post.title}`} className={featured ? 'min-h-80' : 'aspect-[16/10]'} />
+      ) : <Link to={`/blog/${post.slug}`} className="block overflow-hidden bg-brand-slate" aria-label={`Read ${post.title}`}>
         {imageUrl ? (
           <img src={imageUrl} alt={post.mainImage?.alt || ''} className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] ${featured ? 'min-h-80' : 'aspect-[16/10]'}`} />
         ) : (
           <div className={`blueprint-grid grid place-items-center text-xs font-mono uppercase tracking-[0.3em] text-slate-600 ${featured ? 'min-h-80' : 'aspect-[16/10]'}`}>Field Notes</div>
         )}
-      </Link>
+      </Link>}
       <div className={`flex flex-1 flex-col ${featured ? 'p-8 md:p-12' : 'p-7'}`}>
         <div className="mb-5 flex flex-wrap items-center gap-3 text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">
           <time dateTime={post.publishedAt}>{date}</time>
