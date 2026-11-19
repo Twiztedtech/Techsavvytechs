@@ -6,7 +6,29 @@
 // after approval in the Studio. Reviewer emails stay server-side in Firestore.
 // firebase-admin is imported lazily so the pure helpers can be unit tested.
 import { createHash, randomBytes } from 'node:crypto';
-import { cleanText, emailOwner, escapeHtml, sanityMutate, slidingWindowLimiter, studioEditUrl } from './sanity-write.js';
+import { cleanText, emailOwner, escapeHtml, sanityMutate, sanityUploadImage, slidingWindowLimiter, studioEditUrl } from './sanity-write.js';
+
+export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+
+// Accepts an optional photo sent as a data URL (the browser resizes and
+// re-encodes it first). Checks the declared type against the file's magic
+// bytes. Returns { ok: true, photo: null | { buffer, contentType, ext } } or { ok: false, error }.
+export function parsePhotoDataUrl(value) {
+  if (value === undefined || value === null || value === '') return { ok: true, photo: null };
+  if (typeof value !== 'string') return { ok: false, error: 'The photo could not be read.' };
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return { ok: false, error: 'Please upload a JPG, PNG or WebP photo.' };
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length) return { ok: false, error: 'The photo could not be read.' };
+  if (buffer.length > MAX_PHOTO_BYTES) return { ok: false, error: 'The photo is too large. Please choose a smaller one.' };
+  const contentType = match[1];
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp = buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  const real = isJpeg ? 'image/jpeg' : isPng ? 'image/png' : isWebp ? 'image/webp' : '';
+  if (real !== contentType) return { ok: false, error: 'Please upload a JPG, PNG or WebP photo.' };
+  return { ok: true, photo: { buffer, contentType, ext: contentType.split('/')[1].replace('jpeg', 'jpg') } };
+}
 
 export const SERVICES = ['cabling', 'network', 'managed-it', 'cell-signal', 'other'];
 export const TESTIMONIAL_LIMITS = { nameMin: 2, nameMax: 80, companyMax: 100, roleMax: 80, quoteMin: 20, quoteMax: 1200, emailMax: 150 };
@@ -72,17 +94,26 @@ export async function submitTestimonial(req, res, { clientIp }) {
   const parsed = validateTestimonialInput(body);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   const { name, email, company, role, quote, service, rating, ref } = parsed.value;
+  const photoCheck = parsePhotoDataUrl(body.photo);
+  if (!photoCheck.ok) return res.status(400).json({ error: photoCheck.error });
 
   const request = ref ? await loadRequest(ref) : null;
   const createdAt = nowIso();
+  const photoAssetId = photoCheck.photo
+    ? await sanityUploadImage(photoCheck.photo.buffer, photoCheck.photo.contentType, `review-photo.${photoCheck.photo.ext}`)
+    : null;
+  const removePhoto = () => (photoAssetId ? sanityMutate([{ delete: { id: photoAssetId } }]).catch((e) => console.error('Review photo cleanup failed:', e)) : Promise.resolve());
   const doc = {
     _type: 'testimonial', name, rating, quote, approved: false, featured: false, createdAt,
     source: request ? 'review-request' : 'website',
     ...(company ? { company } : {}), ...(role ? { role } : {}), ...(service ? { service } : {}),
+    ...(photoAssetId ? { photo: { _type: 'image', asset: { _type: 'reference', _ref: photoAssetId }, alt: `Photo of ${name}` } } : {}),
   };
-  const result = await sanityMutate([{ create: doc }]);
+  let result;
+  try { result = await sanityMutate([{ create: doc }]); }
+  catch (error) { await removePhoto(); throw error; }
   const id = result?.results?.[0]?.id;
-  if (!id) { const error = new Error('Your review could not be saved.'); error.statusCode = 502; throw error; }
+  if (!id) { await removePhoto(); const error = new Error('Your review could not be saved.'); error.statusCode = 502; throw error; }
 
   const { adminDb } = await import('./firebase-admin.js');
   try {
@@ -92,6 +123,7 @@ export async function submitTestimonial(req, res, { clientIp }) {
     });
   } catch (error) {
     await sanityMutate([{ delete: { id } }]).catch((rollbackError) => console.error('Testimonial rollback failed:', rollbackError));
+    await removePhoto();
     throw error;
   }
 
@@ -109,8 +141,8 @@ export async function submitTestimonial(req, res, { clientIp }) {
     await emailOwner({
       replyTo: email,
       subject: `New ${rating}-star review awaiting approval from ${name}${company ? ` (${company})` : ''}`,
-      text: `${who} <${email}> left a ${rating}-star review${request?.data.jobName ? ` for ${request.data.jobName}` : ''}:\n\n${quote}\n\nApprove it in the Studio: ${reviewUrl}`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:560px;color:#17201a;line-height:1.55"><p style="font-size:20px;color:#f59e0b;margin:0">${stars}</p><p><strong>${escapeHtml(who)}</strong> (${escapeHtml(email)})${request?.data.jobName ? ` reviewed <strong>${escapeHtml(request.data.jobName)}</strong>` : ' left a review'}:</p><blockquote style="border-left:3px solid #22c55e;margin:0;padding:8px 14px;background:#f8fafc">${escapeHtml(quote).replace(/\n/g, '<br>')}</blockquote><p>It is hidden until approved. <a href="${reviewUrl}">Review it in the Studio</a>.</p></div>`,
+      text: `${who} <${email}> left a ${rating}-star review${request?.data.jobName ? ` for ${request.data.jobName}` : ''}${photoAssetId ? ' with a photo' : ''}:\n\n${quote}\n\nApprove it in the Studio: ${reviewUrl}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;color:#17201a;line-height:1.55"><p style="font-size:20px;color:#f59e0b;margin:0">${stars}</p><p><strong>${escapeHtml(who)}</strong> (${escapeHtml(email)})${request?.data.jobName ? ` reviewed <strong>${escapeHtml(request.data.jobName)}</strong>` : ' left a review'}:</p><blockquote style="border-left:3px solid #22c55e;margin:0;padding:8px 14px;background:#f8fafc">${escapeHtml(quote).replace(/\n/g, '<br>')}</blockquote>${photoAssetId ? '<p><strong>Includes a photo.</strong> Check it in the Studio before approving.</p>' : ''}<p>It is hidden until approved. <a href="${reviewUrl}">Review it in the Studio</a>.</p></div>`,
     });
   } catch (error) { console.error('Testimonial notification failed:', error); }
 

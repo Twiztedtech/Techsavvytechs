@@ -29,6 +29,14 @@ export const testimonial = defineType({
     defineField({name: 'quote', title: 'Review', type: 'text', rows: 5, validation: (rule) => rule.required().min(20).max(1200)}),
     defineField({name: 'service', title: 'Service', type: 'string', options: {list: SERVICE_OPTIONS}}),
     defineField({
+      name: 'photo',
+      title: 'Headshot',
+      type: 'image',
+      description: 'Optional headshot of the reviewer, shown as a round avatar next to their name. Check it before approving; remove it here if it should not be shown.',
+      options: {hotspot: true},
+      fields: [defineField({name: 'alt', title: 'Alternative text', type: 'string'})],
+    }),
+    defineField({
       name: 'approved',
       title: 'Approved',
       type: 'boolean',
@@ -53,8 +61,9 @@ export const testimonial = defineType({
   ],
   orderings: [{title: 'Newest first', name: 'createdAtDesc', by: [{field: 'createdAt', direction: 'desc'}]}],
   preview: {
-    select: {name: 'name', company: 'company', rating: 'rating', quote: 'quote', approved: 'approved'},
-    prepare: ({name, company, rating, quote, approved}) => ({
+    select: {name: 'name', company: 'company', rating: 'rating', quote: 'quote', approved: 'approved', media: 'photo'},
+    prepare: ({name, company, rating, quote, approved, media}) => ({
+      media,
       title: `${approved ? 'Approved' : 'Pending'} · ${'★'.repeat(rating || 0)} ${name || 'Anonymous'}${company ? `, ${company}` : ''}`,
       subtitle: quote || '',
     }),

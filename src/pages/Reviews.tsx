@@ -1,11 +1,50 @@
-import {CheckCircle2, ExternalLink, MessageSquareQuote, Send, Star} from 'lucide-react'
-import {useEffect, useMemo, useState, type FormEvent} from 'react'
+import {CheckCircle2, ExternalLink, ImagePlus, MessageSquareQuote, Send, Star, X} from 'lucide-react'
+import {useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent} from 'react'
 import {useSearchParams} from 'react-router'
 import {useSanityQuery} from '../hooks/useSanityQuery'
 import {GOOGLE_REVIEW_URL, SERVICE_LABELS} from '../lib/reviews'
+import {urlFor} from '../sanity/image'
 import {approvedTestimonialsQuery} from '../sanity/queries'
+import type {SanityImage} from '../sanity/types'
 
-type Testimonial = {_id: string; name: string; company?: string; role?: string; rating: number; quote: string; service?: string; createdAt?: string}
+type Testimonial = {_id: string; name: string; company?: string; role?: string; rating: number; quote: string; service?: string; createdAt?: string; photo?: SanityImage}
+
+const MAX_SOURCE_BYTES = 20 * 1024 * 1024
+const HEADSHOT_SIZE = 600
+
+// Crops the reviewer's photo to a square headshot and re-encodes it as JPEG in
+// the browser. Tall photos are cropped from the upper part, where the face
+// usually is. Re-encoding also drops EXIF metadata, so phone photos don't
+// publish their GPS location.
+async function preparePhoto(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.')
+  if (file.size > MAX_SOURCE_BYTES) throw new Error('That photo is over 20 MB. Please choose a smaller one.')
+  const url = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => reject(new Error('That photo format could not be read. Try a JPG or PNG.'))
+      element.src = url
+    })
+    const {naturalWidth: w, naturalHeight: h} = image
+    const side = Math.min(w, h)
+    const sx = (w - side) / 2
+    const sy = h > w ? (h - side) * 0.2 : 0
+    const out = Math.min(HEADSHOT_SIZE, side)
+    const canvas = document.createElement('canvas')
+    canvas.width = out
+    canvas.height = out
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('The photo could not be processed.')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, out, out)
+    context.drawImage(image, sx, sy, side, side, 0, 0, out, out)
+    return canvas.toDataURL('image/jpeg', 0.85)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
 
 const inputClass = 'w-full rounded-sm border border-white/10 bg-brand-slate px-4 py-3 text-sm text-brand-white placeholder:text-slate-500 focus:border-tech-green/60 focus:outline-none focus:ring-1 focus:ring-tech-green/40'
 const labelClass = 'mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-slate-400'
@@ -50,6 +89,20 @@ export default function Reviews() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [requestNote, setRequestNote] = useState<string | null>(null)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const photoInput = useRef<HTMLInputElement>(null)
+
+  async function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setError(null)
+    setPhotoBusy(true)
+    try { setPhoto(await preparePhoto(file)) }
+    catch (photoError) { setError(photoError instanceof Error ? photoError.message : 'The photo could not be added.') }
+    finally { setPhotoBusy(false) }
+  }
 
   const summary = useMemo(() => {
     if (!reviews.length) return null
@@ -83,7 +136,7 @@ export default function Reviews() {
       const response = await fetch('/api/contact?operation=testimonial', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...form, rating, consent, ref: ref || undefined}),
+        body: JSON.stringify({...form, rating, consent, ref: ref || undefined, photo: photo || undefined}),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Your review could not be sent.')
@@ -124,10 +177,19 @@ export default function Reviews() {
               <figure key={review._id} className="glass-card flex flex-col rounded-sm p-8">
                 <Stars value={review.rating} />
                 <blockquote className="mt-5 flex-1 whitespace-pre-line text-base leading-7 text-slate-300">“{review.quote}”</blockquote>
-                <figcaption className="mt-7 border-t border-white/5 pt-5">
-                  <p className="font-bold text-brand-white">{review.name}</p>
-                  {(review.role || review.company) && <p className="mt-1 text-sm text-slate-400">{[review.role, review.company].filter(Boolean).join(', ')}</p>}
-                  {review.service && SERVICE_LABELS[review.service] && <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-tech-green">{SERVICE_LABELS[review.service]}</p>}
+                <figcaption className="mt-7 flex items-center gap-4 border-t border-white/5 pt-5">
+                  {review.photo?.asset ? (
+                    <img src={urlFor(review.photo).width(160).height(160).fit('crop').url()} alt={review.photo.alt || `Photo of ${review.name}`} loading="lazy" className="h-14 w-14 shrink-0 rounded-full border border-tech-green/30 object-cover" />
+                  ) : (
+                    <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-white/10 bg-brand-slate font-display text-lg font-extrabold text-tech-green">
+                      {review.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-bold text-brand-white">{review.name}</p>
+                    {(review.role || review.company) && <p className="mt-0.5 text-sm text-slate-400">{[review.role, review.company].filter(Boolean).join(', ')}</p>}
+                    {review.service && SERVICE_LABELS[review.service] && <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-tech-green">{SERVICE_LABELS[review.service]}</p>}
+                  </div>
                 </figcaption>
               </figure>
             ))}
@@ -188,16 +250,39 @@ export default function Reviews() {
                 {Object.entries(SERVICE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
+            <div>
+              <span className={labelClass}>Your photo <span className="font-normal normal-case tracking-normal text-slate-500">(optional: a headshot shown next to your name)</span></span>
+              <input ref={photoInput} type="file" accept="image/*" onChange={(e) => void pickPhoto(e)} className="sr-only" id="review-photo" />
+              <div className="flex items-center gap-5">
+                {photo ? (
+                  <div className="relative">
+                    <img src={photo} alt="Your selected headshot" className="h-24 w-24 rounded-full border border-tech-green/40 object-cover" />
+                    <button type="button" onClick={() => setPhoto(null)} aria-label="Remove photo" className="absolute -right-1 -top-1 rounded-full bg-black/90 p-1.5 text-white hover:bg-black">
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
+                ) : (
+                  <label htmlFor="review-photo" className="grid h-24 w-24 shrink-0 cursor-pointer place-items-center rounded-full border border-dashed border-white/20 bg-brand-slate/50 text-tech-green hover:border-tech-green/60">
+                    <ImagePlus className="h-7 w-7" aria-hidden />
+                    <span className="sr-only">Add your photo</span>
+                  </label>
+                )}
+                <div className="text-sm text-slate-400">
+                  <label htmlFor="review-photo" className="cursor-pointer font-semibold text-brand-white hover:text-tech-green">{photoBusy ? 'Preparing photo…' : photo ? 'Choose a different photo' : 'Add your photo'}</label>
+                  <p className="mt-1 text-xs text-slate-500">A clear photo of your face works best. It is cropped to a circle, and location data is removed.</p>
+                </div>
+              </div>
+            </div>
             <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
               <label>Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => setForm({...form, website: e.target.value})} /></label>
             </div>
             <label className="flex items-start gap-3 text-sm text-slate-300">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 accent-[#8DC63F]" />
-              <span>TechSavvy may publish my review, name, role and company on its website and marketing. My email is kept private.</span>
+              <span>TechSavvy may publish my review, name, role, company and photo on its website and marketing. If I add a photo, it is of me. My email is kept private.</span>
             </label>
             {error && <p role="alert" className="text-sm text-safety-orange">{error}</p>}
             <div className="flex flex-wrap items-center gap-4">
-              <button type="submit" disabled={status === 'sending'} className="inline-flex items-center gap-2 rounded-sm bg-tech-green px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-brand-black transition-opacity hover:opacity-90 disabled:opacity-50">
+              <button type="submit" disabled={status === 'sending' || photoBusy}className="inline-flex items-center gap-2 rounded-sm bg-tech-green px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-brand-black transition-opacity hover:opacity-90 disabled:opacity-50">
                 <Send className="h-4 w-4" aria-hidden /> {status === 'sending' ? 'Sending…' : 'Submit review'}
               </button>
               <p className="text-xs text-slate-500">Reviews are checked before they appear.</p>

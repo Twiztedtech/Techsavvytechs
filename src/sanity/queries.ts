@@ -29,7 +29,8 @@ export const approvedCommentsQuery = defineQuery(`
 
 export const approvedTestimonialsQuery = defineQuery(`
   *[_type == "testimonial" && approved == true] | order(featured desc, createdAt desc) {
-    _id, name, company, role, rating, quote, service, createdAt
+    _id, name, company, role, rating, quote, service, createdAt,
+    photo{asset, alt, crop, hotspot}
   }
 `)
 

@@ -1,6 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildReviewRequestEmail, hashRef, isBotSubmission, isValidRef, validateTestimonialInput } from '../api/_lib/testimonials.js';
+import { MAX_PHOTO_BYTES, buildReviewRequestEmail, hashRef, isBotSubmission, isValidRef, parsePhotoDataUrl, validateTestimonialInput } from '../api/_lib/testimonials.js';
+
+const dataUrl = (type: string, bytes: number[]) => `data:${type};base64,${Buffer.from(bytes).toString('base64')}`;
+const JPEG = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4];
+const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0];
+const WEBP = [...Buffer.from('RIFF'), 0, 0, 0, 0, ...Buffer.from('WEBP'), 0];
+
+test('parsePhotoDataUrl: no photo is fine', () => {
+  for (const value of [undefined, null, '']) assert.deepEqual(parsePhotoDataUrl(value), { ok: true, photo: null });
+});
+
+test('parsePhotoDataUrl: accepts real JPEG, PNG and WebP', () => {
+  const jpeg = parsePhotoDataUrl(dataUrl('image/jpeg', JPEG));
+  assert.equal(jpeg.ok && jpeg.photo?.ext, 'jpg');
+  assert.equal(parsePhotoDataUrl(dataUrl('image/png', PNG)).ok, true);
+  assert.equal(parsePhotoDataUrl(dataUrl('image/webp', WEBP)).ok, true);
+});
+
+test('parsePhotoDataUrl: rejects mislabeled files, other types, junk and oversize', () => {
+  assert.equal(parsePhotoDataUrl(dataUrl('image/png', JPEG)).ok, false);
+  assert.equal(parsePhotoDataUrl(dataUrl('image/jpeg', [0x3c, 0x73, 0x76, 0x67])).ok, false);
+  assert.equal(parsePhotoDataUrl(dataUrl('image/svg+xml', [0x3c])).ok, false);
+  assert.equal(parsePhotoDataUrl('not a data url').ok, false);
+  assert.equal(parsePhotoDataUrl(42).ok, false);
+  const big = Buffer.alloc(MAX_PHOTO_BYTES + 1); big[0] = 0xff; big[1] = 0xd8; big[2] = 0xff;
+  assert.equal(parsePhotoDataUrl(`data:image/jpeg;base64,${big.toString('base64')}`).ok, false);
+});
 import { slidingWindowLimiter } from '../api/_lib/sanity-write.js';
 
 const good = { name: 'Dana Ruiz', email: 'Dana@Example.com', company: 'Ruiz Dental', role: 'Office manager', rating: 5, quote: 'Clean install, every cable labeled, and the Wi-Fi finally reaches the back rooms.', service: 'cabling', consent: true };

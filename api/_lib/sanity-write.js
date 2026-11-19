@@ -29,7 +29,18 @@ export async function sanityQuery(query, params = {}) {
 export const sanityMutate = (mutations) =>
   sanityRequest(`/mutate/${SANITY_DATASET}?returnIds=true&visibility=sync`, { method: 'POST', body: JSON.stringify({ mutations }) });
 
-export const studioEditUrl = (id, type) => `${STUDIO_URL}/intent/edit/id=${encodeURIComponent(id)};type=${type}`;
+// Uploads raw image bytes as a Sanity image asset; returns the asset document id.
+export async function sanityUploadImage(buffer, contentType, filename) {
+  const token = String(process.env.SANITY_WRITE_TOKEN || '').trim();
+  if (!token) { const error = new Error('This feature is not available right now.'); error.statusCode = 503; throw error; }
+  const url = `https://${SANITY_PROJECT_ID}.api.sanity.io/v${SANITY_API_VERSION}/assets/images/${SANITY_DATASET}?filename=${encodeURIComponent(filename)}`;
+  const response = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType }, body: buffer });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.document?._id) { const error = new Error(data?.error?.description || data?.message || `Image upload failed (${response.status}).`); error.statusCode = 502; throw error; }
+  return data.document._id;
+}
+
+export const studioEditUrl =(id, type) => `${STUDIO_URL}/intent/edit/id=${encodeURIComponent(id)};type=${type}`;
 
 export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
