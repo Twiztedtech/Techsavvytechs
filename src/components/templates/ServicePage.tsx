@@ -4,11 +4,16 @@ import { Shield, CheckCircle, Zap, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Link } from 'react-router';
 
+// A feature card: a bare title (shows the generic line) or a title with its own detail.
+export type ServiceFeature = string | { title: string; detail: string };
+
+const GENERIC_DETAIL = 'Practical planning and careful installation tailored to your site and project requirements.';
+
 interface ServicePageProps {
   title: string;
   subtitle: string;
   description: string;
-  features: string[];
+  features: ServiceFeature[];
   imageSeed: string;
 }
 
@@ -57,9 +62,9 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-12">
-          {features.map((feature, i) => (
-            <motion.div 
-              key={i}
+          {features.map((item) => typeof item === 'string' ? { title: item, detail: GENERIC_DETAIL } : item).map((feature, i) => (
+            <motion.div
+              key={feature.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -67,9 +72,9 @@ const ServicePage: React.FC<ServicePageProps> = ({ title, subtitle, description,
               className="glass-card p-10 border-t-2 border-brand-slate hover:border-tech-green transition-all"
             >
               <CheckCircle className="w-8 h-8 text-tech-green mb-6" />
-              <h3 className="text-xl font-bold uppercase tracking-tight text-brand-white mb-4">{feature}</h3>
-              <p className="text-slate-400 text-sm font-light">
-                Practical planning and careful installation tailored to your site and project requirements.
+              <h3 className="text-xl font-bold uppercase tracking-tight text-brand-white mb-4">{feature.title}</h3>
+              <p className="text-slate-400 text-sm font-light leading-relaxed">
+                {feature.detail}
               </p>
             </motion.div>
           ))}
