@@ -26,6 +26,10 @@ const pageMetadata: Record<string, { title: string; description: string }> = {
     title: 'Request a Site Survey or Quote | TechSavvy LLC',
     description: 'Contact TechSavvy to discuss a site survey, cabling project, managed IT support, or network infrastructure need.',
   },
+  '/reviews': {
+    title: 'Customer Reviews | TechSavvy LLC',
+    description: 'What businesses in Fairfield, Sacramento and the Bay Area say about TechSavvy cabling, network, managed IT and cell signal work.',
+  },
   '/blog': {
     title: 'Technology & Infrastructure Insights | TechSavvy LLC',
     description: 'Practical briefings on network infrastructure, low-voltage systems, managed IT, and reliable business connectivity.',

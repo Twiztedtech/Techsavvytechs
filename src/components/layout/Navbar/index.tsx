@@ -59,6 +59,11 @@ export const Navbar = () => {
               href="/about/service-areas" 
               description="Serving the Sacramento Region"
             />
+            <NavDropdownItem
+              label="Customer Reviews"
+              href="/reviews"
+              description="What Our Clients Say"
+            />
           </NavItem>
 
           <NavItem label="Contractor Portal">
@@ -118,6 +123,7 @@ export const Navbar = () => {
             <div className="my-3 border-t border-white/5" />
             <Link to="/about/mission" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">About TechSavvy</Link>
             <Link to="/about/service-areas" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Service Areas</Link>
+            <Link to="/reviews" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Customer Reviews</Link>
             <Link to="/client" onClick={closeMobileMenu} className="rounded-sm border border-tech-green/40 px-4 py-3 text-tech-green hover:bg-tech-green hover:text-brand-black">Client Login</Link>
             <Link to="/contractor/dashboard" onClick={closeMobileMenu} className="rounded-sm px-4 py-3 hover:bg-white/5 hover:text-tech-green">Contractor Portal</Link>
             <Link to="/crm" onClick={closeMobileMenu} className="rounded-sm border border-safety-orange/50 px-4 py-3 text-safety-orange hover:bg-safety-orange hover:text-brand-black">CRM Login</Link>

@@ -31,6 +31,22 @@ export default defineConfig({
                     S.documentTypeListItem('comment').title('All comments'),
                   ]),
               ),
+            S.listItem()
+              .title('Testimonials')
+              .child(
+                S.list()
+                  .title('Testimonials')
+                  .items([
+                    S.listItem()
+                      .title('Awaiting approval')
+                      .child(S.documentTypeList('testimonial').title('Awaiting approval').filter('_type == "testimonial" && approved != true')),
+                    S.listItem()
+                      .title('Approved')
+                      .child(S.documentTypeList('testimonial').title('Approved').filter('_type == "testimonial" && approved == true')),
+                    S.divider(),
+                    S.documentTypeListItem('testimonial').title('All testimonials'),
+                  ]),
+              ),
             S.divider(),
             S.documentTypeListItem('author').title('Authors'),
             S.documentTypeListItem('category').title('Categories'),

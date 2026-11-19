@@ -324,6 +324,7 @@ export type LiveJob = {
   qaChecklist?: string[];
   signatureRequired?: boolean;
   attachments?: Array<{ name: string; url: string; size?: number; contentType?: string; uploadedAt?: string }>;
+  reviewRequest?: { sentAt: string; email: string; count?: number; receivedAt?: string; rating?: number };
 };
 type LiveQuote = {
   id: string;
@@ -4372,6 +4373,61 @@ function LiveJobsView({
 
 // First-job deposit status/actions for a job. Renders nothing unless the
 // customer is deposit-required (existing customers are unaffected).
+// Jobs whose work is done, so asking the customer for a review makes sense.
+const REVIEWABLE_STATUSES = new Set(["completed", "complete", "field complete", "ready to invoice", "invoiced", "paid", "partially paid", "closed"]);
+
+function ReviewRequestPanel({ job, customer }: { job: LiveJob; customer?: LiveCustomer }) {
+  const [busy, setBusy] = useState(false);
+  if (!REVIEWABLE_STATUSES.has(String(job.status || "").toLowerCase())) return null;
+  const request = job.reviewRequest;
+  const when = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "");
+
+  const send = async () => {
+    const suggested = request?.email || customer?.email || "";
+    const email = prompt(`Email a review request for ${job.name || "this job"} to:`, suggested);
+    if (email === null) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { alert("Enter a valid email address."); return; }
+    setBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/contact?operation=send-review-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jobId: job.id, email: email.trim(), resend: Boolean(request?.sentAt) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The review request could not be sent.");
+      await recordAudit("updated", "job", job.id, `Requested a customer review for ${job.workOrderNumber || job.id} from ${data.email}`, {});
+      alert(`Review request sent to ${data.email}.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "The review request could not be sent.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const box = "mt-4 flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-xs";
+  if (request?.receivedAt) {
+    return (
+      <div className={`${box} border-crm-success/30 bg-crm-success-soft-bg text-crm-success-soft-text`}>
+        <p><span className="font-bold">Review received</span> {when(request.receivedAt)}{request.rating ? ` · ${request.rating} of 5 stars` : ""}. Approve it in Blog Studio → Testimonials.</p>
+      </div>
+    );
+  }
+  return (
+    <div className={`${box} border-crm-hairline bg-crm-surface-soft text-crm-body`}>
+      <p>
+        {request?.sentAt
+          ? <>Review requested {when(request.sentAt)} from <span className="font-semibold">{request.email}</span>{(request.count || 1) > 1 ? ` (${request.count} times)` : ""}. No review yet.</>
+          : <>Work is done. Ask {customer?.name || job.vendorName || "the customer"} for a review.</>}
+      </p>
+      <button type="button" disabled={busy} onClick={() => void send()} className="rounded bg-crm-primary px-3 py-1.5 text-[10px] font-bold text-crm-on-primary disabled:opacity-40">
+        {busy ? "Sending…" : request?.sentAt ? "Send again" : "Request review"}
+      </button>
+    </div>
+  );
+}
+
 function DepositBanner({ job, customer, invoices, canBill, canWaive }: { job: LiveJob; customer?: LiveCustomer; invoices: LiveInvoice[]; canBill: boolean; canWaive: boolean }) {
   const [busy, setBusy] = useState(false);
   if (!customer || customer.depositPolicy !== "required" || customer.depositEstablishedAt || job.status === "voided") return null;
@@ -4688,10 +4744,14 @@ function JobDetailModal({
       // technician completing it, or an admin logging hours on their behalf)
       // while this modal sat open. Only a deliberate change to the dropdown
       // itself should ever overwrite status.
+      // The live document is also the base for the save, so fields written
+      // elsewhere while the modal was open (e.g. reviewRequest from the
+      // "Request review" button) are kept instead of being overwritten.
+      const liveJob = await getDoc(doc(db, "jobs", job.id));
+      const liveData = liveJob.data() || {};
       let statusToSave = form.status;
       if (form.status === initialStatus) {
-        const liveJob = await getDoc(doc(db, "jobs", job.id));
-        statusToSave = liveJob.data()?.status || form.status;
+        statusToSave = liveData.status || form.status;
       }
       const equipment = materials
         .filter((x) => x.description.trim())
@@ -4743,7 +4803,7 @@ function JobDetailModal({
           assignedTechIds,
           attachments: [...(job.attachments || []), ...uploaded],
         },
-        job as unknown as Record<string, unknown>,
+        { ...(job as unknown as Record<string, unknown>), ...liveData },
       );
       // estimatedHours/estimatedCost/margin are CRM-only computed fields, not
       // part of buildJobRecord's shared schema, so they're merged separately.
@@ -4828,6 +4888,7 @@ function JobDetailModal({
           </button>
         </div>
         <DepositBanner job={job} customer={customerFor(job, customers) as LiveCustomer | undefined} invoices={depositInvoices} canBill={canBill} canWaive={canWaive} />
+        {canBill && <ReviewRequestPanel job={job} customer={customerFor(job, customers) as LiveCustomer | undefined} />}
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <Field
             label="Job name"

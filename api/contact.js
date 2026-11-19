@@ -15,6 +15,7 @@ import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
 import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
 import { submitBlogComment } from './_lib/blog-comments.js';
+import { reviewRequestPrefill, sendReviewRequest, submitTestimonial } from './_lib/testimonials.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -1332,6 +1333,24 @@ export default async function handler(req, res) {
     catch (error) {
       await reportOperationalError({ route: '/api/contact?operation=blog-comment', error, requestId });
       return res.status(error.statusCode || 500).json({ error: error.statusCode === 503 ? error.message : 'Your comment could not be posted. Please try again later.' });
+    }
+  }
+  if (req.query?.operation === 'testimonial' && req.method === 'POST') {
+    try { return await submitTestimonial(req, res, { clientIp: getClientIp(req) }); }
+    catch (error) {
+      await reportOperationalError({ route: '/api/contact?operation=testimonial', error, requestId });
+      return res.status(error.statusCode || 500).json({ error: error.statusCode === 503 ? error.message : 'Your review could not be sent. Please try again later.' });
+    }
+  }
+  if (req.query?.operation === 'review-request' && req.method === 'GET') {
+    try { return await reviewRequestPrefill(req, res, { clientIp: getClientIp(req) }); }
+    catch { return res.status(500).json({ error: 'This review link could not be loaded.' }); }
+  }
+  if (req.query?.operation === 'send-review-request' && req.method === 'POST') {
+    try { return await sendReviewRequest(req, res); }
+    catch (error) {
+      await reportOperationalError({ route: '/api/contact?operation=send-review-request', error, requestId });
+      return res.status(error.statusCode || 500).json({ error: error.detail || error.message || 'The review request could not be sent.' });
     }
   }
   if (req.method !== 'POST') {

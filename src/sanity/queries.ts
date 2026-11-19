@@ -27,6 +27,12 @@ export const approvedCommentsQuery = defineQuery(`
   }
 `)
 
+export const approvedTestimonialsQuery = defineQuery(`
+  *[_type == "testimonial" && approved == true] | order(featured desc, createdAt desc) {
+    _id, name, company, role, rating, quote, service, createdAt
+  }
+`)
+
 export const postBySlugQuery = defineQuery(`
   *[_type == "post" && slug.current == $slug && defined(publishedAt) && publishedAt <= now()][0] {
     ${postCardProjection},

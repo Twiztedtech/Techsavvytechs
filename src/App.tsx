@@ -46,6 +46,7 @@ const RequestStatus = lazy(() => import('./pages/RequestStatus'));
 const SiteSurveys = lazy(() => import('./pages/SiteSurveys'));
 const Community = lazy(() => import('./pages/Community'));
 const Learn = lazy(() => import('./pages/Learn'));
+const Reviews = lazy(() => import('./pages/Reviews'));
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -112,6 +113,7 @@ function AppShell() {
             <Route path="/client-feedback" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading feedback form…</div>}><ClientFeedback /></Suspense>} />
             <Route path="/agreement" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading service agreement…</div>}><Agreement /></Suspense>} />
             <Route path="/request-status" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading request…</div>}><RequestStatus /></Suspense>} />
+            <Route path="/reviews" element={<Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-400">Loading reviews…</div>}><Reviews /></Suspense>} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route
