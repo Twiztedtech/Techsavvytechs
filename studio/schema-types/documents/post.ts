@@ -46,43 +46,18 @@ export const post = defineType({
     defineField({name: 'publishedAt', title: 'Published at', type: 'datetime', validation: (rule) => rule.required()}),
     defineField({name: 'featured', title: 'Featured post', type: 'boolean', initialValue: false}),
     defineField({
-      name: 'body',
-      title: 'Article',
-      type: 'array',
-      validation: (rule) => rule.required(),
-      of: [
-        defineArrayMember({
-          type: 'block',
-          styles: [
-            {title: 'Normal', value: 'normal'},
-            {title: 'Heading 2', value: 'h2'},
-            {title: 'Heading 3', value: 'h3'},
-            {title: 'Quote', value: 'blockquote'},
-          ],
-          marks: {
-            annotations: [
-              {
-                name: 'link',
-                type: 'object',
-                title: 'Link',
-                fields: [
-                  defineField({name: 'href', title: 'URL', type: 'url', validation: (rule) => rule.uri({allowRelative: true})}),
-                  defineField({name: 'openInNewTab', title: 'Open in a new tab', type: 'boolean'}),
-                ],
-              },
-            ],
-          },
+      name: 'mainVideo',
+      title: 'Hero video (optional)',
+      type: 'file',
+      options: {accept: 'video/mp4,video/webm'},
+      description: 'Replaces the hero image on the card and article. Short MP4 (H.264) or WebM, ideally under 10 MB; plays muted and loops. The hero image is still required and is used as the poster.',
+      validation: (rule) =>
+        rule.custom((value: {asset?: {_ref?: string}} | undefined) => {
+          const ref = value?.asset?._ref
+          return !ref || /-(mp4|webm)$/.test(ref) || 'Upload an MP4 or WebM video.'
         }),
-        defineArrayMember({
-          type: 'image',
-          options: {hotspot: true},
-          fields: [
-            defineField({name: 'alt', title: 'Alternative text', type: 'string', validation: (rule) => rule.required()}),
-            defineField({name: 'caption', title: 'Caption', type: 'string'}),
-          ],
-        }),
-      ],
     }),
+    defineField({name: 'body', title: 'Article', type: 'blockContent', validation: (rule) => rule.required()}),
     defineField({name: 'seo', title: 'Search and social', type: 'seo'}),
   ],
   orderings: [{title: 'Newest first', name: 'publishedAtDesc', by: [{field: 'publishedAt', direction: 'desc'}]}],
