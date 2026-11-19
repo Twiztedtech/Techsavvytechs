@@ -21,6 +21,12 @@ export const postsQuery = defineQuery(`
     }
 `)
 
+export const approvedCommentsQuery = defineQuery(`
+  *[_type == "comment" && post._ref == $postId && approved == true] | order(createdAt asc) {
+    _id, name, comment, createdAt
+  }
+`)
+
 export const postBySlugQuery = defineQuery(`
   *[_type == "post" && slug.current == $slug && defined(publishedAt) && publishedAt <= now()][0] {
     ${postCardProjection},

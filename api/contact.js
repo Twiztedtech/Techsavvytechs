@@ -14,6 +14,7 @@ import { buildInvoicePdf, invoicePdfFileName } from './_lib/invoice-pdf.js';
 import twilioWebhookHandler from './_lib/twilio-webhook-handler.js';
 import resendWebhookHandler from './_lib/resend-webhook-handler.js';
 import googleCalendarWebhookHandler from './_lib/google-calendar-webhook-handler.js';
+import { submitBlogComment } from './_lib/blog-comments.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -1325,6 +1326,13 @@ export default async function handler(req, res) {
   if (req.query?.operation === 'agreement-pdf-link' && req.method === 'POST') {
     try { return await getAgreementPdfLink(req, res); }
     catch (error) { return res.status(error.statusCode || 500).json({ error: error.message || 'The signed agreement could not be opened.' }); }
+  }
+  if (req.query?.operation === 'blog-comment' && req.method === 'POST') {
+    try { return await submitBlogComment(req, res, { clientIp: getClientIp(req) }); }
+    catch (error) {
+      await reportOperationalError({ route: '/api/contact?operation=blog-comment', error, requestId });
+      return res.status(error.statusCode || 500).json({ error: error.statusCode === 503 ? error.message : 'Your comment could not be posted. Please try again later.' });
+    }
   }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

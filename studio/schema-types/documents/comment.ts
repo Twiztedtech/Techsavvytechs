@@ -21,6 +21,8 @@ export const comment = defineType({
       title: 'Post',
       type: 'reference',
       to: [{type: 'post'}],
+      // Weak, so a post can still be deleted while it has comments.
+      weak: true,
       validation: (rule) => rule.required(),
     }),
     defineField({

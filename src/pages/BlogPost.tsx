@@ -3,6 +3,7 @@ import {useEffect} from 'react'
 import {Link, useParams} from 'react-router'
 import {PortableArticle} from '../components/blog/PortableArticle'
 import {BlogVideo} from '../components/blog/BlogVideo'
+import {BlogComments} from '../components/blog/BlogComments'
 import {useSanityQuery} from '../hooks/useSanityQuery'
 import {postBySlugQuery} from '../sanity/queries'
 import type {BlogPost as BlogPostType} from '../sanity/types'
@@ -56,7 +57,10 @@ export default function BlogPost() {
       {post.videoUrl ? (
         <div className="mx-auto max-w-7xl px-6"><BlogVideo src={post.videoUrl} poster={imageUrl || undefined} label={`Video for ${post.title}`} className="aspect-[16/8] w-full rounded-sm border border-white/10" /></div>
       ) : imageUrl && <div className="mx-auto max-w-7xl px-6"><img src={imageUrl} alt={post.mainImage?.alt || ''} className="aspect-[16/8] w-full rounded-sm border border-white/10 object-cover" /></div>}
-      <div className="mx-auto max-w-3xl px-6 pt-14">{post.body && <PortableArticle value={post.body} />}</div>
+      <div className="mx-auto max-w-3xl px-6 pt-14">
+        {post.body && <PortableArticle value={post.body} />}
+        <BlogComments postId={post._id} />
+      </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(jsonLd).replace(/</g, '\\u003c')}} />
     </article>
   )
