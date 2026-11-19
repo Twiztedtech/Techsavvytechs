@@ -53,7 +53,8 @@ export function commentRateLimited(ip, now = Date.now(), store = recent) {
 const sanityBase = () => `https://${SANITY_PROJECT_ID}.api.sanity.io/v${SANITY_API_VERSION}/data`;
 
 async function sanityRequest(path, init = {}) {
-  const token = process.env.SANITY_WRITE_TOKEN;
+  // Trim: a pasted token often carries a trailing space or newline.
+  const token = String(process.env.SANITY_WRITE_TOKEN || '').trim();
   if (!token) { const error = new Error('Comments are not available right now.'); error.statusCode = 503; throw error; }
   const response = await fetch(`${sanityBase()}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers || {}) } });
   const data = await response.json().catch(() => ({}));
