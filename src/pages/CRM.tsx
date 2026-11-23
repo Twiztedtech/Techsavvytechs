@@ -1627,7 +1627,7 @@ function DocumentEmailModal({
   const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
-  const [sent, setSent] = useState<{ email: string; pdfAttached: boolean } | null>(null);
+  const [sent, setSent] = useState<{ email: string; pdfAttached: boolean; quickbooksSynced: boolean } | null>(null);
   const call = async (operation: string, body: Record<string, unknown>) => {
     const token = await auth.currentUser?.getIdToken();
     const response = await fetch(`/api/contact?operation=${operation}`, {
@@ -1659,7 +1659,7 @@ function DocumentEmailModal({
     setSendError("");
     try {
       const result = await call("send-customer-document", { type, documentId, email: recipient });
-      setSent({ email: result.email, pdfAttached: result.pdfAttached === true });
+      setSent({ email: result.email, pdfAttached: result.pdfAttached === true, quickbooksSynced: result.quickbooksSynced === true });
     } catch (reason) {
       setSendError(reason instanceof Error ? reason.message : "The email could not be sent.");
     } finally {
@@ -1685,6 +1685,9 @@ function DocumentEmailModal({
                   : "The PDF could not be generated this time, so the email went out without it."
                 : "The customer can approve or decline from the link in the email."}
             </p>
+            {sent.quickbooksSynced && (
+              <p className="text-crm-muted">It was sent to QuickBooks first, so the customer can pay online from the link.</p>
+            )}
           </div>
         ) : loadError ? (
           <p className="mt-4 rounded border border-crm-error/30 bg-crm-error-soft-bg p-3 text-xs text-crm-error-soft-text">{loadError}</p>

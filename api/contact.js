@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'node:crypto';
 import { writeAudit } from './_lib/audit.js';
 import { reconcileQboInvoices } from './_lib/qbo-helper.js';
+import { syncInvoiceToQbo } from './_lib/qbo-invoice-sync.js';
 import { reportOperationalError, runOperationalHealthCheck } from './_lib/monitoring.js';
 import { alertRecipients, assignedTechnicianRecipients, sendEmail as sendPortalEmail, sendSms, uploadInlineFiles } from './_lib/client-portal.js';
 import { technicianNotifiable } from './_lib/notification-eligibility.js';
@@ -243,6 +244,22 @@ async function sendCustomerDocument(req, res) {
       .status(503)
       .json({ error: "Customer email delivery is not configured." });
 
+  // Invoices go to QuickBooks first so the customer's link always has a
+  // working "Pay online" option. If that fails, nothing is emailed.
+  let quickbooksSynced = false;
+  if (type === "invoice" && !document.qboSync?.invoiceLink) {
+    try {
+      const { qboSync } = await syncInvoiceToQbo(documentId, user);
+      if (!qboSync?.invoiceLink) throw new Error("QuickBooks did not return an online payment link. Check that online payments are turned on in QuickBooks");
+      document.qboSync = qboSync;
+      quickbooksSynced = true;
+    } catch (error) {
+      return res.status(502).json({
+        error: `The invoice was not emailed because it could not be sent to QuickBooks first: ${error.message || "unknown error"}. Fix this and try again.`,
+      });
+    }
+  }
+
   const rawToken = randomBytes(32).toString("base64url");
   const hash = tokenHash(rawToken);
   const expiresAt = new Date(
@@ -323,7 +340,7 @@ async function sendCustomerDocument(req, res) {
     { merge: true },
   );
   await writeAudit({ actor: user, action: "emailed", entityType: type, entityId: documentId, summary: `Emailed ${type} ${number} to ${email}`, details: { email, expiresAt }, source: "api" });
-  return res.status(200).json({ success: true, email, expiresAt, pdfAttached: Boolean(attachment) });
+  return res.status(200).json({ success: true, email, expiresAt, pdfAttached: Boolean(attachment), quickbooksSynced });
 }
 
 // Personal/consumer mailboxes must never become a company's approved domain,
@@ -625,6 +642,13 @@ async function deliverReminder({ type, entityId, entity, customer, actor, manual
     const appUrl = (process.env.APP_URL || "https://techsavvytechs.com").replace(/\/$/, "");
     let actionUrl = `${appUrl}/contact`;
     let actionLabel = "Contact TechSavvy";
+    // An invoice that never reached QuickBooks has no online payment option,
+    // so try to fix that before reminding the customer to pay. A failed sync
+    // doesn't stop the reminder; the office can still be paid by other means.
+    if (type === "invoice" && !entity.qboSync?.invoiceLink) {
+      try { await syncInvoiceToQbo(entityId, actor || { email: "Scheduled reminder" }); }
+      catch (error) { console.error(`QuickBooks sync before reminder failed for invoice ${entityId}:`, error.message); }
+    }
     if (type === "quote" || type === "invoice") {
       const rawToken = randomBytes(32).toString("base64url");
       const hash = tokenHash(rawToken);
