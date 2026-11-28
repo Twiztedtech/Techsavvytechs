@@ -1,3 +1,5 @@
+import { qboObjectNotFound, reconcileChangeSummary } from "./qbo-reconcile.js";
+export { reconcileChangeSummary };
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebase-admin.js";
 import { qboCompanyBaseUrl, qboEnvironment } from "./quickbooks-config.js";
@@ -542,7 +544,32 @@ export async function reconcileQboInvoices() {
   if (!localInvoices.length && !imported) return { checked: 0, updated: 0, imported: 0, changes: [] };
   for (const local of localInvoices) {
     const remote = byId.get(String(local.qboSync.id));
-    if (!remote) continue;
+    if (!remote) {
+      // Not in the list. Ask QuickBooks about this one invoice directly, so a
+      // deleted invoice stops showing as owed (and stops getting payment
+      // reminders) instead of being skipped forever.
+      if (String(local.status || "").toLowerCase() === "voided" || local.qboSync?.reconciliationStatus === "deleted_in_qbo") continue;
+      const lookup = await fetch(`${qboCompanyBaseUrl(realmId)}/invoice/${encodeURIComponent(local.qboSync.id)}?minorversion=75`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      });
+      if (lookup.ok) continue; // still exists; it was just outside this page of results
+      const detail = await lookup.text();
+      if (!qboObjectNotFound(detail)) continue; // some other error: leave the invoice alone
+      const detectedAt = new Date().toISOString();
+      const paid = Number(local.amountPaid || 0) > 0;
+      // An invoice with payments recorded in the CRM is flagged for a person to
+      // look at, never voided automatically.
+      await local.ref.update(paid
+        ? { qboSync: { ...local.qboSync, reconciliationStatus: "missing_in_qbo", deletedInQboDetectedAt: detectedAt }, updatedAt: detectedAt }
+        : {
+            status: "voided", balance: 0, voidedAt: detectedAt, voidedBy: "QuickBooks reconcile",
+            voidReason: "Deleted in QuickBooks",
+            qboSync: { ...local.qboSync, reconciliationStatus: "deleted_in_qbo", deletedInQboDetectedAt: detectedAt },
+            updatedAt: detectedAt,
+          });
+      changes.push({ id: local.id, invoiceNumber: local.invoiceNumber || local.id, previousBalance: Number(local.balance ?? local.total ?? 0), balance: paid ? Number(local.balance ?? 0) : 0, amountPaid: Number(local.amountPaid || 0), status: paid ? local.status : "voided", deletedInQbo: true, needsReview: paid });
+      continue;
+    }
     const total = Number(remote.TotalAmt ?? local.total ?? 0);
     const balance = Math.max(0, Number(remote.Balance ?? local.balance ?? total));
     const amountPaid = Math.max(0, total - balance);
