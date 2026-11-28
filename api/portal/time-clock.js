@@ -15,6 +15,8 @@ import triageHandler from '../_lib/triage-handler.js';
 import communityHandler, { scrubCommunityContent } from '../_lib/community-handler.js';
 import { isAcceptableReceiptFile, mergeReceipts, sanitizeReceiptRefs } from '../_lib/receipts.js';
 import { writeAudit } from '../_lib/audit.js';
+import { PAYMENT_METHODS, buildPaidNotice, entryPay, payrollState, summarizePayroll } from '../_lib/payroll.js';
+import { technicianNotifiable } from '../_lib/notification-eligibility.js';
 import { isRecentSignIn, retentionEnd, scrubbedContractorFields, unassignedJobFields } from '../_lib/account-deletion.js';
 
 // Assistant Admin gets the same standing as a full Admin inside this file —
@@ -391,6 +393,98 @@ const handleOnboarding = async (req, res, user) => {
   return res.status(200).json({ success: true, onboarding: { status: 'submitted', submittedAt: now, agreementAcceptedAt: now, hasW9: true, w9FileName: w9.fileName } });
 };
 
+// Payroll: records that approved, QuickBooks-synced timecards were paid, and
+// optionally tells each technician. No money moves here; payment happens in
+// QuickBooks or the bank, and this keeps the CRM in step with it.
+const handlePayroll = async (req, res, user, action) => {
+  const runs = adminDb.collection('payroll_runs');
+  if (action === 'list_payroll_runs') {
+    const snapshot = await runs.orderBy('createdAt', 'desc').limit(20).get();
+    return res.status(200).json({ runs: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) });
+  }
+
+  if (action === 'undo_payroll_run') {
+    const runId = clean(req.body?.runId, 128);
+    if (!runId) return res.status(400).json({ error: 'A payroll run is required.' });
+    const runRef = runs.doc(runId);
+    const run = await runRef.get();
+    if (!run.exists) return res.status(404).json({ error: 'Payroll run not found.' });
+    if (run.data().status === 'undone') return res.status(409).json({ error: 'This payroll run was already undone.' });
+    const now = nowIso();
+    const batch = adminDb.batch();
+    for (const id of run.data().entryIds || []) {
+      batch.update(adminDb.collection('time_entries').doc(id), { payout: FieldValue.delete(), updatedAt: now });
+    }
+    batch.update(runRef, { status: 'undone', undoneAt: now, undoneByUid: user.uid });
+    await batch.commit();
+    await writeAudit({ actor: user, action: 'payroll-undone', entityType: 'payroll_run', entityId: runId, summary: `Undid payroll run for ${run.data().from} to ${run.data().to} (${(run.data().entryIds || []).length} timecards)`, source: 'api' });
+    return res.status(200).json({ success: true });
+  }
+
+  // mark_paid
+  const ids = [...new Set((Array.isArray(req.body?.timecardIds) ? req.body.timecardIds : []).map((id) => clean(id, 128)).filter(Boolean))];
+  if (!ids.length) return res.status(400).json({ error: 'Choose at least one timecard to mark paid.' });
+  if (ids.length > 400) return res.status(400).json({ error: 'Mark at most 400 timecards at a time.' });
+  const paidDate = clean(req.body?.paidDate, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidDate)) return res.status(400).json({ error: 'A payment date is required.' });
+  const method = PAYMENT_METHODS.includes(req.body?.method) ? req.body.method : 'Other';
+  const reference = clean(req.body?.reference, 120);
+  const notify = req.body?.notify === true;
+  const from = clean(req.body?.from, 10);
+  const to = clean(req.body?.to, 10);
+
+  const snapshots = await adminDb.getAll(...ids.map((id) => adminDb.collection('time_entries').doc(id)));
+  const problems = [];
+  for (const snapshot of snapshots) {
+    if (!snapshot.exists) { problems.push(`${snapshot.id}: not found`); continue; }
+    const state = payrollState({ id: snapshot.id, ...snapshot.data() });
+    if (state !== 'ready') problems.push(`${snapshot.data().date || snapshot.id}: ${state === 'paid' ? 'already marked paid' : state === 'not_in_qbo' ? 'not in QuickBooks yet' : state === 'voided' ? 'voided' : 'not fully approved'}`);
+  }
+  if (problems.length) return res.status(409).json({ error: `Nothing was marked paid. Fix these first: ${problems.slice(0, 8).join('; ')}${problems.length > 8 ? '…' : ''}` });
+
+  const entries = snapshots.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+  const contractorSnap = await adminDb.collection('contractors').get();
+  const contractorByUid = new Map(contractorSnap.docs.map((doc) => [doc.data().authUid, { id: doc.id, ...doc.data() }]));
+  const summary = summarizePayroll(entries, (entry) => contractorByUid.get(entry.technicianUid)?.name || entry.technicianName || 'Unknown technician');
+  const now = nowIso();
+  const runRef = runs.doc();
+  const batch = adminDb.batch();
+  for (const entry of entries) {
+    batch.update(adminDb.collection('time_entries').doc(entry.id), {
+      payout: { status: 'paid', paidDate, method, reference, amount: entryPay(entry).total, runId: runRef.id, markedAt: now, markedByUid: user.uid },
+      updatedAt: now,
+    });
+  }
+  batch.set(runRef, {
+    status: 'paid', from: from || entries.map((entry) => entry.date).sort()[0], to: to || entries.map((entry) => entry.date).sort().at(-1),
+    paidDate, method, reference, entryIds: ids, total: summary.totals.total, hours: summary.totals.hours,
+    technicians: summary.technicians.map((person) => ({ technicianUid: person.technicianUid, name: person.name, days: person.days, hours: person.hours, total: person.total })),
+    notify, createdAt: now, createdByUid: user.uid, createdByEmail: user.email || '',
+  });
+  await batch.commit();
+
+  const notices = [];
+  if (notify) {
+    for (const person of summary.technicians) {
+      const contractor = contractorByUid.get(person.technicianUid);
+      if (!contractor) { notices.push({ name: person.name, email: false, sms: false, note: 'no contractor profile' }); continue; }
+      const notice = buildPaidNotice({ name: person.name, amount: person.total, days: person.days, hours: person.hours, from: from || paidDate, to: to || paidDate, method, paidDate });
+      const { canEmail, canSms } = technicianNotifiable(contractor);
+      const result = { name: person.name, email: false, sms: false };
+      if (canEmail && contractor.email) {
+        try { await sendEmail({ to: contractor.email, subject: notice.subject, text: notice.text, html: notice.html, type: 'payroll_paid' }); result.email = true; } catch (error) { result.note = error.message; }
+      }
+      if (canSms && contractor.mobile) {
+        try { await sendSms({ to: contractor.mobile, body: notice.sms, type: 'payroll_paid' }); result.sms = true; } catch (error) { result.note = error.message; }
+      }
+      notices.push(result);
+    }
+    await runRef.update({ notices });
+  }
+  await writeAudit({ actor: user, action: 'payroll-paid', entityType: 'payroll_run', entityId: runRef.id, summary: `Marked ${ids.length} timecards paid (${summary.technicians.length} technicians, $${summary.totals.total.toFixed(2)}) by ${method}`, details: { from, to, paidDate, reference, notify }, source: 'api' });
+  return res.status(200).json({ success: true, runId: runRef.id, total: summary.totals.total, notices });
+};
+
 export default async function handler(req, res) {
   if (handleAppCors(req, res)) return;
   if (req.query?.portalOperation === 'surveys') return surveyHandler(req, res);
@@ -470,6 +564,10 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
     const action = req.body?.action;
+    if (action === 'mark_paid' || action === 'undo_payroll_run' || action === 'list_payroll_runs') {
+      if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
+      return await handlePayroll(req, res, user, action);
+    }
     if (action === 'refresh_billing_readiness') {
       if (!isAdminTier(user)) return res.status(403).json({ error: 'Administrator access required.' });
       const jobs = await adminDb.collection('jobs').get();
@@ -782,6 +880,7 @@ export default async function handler(req, res) {
       const entry = snapshot.data();
       if (entry.active) return res.status(409).json({ error: 'An active shift cannot be reversed.' });
       if (entry.qbStatus !== 'synced') return res.status(409).json({ error: 'Only a QuickBooks-synced submission can use this reversal.' });
+      if (entry.payout?.status === 'paid') return res.status(409).json({ error: 'This timecard is marked paid. Undo its payroll run first, then reverse it.' });
       const now = new Date().toISOString();
       await docRef.set({ correctionStatus: 'reversing', correctionReason: reason, correctionRequestedAt: now, correctionRequestedByUid: user.uid, updatedAt: now }, { merge: true });
       try {

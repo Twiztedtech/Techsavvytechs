@@ -33,6 +33,7 @@ import {
   Wrench,
   X,
   Newspaper,
+  Wallet,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import {
@@ -69,6 +70,7 @@ import { ContractorRosterAdmin } from "../features/admin/ContractorRosterAdmin";
 import { DispatchDemoContext, type DispatchDemoApi } from "../features/admin/demoContext";
 import { TechAvatar } from "../features/admin/techPhoto";
 import { TimecardApprovalAdmin } from "../features/admin/TimecardApprovalAdmin";
+import { PayrollAdmin } from "../features/admin/PayrollAdmin";
 import { ClientRequestsAdmin } from "../features/client/ClientRequestsAdmin";
 import { StaffAccessAdmin } from "../features/admin/StaffAccessAdmin";
 import { CommunityAdmin } from "../features/admin/CommunityAdmin";
@@ -106,6 +108,7 @@ type Module =
   | "tickets"
   | "contractors"
   | "timecards"
+  | "payroll"
   | "requests"
   | "community"
   | "team";
@@ -129,6 +132,7 @@ const modules: {
   { id: "tickets", label: "Support Tickets", icon: LifeBuoy },
   { id: "contractors", label: "Contractor Roster", icon: HardHat },
   { id: "timecards", label: "Timecard Approval", icon: CheckCircle2 },
+  { id: "payroll", label: "Payroll", icon: Wallet },
   { id: "requests", label: "Client Requests", icon: Inbox },
   { id: "community", label: "Community & Training", icon: MessagesSquare },
   { id: "team", label: "Team & Access", icon: ShieldCheck },
@@ -141,7 +145,7 @@ const moduleGroups: { label: string; ids: Module[] }[] = [
   { label: "Operations", ids: ["dashboard", "schedule", "jobs"] },
   { label: "Sales & Billing", ids: ["quotes", "estimator", "invoices", "customers", "assets"] },
   { label: "Inventory", ids: ["catalog"] },
-  { label: "Team", ids: ["contractors", "timecards", "community", "team"] },
+  { label: "Team", ids: ["contractors", "timecards", "payroll", "community", "team"] },
   { label: "Client", ids: ["requests"] },
   { label: "Insights & Admin", ids: ["reports", "reminders", "audit", "tickets"] },
 ];
@@ -167,6 +171,7 @@ const MODULE_ACCESS: Record<Module, StaffRole[]> = {
   tickets: ["assistant_admin"],
   contractors: ["assistant_admin"], // view-only, write stays Admin-only (see firestore.rules)
   timecards: ["assistant_admin"],
+  payroll: ["assistant_admin"], // same access as Timecard Approval; the server enforces it too
   requests: ["assistant_admin", "dispatcher"], // dispatcher is view-only
   community: ["assistant_admin"], // moderation; categories are Admin/Assistant Admin, enforced by the handler
 };
@@ -1020,6 +1025,8 @@ export default function CRM() {
               <ContractorRosterAdmin contractors={technicians} jobs={liveJobs} />
             ) : module === "timecards" ? (
               <TimecardApprovalAdmin contractors={technicians} />
+            ) : module === "payroll" ? (
+              <PayrollAdmin contractors={technicians} jobs={liveJobs} />
             ) : module === "requests" ? (
               <ClientRequestsAdmin contractors={technicians as unknown as { id: string; name: string; email: string }[]} />
             ) : module === "community" ? (
